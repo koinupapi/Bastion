@@ -100,6 +100,64 @@ object SeerrClient {
             }
             "Connection failed — " + failures.joinToString("; ")
         }
+    suspend fun discover(config: ServiceConfig, category: String): SeerrDiscoverResult =
+        withContext(Dispatchers.IO) {
+            val paths = mapOf(
+                "Trending" to "/api/v1/discover/trending",
+                "Popular Movies" to "/api/v1/discover/movies",
+                "Popular TV Shows" to "/api/v1/discover/tv",
+                "Upcoming Movies" to "/api/v1/discover/movies/upcoming",
+                "Upcoming TV Shows" to "/api/v1/discover/tv/upcoming")
+            val path = paths[category] ?: return@withContext SeerrDiscoverResult(error = "Unknown category")
+            val addresses = when (config.mode) {
+                "Local only" -> listOf("Local" to config.localUrl)
+                "Remote only" -> listOf("Remote" to config.remoteUrl)
+                else -> listOf("Local" to config.localUrl, "Remote" to config.remoteUrl)
+            }.filter { it.second.isNotBlank() }
+            val failures = mutableListOf<String>()
+            for ((label, address) in addresses) {
+                try {
+                    val url = URL(address.trimEnd('/') + path + "?page=1")
+                    require(url.protocol == "https" || (label == "Local" && url.protocol == "http"))
+                    val connection = url.openConnection() as HttpURLConnection
+                    try {
+                        connection.instanceFollowRedirects = false
+                        connection.connectTimeout = 2500
+                        connection.readTimeout = 5000
+                        connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        connection.setRequestProperty("Accept", "application/json")
+                        val code = connection.responseCode
+                        if (code !in 200..299) throw IllegalStateException("HTTP $code")
+                        val data = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                        val results = data.optJSONArray("results") ?: JSONArray()
+                        val items = (0 until results.length()).mapNotNull { index ->
+                            val item = results.optJSONObject(index) ?: return@mapNotNull null
+                            val id = item.optInt("id", 0)
+                            val isTv = when (item.optString("mediaType")) {
+                                "tv" -> true
+                                "movie" -> false
+                                else -> category.contains("TV") ||
+                                    (category == "Trending" && item.has("firstAirDate") && !item.has("releaseDate"))
+                            }
+                            val title = item.optString(if (isTv) "name" else "title")
+                            if (id <= 0 || title.isBlank()) return@mapNotNull null
+                            val poster = item.optString("posterPath")
+                                .takeIf { it.startsWith("/") && !it.startsWith("//") }
+                                ?.let { "https://image.tmdb.org/t/p/w342$it" }
+                            val date = item.optString(if (isTv) "firstAirDate" else "releaseDate")
+                            SeerrRelatedTitle(title, poster, date.take(4),
+                                item.optDouble("voteAverage", 0.0), id, isTv)
+                        }
+                        return@withContext SeerrDiscoverResult(items)
+                    } finally { connection.disconnect() }
+                } catch (e: Exception) {
+                    failures.add("$label: ${e.message ?: e.javaClass.simpleName}")
+                    if (e.message == "HTTP 401" || e.message == "HTTP 403") break
+                }
+            }
+            SeerrDiscoverResult(error = failures.joinToString("; ").ifBlank { "No connection configured" })
+        }
+
     suspend fun mediaDetails(config: ServiceConfig, request: SeerrRecentRequest): SeerrMediaDetails =
         withContext(Dispatchers.IO) {
             if (request.tmdbId <= 0) return@withContext SeerrMediaDetails(error = "Missing TMDB identifier")
@@ -300,3 +358,5 @@ data class SeerrMediaDetails(
     val similar: List<SeerrRelatedTitle> = emptyList(),
     val mediaStatus: Int = 0, val error: String? = null
 )
+
+data class SeerrDiscoverResult(val items: List<SeerrRelatedTitle> = emptyList(), val error: String? = null)
