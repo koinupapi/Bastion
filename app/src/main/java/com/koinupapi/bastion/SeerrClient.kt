@@ -100,6 +100,89 @@ object SeerrClient {
             }
             "Connection failed — " + failures.joinToString("; ")
         }
+    suspend fun mediaDetails(config: ServiceConfig, request: SeerrRecentRequest): SeerrMediaDetails =
+        withContext(Dispatchers.IO) {
+            if (request.tmdbId <= 0) return@withContext SeerrMediaDetails(error = "Missing TMDB identifier")
+            val addresses = when (config.mode) {
+                "Local only" -> listOf("Local" to config.localUrl)
+                "Remote only" -> listOf("Remote" to config.remoteUrl)
+                else -> listOf("Local" to config.localUrl, "Remote" to config.remoteUrl)
+            }.filter { it.second.isNotBlank() }
+            val errors = mutableListOf<String>()
+            for ((label, address) in addresses) {
+                try {
+                    fun get(path: String): JSONObject {
+                        val url = URL(address.trimEnd('/') + path)
+                        require(url.protocol == "https" || (label == "Local" && url.protocol == "http"))
+                        val connection = url.openConnection() as HttpURLConnection
+                        try {
+                            connection.instanceFollowRedirects = false
+                            connection.connectTimeout = 3000
+                            connection.readTimeout = 6000
+                            connection.setRequestProperty("X-Api-Key", config.apiKey)
+                            connection.setRequestProperty("Accept", "application/json")
+                            val status = connection.responseCode
+                            if (status !in 200..299) throw IllegalStateException("HTTP $status")
+                            return JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                        } finally { connection.disconnect() }
+                    }
+                    val kind = if (request.isTv) "tv" else "movie"
+                    val base = "/api/v1/$kind/${request.tmdbId}"
+                    val detail = get(base)
+                    fun names(array: JSONArray?): List<String> =
+                        (0 until (array?.length() ?: 0)).mapNotNull {
+                            array?.optJSONObject(it)?.optString("name")?.takeIf(String::isNotBlank)
+                        }
+                    fun image(path: String?, size: String): String? =
+                        path?.takeIf { it.startsWith("/") && !it.startsWith("//") }
+                            ?.let { "https://image.tmdb.org/t/p/$size$it" }
+                    val castArray = detail.optJSONObject("credits")?.optJSONArray("cast")
+                    val cast = (0 until minOf(castArray?.length() ?: 0, 18)).mapNotNull { i ->
+                        castArray?.optJSONObject(i)?.let {
+                            SeerrCast(it.optString("name"), it.optString("character"),
+                                image(it.optString("profilePath"), "w185"))
+                        }
+                    }
+                    val crew = detail.optJSONObject("credits")?.optJSONArray("crew")
+                    val directors = (0 until (crew?.length() ?: 0)).mapNotNull { i ->
+                        crew?.optJSONObject(i)?.takeIf { it.optString("job") == "Director" }
+                            ?.optString("name")?.takeIf(String::isNotBlank)
+                    }
+                    fun related(suffix: String): List<SeerrRelatedTitle> = try {
+                        val arr = get("$base/$suffix").optJSONArray("results")
+                        (0 until minOf(arr?.length() ?: 0, 16)).mapNotNull { i ->
+                            arr?.optJSONObject(i)?.let {
+                                val title = it.optString(if (request.isTv) "name" else "title")
+                                if (title.isBlank()) null else SeerrRelatedTitle(title,
+                                    image(it.optString("posterPath"), "w342"),
+                                    it.optString(if (request.isTv) "firstAirDate" else "releaseDate").take(4),
+                                    it.optDouble("voteAverage", 0.0))
+                            }
+                        }
+                    } catch (_: Exception) { emptyList() }
+                    return@withContext SeerrMediaDetails(
+                        backdropUrl = image(detail.optString("backdropPath"), "w1280"),
+                        posterUrl = image(detail.optString("posterPath"), "w500"),
+                        overview = detail.optString("overview").takeIf(String::isNotBlank),
+                        tagline = detail.optString("tagline").takeIf(String::isNotBlank),
+                        genres = names(detail.optJSONArray("genres")),
+                        studios = names(detail.optJSONArray(if (request.isTv) "networks" else "productionCompanies")),
+                        countries = names(detail.optJSONArray("productionCountries")),
+                        languages = names(detail.optJSONArray("spokenLanguages")),
+                        directors = directors, cast = cast,
+                        runtime = detail.optInt("runtime", 0).takeIf { it > 0 }
+                            ?: detail.optJSONArray("episodeRunTime")?.optInt(0)?.takeIf { it > 0 },
+                        rating = detail.optDouble("voteAverage", 0.0).takeIf { it > 0 },
+                        releaseDate = detail.optString(if (request.isTv) "firstAirDate" else "releaseDate"),
+                        recommendations = related("recommendations"), similar = related("similar"))
+                } catch (e: Exception) {
+                    errors.add("$label: ${e.message ?: e.javaClass.simpleName}")
+                    if (e.message == "HTTP 401" || e.message == "HTTP 403") break
+                }
+            }
+            SeerrMediaDetails(error = errors.joinToString("; ").ifBlank { "No connection configured" })
+        }
+
     suspend fun recentRequests(config: ServiceConfig): SeerrRecentResult =
         requestPage(config, 3, 0, "All")
 
@@ -181,7 +264,7 @@ object SeerrClient {
                             }.distinct().sorted()
                         }.orEmpty()
                         SeerrRecentRequest(title, status, posterUrl, year, requestedBy,
-                            overview, releaseDate.takeIf { it.isNotBlank() }, type == "tv", seasons)
+                            overview, releaseDate.takeIf { it.isNotBlank() }, type == "tv", seasons, id)
                     }
                     return@withContext SeerrRecentResult(config.name, total.coerceAtLeast(requests.size), requests, null)
                 } catch (e: Exception) {
@@ -196,8 +279,22 @@ data class SeerrRecentRequest(
     val title: String, val status: String, val posterUrl: String?,
     val year: String?, val requestedBy: String?,
     val overview: String? = null, val releaseDate: String? = null,
-    val isTv: Boolean = false, val seasons: List<Int> = emptyList()
+    val isTv: Boolean = false, val seasons: List<Int> = emptyList(),
+    val tmdbId: Int = 0
 )
 data class SeerrRecentResult(
     val instance: String, val total: Int, val requests: List<SeerrRecentRequest>, val error: String?
+)
+
+data class SeerrCast(val name: String, val character: String, val photoUrl: String?)
+data class SeerrRelatedTitle(val title: String, val posterUrl: String?, val year: String, val rating: Double)
+data class SeerrMediaDetails(
+    val backdropUrl: String? = null, val posterUrl: String? = null,
+    val overview: String? = null, val tagline: String? = null,
+    val genres: List<String> = emptyList(), val studios: List<String> = emptyList(),
+    val countries: List<String> = emptyList(), val languages: List<String> = emptyList(),
+    val directors: List<String> = emptyList(), val cast: List<SeerrCast> = emptyList(),
+    val runtime: Int? = null, val rating: Double? = null, val releaseDate: String = "",
+    val recommendations: List<SeerrRelatedTitle> = emptyList(),
+    val similar: List<SeerrRelatedTitle> = emptyList(), val error: String? = null
 )
