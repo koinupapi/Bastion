@@ -1695,6 +1695,27 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                                             Icon(Icons.Default.Movie, contentDescription = null)
                                         }
                                     }
+                                    val relatedBadge = when (title.mediaStatus) {
+                                        2 -> "Pending"
+                                        3 -> "Processing"
+                                        4 -> "Partial"
+                                        5 -> "Available"
+                                        else -> null
+                                    }
+                                    if (relatedBadge != null) {
+                                        Surface(shape = RoundedCornerShape(12.dp),
+                                            color = when (title.mediaStatus) {
+                                                2 -> Color(0xFFE3A008)
+                                                3 -> Color(0xFF247AC0)
+                                                4 -> Color(0xFF8E56C8)
+                                                else -> Color(0xFF168A55)
+                                            }) {
+                                            Text(relatedBadge,
+                                                Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.White)
+                                        }
+                                    }
                                     Text(title.title, style = MaterialTheme.typography.labelMedium,
                                         maxLines = 2)
                                     Text(listOfNotNull(title.year.takeIf { it.isNotBlank() },
