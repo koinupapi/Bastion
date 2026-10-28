@@ -18,6 +18,10 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import java.time.LocalDate
 import java.time.YearMonth
@@ -82,6 +86,19 @@ private fun BastionApp() {
     var dark by remember { mutableStateOf(false) }
     var dynamic by remember { mutableStateOf(true) }
     var showAllNavLabels by remember { mutableStateOf(true) }
+    var hideNavOnScroll by remember { mutableStateOf(false) }
+    var navVisible by remember { mutableStateOf(true) }
+    val navigationScrollConnection = remember(hideNavOnScroll) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (hideNavOnScroll && source == NestedScrollSource.UserInput) {
+                    if (available.y < -5f) navVisible = false
+                    else if (available.y > 5f) navVisible = true
+                }
+                return Offset.Zero
+            }
+        }
+    }
     val preferences = remember(context) { context.getSharedPreferences("bastion_settings", android.content.Context.MODE_PRIVATE) }
     var returnToDashboard by remember { mutableStateOf(preferences.getBoolean("return_to_dashboard", true)) }
     var doubleBackToExit by remember { mutableStateOf(preferences.getBoolean("double_back_exit", true)) }
@@ -248,7 +265,11 @@ private fun BastionApp() {
                 }
             }
         }) {
+        LaunchedEffect(tab, selectedMediaId, seerrTab, settingsPage, hideNavOnScroll) { navVisible = true }
         Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }, bottomBar = {
+            AnimatedVisibility(visible = !hideNavOnScroll || navVisible,
+                enter = androidx.compose.animation.slideInVertically { it } + fadeIn(),
+                exit = androidx.compose.animation.slideOutVertically { it } + fadeOut()) {
             if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
                 NavigationBar {
                     listOf("Discover", "Requests", "Issues", "Settings").forEachIndexed { index, label ->
@@ -275,9 +296,10 @@ private fun BastionApp() {
                     )
                 }
             }
+            }
         }) { insets ->
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(insets),
+                modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).padding(insets),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -375,6 +397,19 @@ private fun BastionApp() {
                                                 Switch(checked = dynamic, onCheckedChange = { dynamic = it })
                                             }
                                             HorizontalDivider()
+                                            Row(verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(top = 12.dp)) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("Hide navigation while scrolling",
+                                                        style = MaterialTheme.typography.titleMedium)
+                                                    Text("Scroll down to hide the bottom bar; scroll up to show it.",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                                Switch(checked = hideNavOnScroll,
+                                                    onCheckedChange = { hideNavOnScroll = it })
+                                            }
+                                            HorizontalDivider(Modifier.padding(vertical = 12.dp))
                                             Text("Navigation labels", style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.SemiBold,
                                                 modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
@@ -970,13 +1005,40 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int) {
         Text("Requests", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Browse requests • Read-only", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            listOf("All", "Pending", "Approved").forEachIndexed { index, option ->
-                SegmentedButton(selected = filter == option, onClick = {
-                    filter = option
-                    page = 0
-                }, shape = SegmentedButtonDefaults.itemShape(index, 3)) {
-                    Text(option)
+        val requestFilters = listOf("All", "Pending", "Approved")
+        val filterInteractions = remember { List(3) { MutableInteractionSource() } }
+        val filterPressed = filterInteractions.map { it.collectIsPressedAsState().value }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            requestFilters.forEachIndexed { index, option ->
+                val active = filter == option
+                val weight by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = if (filterPressed[index]) 1.2f else 1f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                    label = "Request filter press width")
+                val innerCorner by animateDpAsState(
+                    targetValue = if (active || filterPressed[index]) 24.dp else 8.dp,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                    label = "Request filter shape")
+                val shape = RoundedCornerShape(
+                    topStart = if (index == 0) 24.dp else innerCorner,
+                    bottomStart = if (index == 0) 24.dp else innerCorner,
+                    topEnd = if (index == requestFilters.lastIndex) 24.dp else innerCorner,
+                    bottomEnd = if (index == requestFilters.lastIndex) 24.dp else innerCorner)
+                Surface(onClick = { filter = option; page = 0 },
+                    interactionSource = filterInteractions[index],
+                    modifier = Modifier.weight(weight).height(48.dp),
+                    shape = shape,
+                    color = if (active) MaterialTheme.colorScheme.secondaryContainer
+                        else MaterialTheme.colorScheme.surfaceContainerHigh) {
+                    Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center) {
+                        if (active) {
+                            Icon(Icons.Default.Check, contentDescription = null,
+                                modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(5.dp))
+                        }
+                        Text(option, style = MaterialTheme.typography.labelLarge)
+                    }
                 }
             }
         }
@@ -1012,7 +1074,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int) {
                             },
                         shape = RoundedCornerShape(24.dp),
                         colors = CardDefaults.elevatedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
                     ) {
                         Row(Modifier.fillMaxWidth().padding(12.dp),
