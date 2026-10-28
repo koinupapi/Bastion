@@ -50,6 +50,7 @@ private fun BastionApp() {
     }
     MaterialTheme(colorScheme = colors) {
         var tab by remember { mutableIntStateOf(0) }
+        var settingsPage by remember { mutableStateOf("Settings") }
         val labels = listOf("Home", "Servers", "Media", "Settings")
         val icons = listOf(Icons.Default.Home, Icons.Default.Dns, Icons.Default.Movie, Icons.Default.Settings)
         Scaffold(bottomBar = {
@@ -57,7 +58,7 @@ private fun BastionApp() {
                 labels.forEachIndexed { index, label ->
                     NavigationBarItem(
                         selected = tab == index,
-                        onClick = { tab = index },
+                        onClick = { tab = index; settingsPage = "Settings" },
                         icon = { Icon(icons[index], contentDescription = null) },
                         label = { Text(label) }
                     )
@@ -102,21 +103,54 @@ private fun BastionApp() {
                         }
                     }
                     else -> {
-                        item { SectionTitle("Service connections") }
-                        items(services) { DemoRow(it, "Demo instance • not connected") }
-                        item { SectionTitle("Appearance") }
-                        item {
-                            Card {
-                                Column(Modifier.padding(16.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("Dark theme", Modifier.weight(1f))
-                                        Switch(checked = dark, onCheckedChange = { dark = it })
-                                    }
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("Dynamic colors", Modifier.weight(1f))
-                                        Switch(checked = dynamic, onCheckedChange = { dynamic = it })
+                        if (settingsPage == "Settings") {
+                            item { Text("Customize Bastion and manage your integrations",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            item {
+                                SettingsEntry("Appearance", "Theme, dynamic colors and display", Icons.Default.Palette) {
+                                    settingsPage = "Appearance"
+                                }
+                            }
+                            item {
+                                SettingsEntry("Services", "Manage homelab service connections", Icons.Default.Widgets) {
+                                    settingsPage = "Services"
+                                }
+                            }
+                            item {
+                                SettingsEntry("About", "Version and preview information", Icons.Default.Info) {
+                                    settingsPage = "About"
+                                }
+                            }
+                        } else {
+                            item {
+                                TextButton(onClick = { settingsPage = "Settings" }) {
+                                    Icon(Icons.Default.ArrowBack, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Settings")
+                                }
+                            }
+                            item { SectionTitle(settingsPage) }
+                            when (settingsPage) {
+                                "Appearance" -> item {
+                                    Card(shape = MaterialTheme.shapes.extraLarge) {
+                                        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("Dark theme", Modifier.weight(1f))
+                                                Switch(checked = dark, onCheckedChange = { dark = it })
+                                            }
+                                            HorizontalDivider()
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("Dynamic colors", Modifier.weight(1f))
+                                                Switch(checked = dynamic, onCheckedChange = { dynamic = it })
+                                            }
+                                        }
                                     }
                                 }
+                                "Services" -> items(services) {
+                                    DemoRow(it, "Demo instance • not connected")
+                                }
+                                else -> item { DemoRow("Bastion 0.1.0", "UI preview • simulated data") }
                             }
                         }
                     }
@@ -193,6 +227,7 @@ private fun DownloadsWidget() {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun DownloadLine(name: String, progress: Float) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row {
@@ -201,7 +236,7 @@ private fun DownloadLine(name: String, progress: Float) {
             Spacer(Modifier.width(8.dp))
             Text("${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
         }
-        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+        LinearWavyProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -253,6 +288,32 @@ private fun DemoRow(title: String, subtitle: String) {
                 Text(subtitle, style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsEntry(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit
+) {
+    Card(onClick = onClick, shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.secondaryContainer) {
+                Icon(icon, contentDescription = null, modifier = Modifier.padding(12.dp),
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer)
+            }
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null)
         }
     }
 }
