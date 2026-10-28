@@ -9,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.clickable
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,6 +25,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 private val services = listOf("Sonarr", "Radarr", "qBittorrent", "Seerr", "Plex", "Docker")
+private data class Integration(val name: String, val category: String)
+private val integrationCatalog = listOf(
+    Integration("Docker", "Infrastructure"),
+    Integration("Uptime Kuma", "Infrastructure"),
+    Integration("Seerr", "Media management"),
+    Integration("Sonarr", "Media management"),
+    Integration("Radarr", "Media management"),
+    Integration("qBittorrent", "Media management"),
+    Integration("Plex", "Media servers"),
+    Integration("Audiobookshelf", "Media servers"),
+    Integration("Navidrome", "Media servers"),
+    Integration("Immich", "Other services")
+)
+private data class ServicePreview(val id: Int, val type: String, val name: String)
 private val containers = listOf("sonarr", "radarr", "qbittorrent", "plex", "seerr", "uptime-kuma")
 
 class MainActivity : ComponentActivity() {
@@ -58,12 +73,26 @@ private fun BastionApp() {
     MaterialTheme(colorScheme = colors) {
         var tab by remember { mutableIntStateOf(0) }
         var settingsPage by remember { mutableStateOf("Settings") }
+        var selectedIntegration by remember { mutableStateOf("Seerr") }
+        var serviceSearch by remember { mutableStateOf("") }
+        var previewName by remember { mutableStateOf("") }
+        val previewInstances = remember { mutableStateListOf<ServicePreview>() }
+        var nextPreviewId by remember { mutableIntStateOf(1) }
+        val settingsHistory = remember { mutableStateListOf<String>() }
+        fun openSettingsPage(page: String) {
+            settingsHistory.add(settingsPage)
+            settingsPage = page
+        }
+        fun goBackSettings() {
+            if (settingsHistory.isNotEmpty()) settingsPage = settingsHistory.removeAt(settingsHistory.lastIndex)
+            else settingsPage = "Settings"
+        }
         val snackbarHostState = remember { SnackbarHostState() }
         val scope = rememberCoroutineScope()
         var lastExitBackAt by remember { mutableLongStateOf(0L) }
         BackHandler {
             when {
-                tab == 3 && settingsPage != "Settings" -> settingsPage = "Settings"
+                tab == 3 && settingsPage != "Settings" -> goBackSettings()
                 tab != 0 && returnToDashboard -> {
                     tab = 0
                     settingsPage = "Settings"
@@ -93,7 +122,7 @@ private fun BastionApp() {
                 labels.forEachIndexed { index, label ->
                     NavigationBarItem(
                         selected = tab == index,
-                        onClick = { tab = index; settingsPage = "Settings"; lastExitBackAt = 0L },
+                        onClick = { tab = index; settingsPage = "Settings"; settingsHistory.clear(); lastExitBackAt = 0L },
                         icon = { Icon(icons[index], contentDescription = null) },
                         label = { Text(label) },
                         alwaysShowLabel = showAllNavLabels
@@ -145,33 +174,33 @@ private fun BastionApp() {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             item {
                                 SettingsEntry("Appearance", "Theme, dynamic colors and display", Icons.Default.Palette) {
-                                    settingsPage = "Appearance"
+                                    openSettingsPage("Appearance")
                                 }
                             }
                             item {
                                 SettingsEntry("Services", "Manage homelab service connections", Icons.Default.Widgets) {
-                                    settingsPage = "Services"
+                                    openSettingsPage("Services")
                                 }
                             }
                             item {
                                 SettingsEntry("Behavior", "Back navigation and exit confirmation", Icons.Default.Tune) {
-                                    settingsPage = "Behavior"
+                                    openSettingsPage("Behavior")
                                 }
                             }
                             item {
                                 SettingsEntry("About", "Version and preview information", Icons.Default.Info) {
-                                    settingsPage = "About"
+                                    openSettingsPage("About")
                                 }
                             }
                         } else {
                             item {
-                                TextButton(onClick = { settingsPage = "Settings" }) {
+                                TextButton(onClick = { goBackSettings() }) {
                                     Icon(Icons.Default.ArrowBack, contentDescription = null)
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Settings")
+                                    Text(settingsHistory.lastOrNull() ?: "Settings")
                                 }
                             }
-                            item { SectionTitle(settingsPage) }
+                            item { SectionTitle(if (settingsPage == "Service detail") selectedIntegration else settingsPage) }
                             when (settingsPage) {
                                 "Appearance" -> item {
                                     Card(shape = MaterialTheme.shapes.extraLarge) {
@@ -258,8 +287,107 @@ private fun BastionApp() {
                                         }
                                     }
                                 }
-                                "Services" -> items(services) {
-                                    DemoRow(it, "Demo instance • not connected")
+                                "Services" -> {
+                                    item {
+                                        Text("Manage your configured integrations and add new ones.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    item {
+                                        SettingsEntry("Add service", "Browse available integrations", Icons.Default.AddCircle) {
+                                            serviceSearch = ""
+                                            openSettingsPage("Add service")
+                                        }
+                                    }
+                                    item { SectionTitle("Your services") }
+                                    if (previewInstances.isEmpty()) {
+                                        item {
+                                            Card(shape = MaterialTheme.shapes.extraLarge) {
+                                                Column(Modifier.fillMaxWidth().padding(24.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    Icon(Icons.Default.Extension, contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary)
+                                                    Text("No services configured yet", style = MaterialTheme.typography.titleMedium)
+                                                    Text("Add a service to start setting up Bastion. Connections are not active in this preview.",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        items(previewInstances, key = { it.id }) { instance ->
+                                            SettingsEntry(instance.name, "${instance.type} • Preview only",
+                                                Icons.Default.Dns) {
+                                                selectedIntegration = instance.type
+                                                previewName = instance.name
+                                                openSettingsPage("Service detail")
+                                            }
+                                        }
+                                    }
+                                }
+                                "Add service" -> {
+                                    item {
+                                        OutlinedTextField(
+                                            value = serviceSearch,
+                                            onValueChange = { serviceSearch = it },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            label = { Text("Search integrations") },
+                                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                            singleLine = true
+                                        )
+                                    }
+                                    val filtered = integrationCatalog.filter {
+                                        it.name.contains(serviceSearch.trim(), ignoreCase = true) ||
+                                            it.category.contains(serviceSearch.trim(), ignoreCase = true)
+                                    }
+                                    if (filtered.isEmpty()) {
+                                        item { Text("No matching integrations found.") }
+                                    }
+                                    listOf("Infrastructure", "Media management", "Media servers", "Other services").forEach { category ->
+                                        val matches = filtered.filter { it.category == category }
+                                        if (matches.isNotEmpty()) {
+                                            item { SectionTitle(category) }
+                                            items(matches, key = { it.name }) { integration ->
+                                                SettingsEntry(integration.name, "Add ${integration.name} instance",
+                                                    Icons.Default.Add) {
+                                                    selectedIntegration = integration.name
+                                                    previewName = integration.name
+                                                    openSettingsPage("Service detail")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                "Service detail" -> item {
+                                    Card(shape = MaterialTheme.shapes.extraLarge) {
+                                        Column(Modifier.fillMaxWidth().padding(20.dp),
+                                            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                            Text("Instance preview", style = MaterialTheme.typography.titleMedium)
+                                            Text("This screen previews the configuration flow. No server connection or credentials are stored yet.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            OutlinedTextField(
+                                                value = previewName,
+                                                onValueChange = { previewName = it },
+                                                label = { Text("Display name") },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                singleLine = true
+                                            )
+                                            Button(
+                                                enabled = previewName.isNotBlank(),
+                                                onClick = {
+                                                    previewInstances.add(ServicePreview(nextPreviewId++, selectedIntegration, previewName.trim()))
+                                                    settingsHistory.clear()
+                                                    settingsHistory.add("Settings")
+                                                    settingsPage = "Services"
+                                                },
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) { Text("Add preview instance") }
+                                            Text("You can add multiple instances of the same integration. Live configuration comes next.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
                                 }
                                 else -> item { DemoRow("Bastion 0.1.0", "UI preview • simulated data") }
                             }
