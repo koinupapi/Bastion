@@ -174,7 +174,14 @@ object SeerrClient {
                         val requestedBy = requester?.optString("displayName")
                             ?.takeIf { it.isNotBlank() }
                             ?: requester?.optString("username")?.takeIf { it.isNotBlank() }
-                        SeerrRecentRequest(title, status, posterUrl, year, requestedBy)
+                        val overview = detail?.optString("overview")?.takeIf { it.isNotBlank() }
+                        val seasons = request.optJSONArray("seasons")?.let { arr ->
+                            (0 until arr.length()).mapNotNull { n ->
+                                arr.optJSONObject(n)?.optInt("seasonNumber", -1)?.takeIf { it >= 0 }
+                            }.distinct().sorted()
+                        }.orEmpty()
+                        SeerrRecentRequest(title, status, posterUrl, year, requestedBy,
+                            overview, releaseDate.takeIf { it.isNotBlank() }, type == "tv", seasons)
                     }
                     return@withContext SeerrRecentResult(config.name, total.coerceAtLeast(requests.size), requests, null)
                 } catch (e: Exception) {
@@ -187,7 +194,9 @@ object SeerrClient {
 }
 data class SeerrRecentRequest(
     val title: String, val status: String, val posterUrl: String?,
-    val year: String?, val requestedBy: String?
+    val year: String?, val requestedBy: String?,
+    val overview: String? = null, val releaseDate: String? = null,
+    val isTv: Boolean = false, val seasons: List<Int> = emptyList()
 )
 data class SeerrRecentResult(
     val instance: String, val total: Int, val requests: List<SeerrRecentRequest>, val error: String?

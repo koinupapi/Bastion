@@ -781,6 +781,8 @@ private fun SettingsEntry(
 
 @Composable
 private fun SeerrManagementScreen(instance: ServiceConfig) {
+    var selectedRequest by remember(instance.id) { mutableStateOf<SeerrRecentRequest?>(null) }
+    BackHandler(enabled = selectedRequest != null) { selectedRequest = null }
     var page by remember(instance.id) { mutableIntStateOf(0) }
     var filter by remember(instance.id) { mutableStateOf("All") }
     var result by remember(instance.id) { mutableStateOf<SeerrRecentResult?>(null) }
@@ -793,6 +795,31 @@ private fun SeerrManagementScreen(instance: ServiceConfig) {
         loading = false
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (selectedRequest != null) {
+            val request = selectedRequest!!
+            TextButton(onClick = { selectedRequest = null }) {
+                Icon(Icons.Default.ArrowBack, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("All requests")
+            }
+            request.posterUrl?.let {
+                AsyncImage(model = it, contentDescription = "Poster for ${request.title}",
+                    modifier = Modifier.width(150.dp).height(225.dp),
+                    contentScale = ContentScale.Crop)
+            }
+            Text(request.title, style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold)
+            request.releaseDate?.let { Text("Release date: $it") }
+            Text("Status: ${request.status}", color = MaterialTheme.colorScheme.primary)
+            request.requestedBy?.let { Text("Requested by $it") }
+            if (request.isTv && request.seasons.isNotEmpty()) {
+                Text("Requested seasons: " + request.seasons.joinToString(", ") {
+                    if (it == 0) "Specials" else "Season $it"
+                })
+            }
+            Text("Overview", style = MaterialTheme.typography.titleMedium)
+            Text(request.overview ?: "No synopsis available.")
+        } else {
         Text(instance.name, style = MaterialTheme.typography.titleLarge)
         Text("Browse requests • Read-only", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -820,7 +847,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig) {
             result?.requests?.forEach { request ->
                 Row(verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth()) {
+                    modifier = Modifier.fillMaxWidth().clickable { selectedRequest = request }) {
                     Surface(shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.width(58.dp).height(86.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHighest) {
@@ -851,6 +878,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig) {
                         enabled = (page + 1) * pageSize < (result?.total ?: 0)) { Text("Next") }
                 }
             }
+        }
         }
     }
 }
