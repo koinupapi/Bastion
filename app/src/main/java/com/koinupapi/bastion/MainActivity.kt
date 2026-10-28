@@ -1,6 +1,9 @@
 package com.koinupapi.bastion
 
 import android.os.Bundle
+import android.os.SystemClock
+import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
@@ -37,6 +40,9 @@ private fun BastionApp() {
     var dark by remember { mutableStateOf(false) }
     var dynamic by remember { mutableStateOf(true) }
     var showAllNavLabels by remember { mutableStateOf(true) }
+    val preferences = remember(context) { context.getSharedPreferences("bastion_settings", android.content.Context.MODE_PRIVATE) }
+    var returnToDashboard by remember { mutableStateOf(preferences.getBoolean("return_to_dashboard", true)) }
+    var doubleBackToExit by remember { mutableStateOf(preferences.getBoolean("double_back_exit", true)) }
     val colors = if (dynamic && android.os.Build.VERSION.SDK_INT >= 31) {
         if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     } else if (dark) darkColorScheme() else lightColorScheme()
@@ -52,14 +58,42 @@ private fun BastionApp() {
     MaterialTheme(colorScheme = colors) {
         var tab by remember { mutableIntStateOf(0) }
         var settingsPage by remember { mutableStateOf("Settings") }
+        val snackbarHostState = remember { SnackbarHostState() }
+        val scope = rememberCoroutineScope()
+        var lastExitBackAt by remember { mutableLongStateOf(0L) }
+        BackHandler {
+            when {
+                tab == 3 && settingsPage != "Settings" -> settingsPage = "Settings"
+                tab != 0 && returnToDashboard -> {
+                    tab = 0
+                    settingsPage = "Settings"
+                }
+                !doubleBackToExit -> activity.finish()
+                else -> {
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - lastExitBackAt <= 2000L) {
+                        activity.finish()
+                    } else {
+                        lastExitBackAt = now
+                        scope.launch {
+                            snackbarHostState.currentSnackbarData?.dismiss()
+                            snackbarHostState.showSnackbar(
+                                message = "Press Back again to exit Bastion",
+                                duration = SnackbarDuration.Short
+                            )
+                        }
+                    }
+                }
+            }
+        }
         val labels = listOf("Home", "Servers", "Media", "Settings")
         val icons = listOf(Icons.Default.Home, Icons.Default.Dns, Icons.Default.Movie, Icons.Default.Settings)
-        Scaffold(bottomBar = {
+        Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }, bottomBar = {
             NavigationBar {
                 labels.forEachIndexed { index, label ->
                     NavigationBarItem(
                         selected = tab == index,
-                        onClick = { tab = index; settingsPage = "Settings" },
+                        onClick = { tab = index; settingsPage = "Settings"; lastExitBackAt = 0L },
                         icon = { Icon(icons[index], contentDescription = null) },
                         label = { Text(label) },
                         alwaysShowLabel = showAllNavLabels
@@ -120,6 +154,11 @@ private fun BastionApp() {
                                 }
                             }
                             item {
+                                SettingsEntry("Behavior", "Back navigation and exit confirmation", Icons.Default.Tune) {
+                                    settingsPage = "Behavior"
+                                }
+                            }
+                            item {
                                 SettingsEntry("About", "Version and preview information", Icons.Default.Info) {
                                     settingsPage = "About"
                                 }
@@ -166,6 +205,55 @@ private fun BastionApp() {
                                                     onClick = { showAllNavLabels = false },
                                                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                                                 ) { Text("Selected only") }
+                                            }
+                                        }
+                                    }
+                                }
+                                "Behavior" -> item {
+                                    Card(shape = MaterialTheme.shapes.extraLarge) {
+                                        Column(Modifier.fillMaxWidth().padding(20.dp),
+                                            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Text("Back button behavior", style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.SemiBold)
+                                            Text("When you press Back from a main navigation tab:",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                RadioButton(selected = !returnToDashboard, onClick = {
+                                                    returnToDashboard = false
+                                                    preferences.edit().putBoolean("return_to_dashboard", false).apply()
+                                                })
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("Exit from current tab")
+                                                    Text("Back initiates exiting Bastion.",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                            }
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                RadioButton(selected = returnToDashboard, onClick = {
+                                                    returnToDashboard = true
+                                                    preferences.edit().putBoolean("return_to_dashboard", true).apply()
+                                                })
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("Return to Dashboard")
+                                                    Text("Go Home first from Servers, Media, or Settings.",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                            }
+                                            HorizontalDivider()
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("Double Back to exit", style = MaterialTheme.typography.titleMedium)
+                                                    Text("Press Back twice within 2 seconds to exit.",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                                Switch(checked = doubleBackToExit, onCheckedChange = {
+                                                    doubleBackToExit = it
+                                                    preferences.edit().putBoolean("double_back_exit", it).apply()
+                                                })
                                             }
                                         }
                                     }
