@@ -11,8 +11,25 @@ android {
         applicationId = "com.koinupapi.bastion"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         versionName = "0.1.0"
+    }
+    signingConfigs {
+        create("bastion") {
+            val keystorePath = System.getenv("BASTION_KEYSTORE_PATH")
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("BASTION_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("BASTION_KEY_ALIAS")
+                keyPassword = System.getenv("BASTION_KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("bastion")
+            isMinifyEnabled = false
+        }
     }
     buildFeatures { compose = true }
     compileOptions {
