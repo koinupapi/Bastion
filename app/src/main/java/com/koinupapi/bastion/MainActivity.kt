@@ -193,6 +193,7 @@ private fun DownloadsWidget() {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun DownloadLine(name: String, progress: Float) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row {
