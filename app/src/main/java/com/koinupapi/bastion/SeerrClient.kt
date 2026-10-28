@@ -143,7 +143,7 @@ object SeerrClient {
         }
 
     suspend fun requestOptions(config: ServiceConfig, isTv: Boolean): Result<List<SeerrRequestServer>> =
-        runCatching {
+        withContext(Dispatchers.IO) { runCatching {
             val path = if (isTv) "/api/v1/service/sonarr" else "/api/v1/service/radarr"
             val addresses = when (config.mode) {
                 "Local only" -> listOf("Local" to config.localUrl)
@@ -196,7 +196,7 @@ object SeerrClient {
                     defaultRoot = entry.optInt("activeDirectoryId")
                 )
             }
-        }
+        } }
 
     suspend fun submitRequest(config: ServiceConfig, tmdbId: Int, isTv: Boolean,
         serverId: Int, profileId: Int, rootPath: String, seasons: List<Int>): Result<Unit> =
