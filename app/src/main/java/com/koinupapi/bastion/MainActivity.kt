@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
@@ -171,7 +172,7 @@ private fun BastionApp() {
                     0 -> {
                         item { ServerWidget() }
                         item { DownloadsWidget() }
-                        item { RequestsWidget() }
+                        item { RequestsWidget(savedInstances.filter { it.type == "Seerr" }) }
                         item { SonarrWidget() }
                         item { RadarrWidget() }
                         item { ServicesWidget() }
@@ -507,7 +508,7 @@ private fun DemoNotice() {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.Science, contentDescription = null)
             Spacer(Modifier.width(10.dp))
-            Text("Preview mode • all data is simulated", style = MaterialTheme.typography.labelMedium)
+            Text("Preview • Seerr requests live; other widgets simulated", style = MaterialTheme.typography.labelMedium)
         }
     }
 }
@@ -581,11 +582,43 @@ private fun DownloadLine(name: String, progress: Float) {
 }
 
 @Composable
-private fun RequestsWidget() {
+private fun RequestsWidget(instances: List<ServiceConfig>) {
+    var requests by remember { mutableStateOf<List<String>>(emptyList()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    var refresh by remember { mutableIntStateOf(0) }
+    val fingerprint = instances.joinToString("|") { it.id + it.apiKey + it.localUrl + it.remoteUrl + it.mode }
+    LaunchedEffect(fingerprint, refresh) {
+        requests = emptyList()
+        error = null
+        if (instances.isNotEmpty()) {
+            loading = true
+            try {
+                requests = SeerrClient.pendingRequests(instances)
+            } catch (e: Exception) {
+                error = e.message ?: "Could not load requests"
+            } finally { loading = false }
+        }
+    }
     WidgetCard("Seerr requests", Icons.Default.Movie) {
-        Text("4 pending requests", style = MaterialTheme.typography.titleMedium)
-        Text("• Example Movie (2026)  —  Pending", style = MaterialTheme.typography.bodyMedium)
-        Text("• Example Series  —  Approved", style = MaterialTheme.typography.bodyMedium)
+        if (instances.isEmpty()) {
+            Text("Add Seerr in Settings → Services to see live requests.")
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Pending requests", Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium)
+                IconButton(onClick = { refresh++ }, enabled = !loading) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh requests")
+                }
+            }
+            if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            else if (error != null) Text(error!!, color = MaterialTheme.colorScheme.error)
+            else if (requests.isEmpty()) Text("No pending requests!")
+            else requests.forEachIndexed { index, title ->
+                if (index > 0) HorizontalDivider()
+                Text(title, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
     }
 }
 
