@@ -230,6 +230,50 @@ object SeerrClient {
             Unit
         }
 
+    suspend fun issueDetail(config: ServiceConfig, id: Int): Result<SeerrIssue> = runCatching {
+        parseIssue(api(config, "/api/v1/issue/$id"))
+    }
+
+    suspend fun commentOnIssue(config: ServiceConfig, id: Int, message: String): Result<Unit> =
+        runCatching {
+            require(message.isNotBlank()) { "Enter a reply" }
+            api(config, "/api/v1/issue/$id/comment", JSONObject().put("message", message.trim()))
+            Unit
+        }
+
+    suspend fun changeIssueStatus(config: ServiceConfig, id: Int, resolved: Boolean): Result<Unit> =
+        runCatching {
+            api(config, "/api/v1/issue/$id/${if (resolved) "resolved" else "open"}", JSONObject())
+            Unit
+        }
+
+    private fun parseIssue(issue: JSONObject): SeerrIssue {
+        val media = issue.optJSONObject("media")
+        val author = issue.optJSONObject("createdBy")
+        val comments = issue.optJSONArray("comments") ?: JSONArray()
+        val messages = (0 until comments.length()).mapNotNull { i ->
+            comments.optJSONObject(i)?.optString("message")?.takeIf { it.isNotBlank() }
+        }
+        return SeerrIssue(
+            id = issue.optInt("id"),
+            type = when (issue.optInt("issueType")) {
+                1 -> "Video"
+                2 -> "Audio"
+                3 -> "Subtitles"
+                4 -> "Other"
+                else -> "Issue"
+            },
+            resolved = issue.optInt("status") == 2,
+            tmdbId = media?.optInt("tmdbId") ?: 0,
+            author = author?.optString("displayName")?.takeIf { it.isNotBlank() }
+                ?: author?.optString("username")?.takeIf { it.isNotBlank() }
+                ?: "Unknown user",
+            createdAt = issue.optString("createdAt").take(10),
+            message = messages.firstOrNull().orEmpty(),
+            comments = messages
+        )
+    }
+
     suspend fun issuePage(config: ServiceConfig, take: Int, skip: Int, filter: String): SeerrIssueResult =
         withContext(Dispatchers.IO) {
             val addresses = when (config.mode) {
@@ -256,31 +300,7 @@ object SeerrClient {
                         val rows = data.optJSONArray("results") ?: JSONArray()
                         val issues = (0 until rows.length()).mapNotNull { index ->
                             val issue = rows.optJSONObject(index) ?: return@mapNotNull null
-                            val media = issue.optJSONObject("media")
-                            val author = issue.optJSONObject("createdBy")
-                            val comments = issue.optJSONArray("comments") ?: JSONArray()
-                            SeerrIssue(
-                                id = issue.optInt("id"),
-                                type = when (issue.optInt("issueType")) {
-                                    1 -> "Video"
-                                    2 -> "Audio"
-                                    3 -> "Subtitles"
-                                    4 -> "Other"
-                                    else -> "Issue"
-                                },
-                                resolved = issue.optInt("status") == 2,
-                                tmdbId = media?.optInt("tmdbId") ?: 0,
-                                author = author?.optString("displayName")?.takeIf { it.isNotBlank() }
-                                    ?: author?.optString("username")?.takeIf { it.isNotBlank() }
-                                    ?: "Unknown user",
-                                createdAt = issue.optString("createdAt").take(10),
-                                message = (0 until comments.length()).mapNotNull { i ->
-                                    comments.optJSONObject(i)?.optString("message")?.takeIf { it.isNotBlank() }
-                                }.firstOrNull().orEmpty(),
-                                comments = (0 until comments.length()).mapNotNull { i ->
-                                    comments.optJSONObject(i)?.optString("message")?.takeIf { it.isNotBlank() }
-                                }
-                            )
+                            parseIssue(issue)
                         }
                         return@withContext SeerrIssueResult(
                             issues, data.optJSONObject("pageInfo")?.optInt("results", issues.size)
