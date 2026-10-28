@@ -1106,6 +1106,8 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (destination == 0) {
             SeerrDiscoverScreen(instance, discoverResults, onRequestClick)
+        } else if (destination == 2) {
+            SeerrIssuesScreen(instance)
         } else if (destination != 1) {
             val heading = when (destination) {
                 0 -> "Discover"
