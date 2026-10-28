@@ -100,6 +100,90 @@ object SeerrClient {
             }
             "Connection failed — " + failures.joinToString("; ")
         }
+    private suspend fun api(config: ServiceConfig, path: String, payload: JSONObject? = null): JSONObject =
+        withContext(Dispatchers.IO) {
+            val addresses = when (config.mode) {
+                "Local only" -> listOf("Local" to config.localUrl)
+                "Remote only" -> listOf("Remote" to config.remoteUrl)
+                else -> listOf("Local" to config.localUrl, "Remote" to config.remoteUrl)
+            }.filter { it.second.isNotBlank() }
+            var failure = "No connection configured"
+            for ((label, address) in addresses) {
+                try {
+                    val url = URL(address.trimEnd('/') + path)
+                    require(url.protocol == "https" || (label == "Local" && url.protocol == "http"))
+                    val connection = url.openConnection() as HttpURLConnection
+                    try {
+                        connection.connectTimeout = 2500
+                        connection.readTimeout = 7000
+                        connection.instanceFollowRedirects = false
+                        connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        connection.setRequestProperty("Accept", "application/json")
+                        if (payload != null) {
+                            connection.requestMethod = "POST"
+                            connection.doOutput = true
+                            connection.setRequestProperty("Content-Type", "application/json")
+                            connection.outputStream.bufferedWriter().use { it.write(payload.toString()) }
+                        }
+                        val status = connection.responseCode
+                        if (status !in 200..299) {
+                            val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }
+                                ?.take(250).orEmpty()
+                            throw IllegalStateException("HTTP $status $detail")
+                        }
+                        val body = connection.inputStream.bufferedReader().use { it.readText() }
+                        return@withContext if (body.isBlank()) JSONObject() else JSONObject(body)
+                    } finally { connection.disconnect() }
+                } catch (error: Exception) {
+                    failure = "$label: ${error.message ?: error.javaClass.simpleName}"
+                    if (failure.contains("HTTP 401") || failure.contains("HTTP 403")) break
+                }
+            }
+            throw IllegalStateException(failure)
+        }
+
+    suspend fun requestOptions(config: ServiceConfig, isTv: Boolean): Result<List<SeerrRequestServer>> =
+        runCatching {
+            val path = if (isTv) "/api/v1/service/sonarr" else "/api/v1/service/radarr"
+            val data = api(config, path)
+            val array = data.optJSONArray("results") ?: JSONArray()
+            (0 until array.length()).mapNotNull { i ->
+                val server = array.optJSONObject(i) ?: return@mapNotNull null
+                val profiles = server.optJSONArray("profiles") ?: JSONArray()
+                val roots = server.optJSONArray("rootFolders") ?: JSONArray()
+                SeerrRequestServer(
+                    id = server.optInt("id"),
+                    name = server.optString("name"),
+                    profiles = (0 until profiles.length()).mapNotNull { j ->
+                        profiles.optJSONObject(j)?.let {
+                            SeerrRequestChoice(it.optInt("id"), it.optString("name"))
+                        }
+                    },
+                    roots = (0 until roots.length()).mapNotNull { j ->
+                        roots.optJSONObject(j)?.let {
+                            SeerrRequestChoice(it.optInt("id"), it.optString("path"))
+                        }
+                    },
+                    defaultProfile = server.optInt("activeProfileId"),
+                    defaultRoot = server.optInt("activeDirectoryId")
+                )
+            }
+        }
+
+    suspend fun submitRequest(config: ServiceConfig, tmdbId: Int, isTv: Boolean,
+        serverId: Int, profileId: Int, rootId: Int, seasons: List<Int>): Result<Unit> =
+        runCatching {
+            val payload = JSONObject()
+                .put("mediaType", if (isTv) "tv" else "movie")
+                .put("mediaId", tmdbId)
+                .put("serverId", serverId)
+                .put("profileId", profileId)
+                .put("rootFolder", rootId)
+            if (isTv) payload.put("seasons", JSONArray(seasons))
+            api(config, "/api/v1/request", payload)
+            Unit
+        }
+
     suspend fun issuePage(config: ServiceConfig, take: Int, skip: Int, filter: String): SeerrIssueResult =
         withContext(Dispatchers.IO) {
             val addresses = when (config.mode) {
@@ -434,4 +518,11 @@ data class SeerrIssue(
 data class SeerrIssueResult(
     val issues: List<SeerrIssue> = emptyList(), val total: Int = 0,
     val error: String? = null
+)
+
+data class SeerrRequestChoice(val id: Int, val name: String)
+data class SeerrRequestServer(
+    val id: Int, val name: String,
+    val profiles: List<SeerrRequestChoice>, val roots: List<SeerrRequestChoice>,
+    val defaultProfile: Int, val defaultRoot: Int
 )
