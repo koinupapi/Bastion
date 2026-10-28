@@ -124,6 +124,8 @@ private fun BastionApp() {
         var selectedMediaId by remember { mutableStateOf<String?>(null) }
         var seerrTab by remember(selectedMediaId) { mutableIntStateOf(0) }
         val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
+        val seerrMediaCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrMediaDetails>() }
+        val seerrScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.lazy.LazyListState>() }
         val seerrDiscoverCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrDiscoverResult>() }
         val seerrPageStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
         val openSeerrRequest = seerrMediaStack.lastOrNull()
@@ -308,7 +310,14 @@ private fun BastionApp() {
             }
             }
         }) { insets ->
+            val scrollKey = if (openSeerrRequest != null)
+                "media-${seerrMediaStack.size}-${openSeerrRequest.tmdbId}-${openSeerrRequest.isTv}"
+                else "main-${selectedMediaId ?: "bastion"}-${if (selectedMediaId == null) tab else seerrTab}"
+            val screenScroll = seerrScrollStates.getOrPut(scrollKey) {
+                androidx.compose.foundation.lazy.LazyListState()
+            }
             LazyColumn(
+                state = screenScroll,
                 modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).padding(insets),
                 contentPadding = if (openSeerrRequest != null) PaddingValues(bottom = 28.dp) else PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -357,6 +366,7 @@ private fun BastionApp() {
                     val service = savedInstances.firstOrNull { it.id == selectedMediaId }
                     if (service?.type == "Seerr") {
                         if (openSeerrRequest != null) item { SeerrRequestDetails(service, openSeerrRequest!!,
+                            cache = seerrMediaCache,
                             onBack = { popSeerrMedia() },
                             onRelatedClick = { seerrMediaStack.add(it) }) }
                         else item {
@@ -995,33 +1005,62 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 Text(section, style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold)
                 val result = results[section]
+                val visibleItems = result?.items?.filter {
+                    section != "Trending" || category == "All" ||
+                        (category == "Movies" && !it.isTv) ||
+                        (category == "TV Shows" && it.isTv)
+                }.orEmpty()
                 if (result == null) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 } else if (result.error != null) {
                     Text(result.error, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error)
-                } else if (result.items.isEmpty()) {
+                } else if (visibleItems.isEmpty()) {
                     Text("No titles found", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(end = 16.dp)) {
-                        items(result.items, key = { "${it.tmdbId}-${it.isTv}" }) { title ->
+                        items(visibleItems, key = { "${it.tmdbId}-${it.isTv}" }) { title ->
                             Column(Modifier.width(124.dp).clickable {
                                 onMediaClick(SeerrRecentRequest(
                                     title = title.title, status = "",
                                     posterUrl = title.posterUrl, year = title.year,
                                     requestedBy = null, isTv = title.isTv, tmdbId = title.tmdbId))
                             }, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Surface(shape = RoundedCornerShape(18.dp),
-                                    modifier = Modifier.width(124.dp).height(186.dp),
-                                    color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                                    if (title.posterUrl != null)
-                                        AsyncImage(model = title.posterUrl,
-                                            contentDescription = title.title,
-                                            contentScale = ContentScale.Crop)
-                                    else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.Movie, contentDescription = null)
+                                Box(Modifier.width(124.dp).height(186.dp)) {
+                                    Surface(shape = RoundedCornerShape(18.dp),
+                                        modifier = Modifier.fillMaxSize(),
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                        if (title.posterUrl != null)
+                                            AsyncImage(model = title.posterUrl,
+                                                contentDescription = title.title,
+                                                contentScale = ContentScale.Crop)
+                                        else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Movie, contentDescription = null)
+                                        }
+                                    }
+                                    val badge = when (title.mediaStatus) {
+                                        2 -> "Pending"
+                                        3 -> "Processing"
+                                        4 -> "Partial"
+                                        5 -> "Available"
+                                        else -> null
+                                    }
+                                    if (badge != null) {
+                                        val tint = when (title.mediaStatus) {
+                                            5 -> Color(0xFF167D48)
+                                            4 -> Color(0xFF8460B3)
+                                            3 -> Color(0xFF246BB1)
+                                            else -> Color(0xFFAD741C)
+                                        }
+                                        Surface(modifier = Modifier.align(Alignment.TopEnd).padding(5.dp),
+                                            shape = RoundedCornerShape(50),
+                                            color = tint) {
+                                            Text(badge, Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.White, maxLines = 1)
+                                        }
                                     }
                                 }
                                 Text(title.title, style = MaterialTheme.typography.labelMedium,
@@ -1238,13 +1277,17 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
 
 @Composable
 private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentRequest,
+    cache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrMediaDetails>,
     onBack: () -> Unit, onRelatedClick: (SeerrRecentRequest) -> Unit) {
-    var details by remember(instance.id, request.tmdbId) { mutableStateOf<SeerrMediaDetails?>(null) }
-    var expanded by remember(request.tmdbId) { mutableStateOf(false) }
-    LaunchedEffect(instance, request.tmdbId) {
-        details = SeerrClient.mediaDetails(instance, request)
+    val cacheKey = "${request.tmdbId}-${request.isTv}"
+    var expanded by remember(cacheKey) { mutableStateOf(false) }
+    LaunchedEffect(instance, cacheKey) {
+        if (cacheKey !in cache) {
+            val fetched = SeerrClient.mediaDetails(instance, request)
+            if (fetched.error == null) cache[cacheKey] = fetched
+        }
     }
-    val media = details
+    val media = cache[cacheKey]
     val displayedStatus = if (request.status.isNotBlank()) request.status else when (media?.mediaStatus) {
         2 -> "Pending"
         3 -> "Processing"
