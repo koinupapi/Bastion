@@ -19,6 +19,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -303,7 +304,7 @@ private fun BastionApp() {
         }) { insets ->
             LazyColumn(
                 modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).padding(insets),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = if (openSeerrRequest != null) PaddingValues(bottom = 28.dp) else PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if (openSeerrRequest == null) item {
@@ -1125,50 +1126,84 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
         details = SeerrClient.mediaDetails(instance, request)
     }
     val media = details
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Box(Modifier.fillMaxWidth().height(250.dp)) {
-            Surface(Modifier.fillMaxSize(), shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Box(Modifier.fillMaxWidth().height(405.dp)) {
+            val pageColor = MaterialTheme.colorScheme.background
+            Box(Modifier.fillMaxSize()) {
                 if (media?.backdropUrl != null) {
-                    AsyncImage(model = media.backdropUrl, contentDescription = "Backdrop for ${request.title}",
+                    AsyncImage(model = media.backdropUrl,
+                        contentDescription = "Backdrop for ${request.title}",
                         modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                } else {
+                    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHigh))
                 }
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
+                    0f to Color.Black.copy(alpha = 0.30f),
+                    0.38f to Color.Transparent,
+                    0.60f to pageColor.copy(alpha = 0.70f),
+                    0.88f to pageColor,
+                    1f to pageColor)))
             }
             FilledTonalIconButton(onClick = onBack,
-                modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
+                modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Back to requests")
             }
-        }
-        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            val poster = media?.posterUrl ?: request.posterUrl
-            Surface(shape = RoundedCornerShape(20.dp), shadowElevation = 3.dp,
-                modifier = Modifier.width(112.dp).height(168.dp)) {
-                if (poster != null) AsyncImage(model = poster, contentDescription = "Poster",
-                    contentScale = ContentScale.Crop)
-                else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Movie, contentDescription = null)
+            Row(Modifier.align(Alignment.BottomStart).fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                val poster = media?.posterUrl ?: request.posterUrl
+                Surface(shape = RoundedCornerShape(18.dp), shadowElevation = 8.dp,
+                    modifier = Modifier.width(122.dp).height(183.dp)) {
+                    if (poster != null) AsyncImage(model = poster,
+                        contentDescription = "Poster for ${request.title}",
+                        contentScale = ContentScale.Crop)
+                    else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Movie, contentDescription = null)
+                    }
+                }
+                Column(Modifier.weight(1f).padding(bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(request.title, style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold)
+                    Text(if (request.isTv) "TV series" else "Movie",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        listOfNotNull(request.year,
+                            media?.runtime?.let { "${it / 60}h ${it % 60}m" },
+                            media?.rating?.let {
+                                "★ " + String.format(java.util.Locale.US, "%.1f", it)
+                            }).forEach { value ->
+                            Surface(shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                Text(value, Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
                 }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(request.title, style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold)
-                Text(listOfNotNull(if (request.isTv) "TV series" else "Movie",
-                    request.year, media?.runtime?.let { "${it / 60}h ${it % 60}m" })
-                    .joinToString(" • "), style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                media?.rating?.let {
-                    Text("★ " + String.format(java.util.Locale.US, "%.1f", it) + " / 10",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelLarge)
-                }
-                Surface(shape = RoundedCornerShape(50),
+        }
+        Column(Modifier.padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Row(Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(24.dp),
                     color = MaterialTheme.colorScheme.secondaryContainer) {
-                    Text(request.status, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        style = MaterialTheme.typography.labelLarge)
+                    Text(request.status, Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer)
+                }
+                request.requestedBy?.let {
+                    Text("Requested by $it", modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-        }
         if (media == null) LinearProgressIndicator(Modifier.fillMaxWidth())
         media?.error?.let { Text("Additional details unavailable: $it",
             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
@@ -1205,15 +1240,10 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                 }
             }
         }
-        if (request.requestedBy != null || (request.isTv && request.seasons.isNotEmpty())) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Request", style = MaterialTheme.typography.titleLarge)
-                request.requestedBy?.let { Text("Requested by $it") }
-                if (request.isTv && request.seasons.isNotEmpty())
-                    Text("Seasons: " + request.seasons.joinToString(", ") {
-                        if (it == 0) "Specials" else "Season $it"
-                    })
-            }
+        if (request.isTv && request.seasons.isNotEmpty()) {
+            Text("Requested seasons: " + request.seasons.joinToString(", ") {
+                if (it == 0) "Specials" else "Season $it"
+            }, style = MaterialTheme.typography.bodyMedium)
         }
         if (media != null && media.cast.isNotEmpty()) {
             Text("Cast", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -1252,14 +1282,19 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             if (facts.isNotEmpty()) {
                 Text(if (request.isTv) "Series details" else "Movie details",
                     style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Surface(shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                    Column(Modifier.fillMaxWidth().padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        facts.forEach { (label, value) ->
-                            Text(label, style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(value, style = MaterialTheme.typography.bodyMedium)
+                Column(Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    facts.chunked(2).forEach { pair ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            pair.forEach { (label, value) ->
+                                Column(Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Text(label, style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(value, style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
+                            if (pair.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
                 }
@@ -1301,7 +1336,8 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                 }
         }
     }
-}
+        }
+    }
 
 @Composable
 private fun UnifiedCalendarScreen() {
