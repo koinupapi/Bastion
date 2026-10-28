@@ -7,7 +7,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -42,3 +42,12 @@ jobs:
         with:
           name: Bastion-signed-apk
           path: app/build/outputs/apk/release/app-release.apk
+      - name: Publish development APK release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk Bastion-dev-${{ github.run_number }}.apk
+          gh release create "dev-${{ github.run_number }}" "Bastion-dev-${{ github.run_number }}.apk" \
+            --prerelease --target "${{ github.sha }}" \
+            --title "Bastion development build ${{ github.run_number }}" \
+            --notes "Signed development APK from successful GitHub Actions build ${{ github.run_number }}. Commit: ${{ github.sha }}."
