@@ -145,15 +145,41 @@ object SeerrClient {
     suspend fun requestOptions(config: ServiceConfig, isTv: Boolean): Result<List<SeerrRequestServer>> =
         runCatching {
             val path = if (isTv) "/api/v1/service/sonarr" else "/api/v1/service/radarr"
-            val data = api(config, path)
-            val array = data.optJSONArray("results") ?: JSONArray()
+            val addresses = when (config.mode) {
+                "Local only" -> listOf("Local" to config.localUrl)
+                "Remote only" -> listOf("Remote" to config.remoteUrl)
+                else -> listOf("Local" to config.localUrl, "Remote" to config.remoteUrl)
+            }.filter { it.second.isNotBlank() }
+            var raw: String? = null
+            var error = "No connection configured"
+            for ((label, address) in addresses) {
+                try {
+                    val url = URL(address.trimEnd('/') + path)
+                    require(url.protocol == "https" || (label == "Local" && url.protocol == "http"))
+                    val connection = url.openConnection() as HttpURLConnection
+                    try {
+                        connection.connectTimeout = 2500
+                        connection.readTimeout = 7000
+                        connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        val status = connection.responseCode
+                        if (status !in 200..299) throw IllegalStateException("HTTP $status")
+                        raw = connection.inputStream.bufferedReader().use { it.readText() }
+                    } finally { connection.disconnect() }
+                    break
+                } catch (e: Exception) {
+                    error = "$label: ${e.message}"
+                    if (error.contains("HTTP 401") || error.contains("HTTP 403")) break
+                }
+            }
+            val array = JSONArray(raw ?: throw IllegalStateException(error))
             (0 until array.length()).mapNotNull { i ->
-                val server = array.optJSONObject(i) ?: return@mapNotNull null
+                val entry = array.optJSONObject(i) ?: return@mapNotNull null
+                val server = api(config, path + "/" + entry.optInt("id"))
                 val profiles = server.optJSONArray("profiles") ?: JSONArray()
                 val roots = server.optJSONArray("rootFolders") ?: JSONArray()
                 SeerrRequestServer(
-                    id = server.optInt("id"),
-                    name = server.optString("name"),
+                    id = entry.optInt("id"),
+                    name = entry.optString("name"),
                     profiles = (0 until profiles.length()).mapNotNull { j ->
                         profiles.optJSONObject(j)?.let {
                             SeerrRequestChoice(it.optInt("id"), it.optString("name"))
@@ -171,14 +197,14 @@ object SeerrClient {
         }
 
     suspend fun submitRequest(config: ServiceConfig, tmdbId: Int, isTv: Boolean,
-        serverId: Int, profileId: Int, rootId: Int, seasons: List<Int>): Result<Unit> =
+        serverId: Int, profileId: Int, rootPath: String, seasons: List<Int>): Result<Unit> =
         runCatching {
             val payload = JSONObject()
                 .put("mediaType", if (isTv) "tv" else "movie")
                 .put("mediaId", tmdbId)
                 .put("serverId", serverId)
                 .put("profileId", profileId)
-                .put("rootFolder", rootId)
+                .put("rootFolder", rootPath)
             if (isTv) payload.put("seasons", JSONArray(seasons))
             api(config, "/api/v1/request", payload)
             Unit
