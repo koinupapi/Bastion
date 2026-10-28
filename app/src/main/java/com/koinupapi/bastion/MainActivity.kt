@@ -1,5 +1,7 @@
 package com.koinupapi.bastion
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -894,9 +896,6 @@ private fun UnifiedCalendarScreen() {
     val sources = listOf("Sonarr", "Radarr", "Bindery")
     val sourceColors = listOf(Color(0xFF448DD6), Color(0xFF51B86B), Color(0xFFB18CE6))
     var enabledSources by remember { mutableStateOf(setOf("Sonarr", "Radarr", "Bindery")) }
-    val motion = spring<Float>(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
-    val days = month.lengthOfMonth()
-    val leading = month.atDay(1).dayOfWeek.value % 7
 
     Column(Modifier.fillMaxWidth().animateContentSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -951,33 +950,47 @@ private fun UnifiedCalendarScreen() {
 
         Text("RELEASE SOURCES", style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        val pressSources = remember { List(3) { MutableInteractionSource() } }
+        val pressed = pressSources.map { it.collectIsPressedAsState().value }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             sources.forEachIndexed { index, source ->
                 val active = source in enabledSources
-                val corner by animateDpAsState(if (active) 28.dp else 10.dp,
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                    label = "Source shape")
-                val outer = 24.dp
-                val shape = RoundedCornerShape(
-                    topStart = if (index == 0) outer else corner,
-                    topEnd = if (index == sources.lastIndex) outer else corner,
-                    bottomStart = if (index == 0) outer else corner,
-                    bottomEnd = if (index == sources.lastIndex) outer else corner
+                val isPressed = pressed[index]
+                val expandedWeight by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = if (isPressed) 1.22f else 1f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium),
+                    label = "Filter press expansion"
                 )
-                Surface(onClick = {
-                    enabledSources = if (active) enabledSources - source else enabledSources + source
-                }, modifier = Modifier.weight(1f).height(46.dp),
+                val innerCorner by animateDpAsState(
+                    targetValue = if (active || isPressed) 24.dp else 8.dp,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                    label = "Filter inner corners"
+                )
+                val outerCorner = 24.dp
+                val shape = RoundedCornerShape(
+                    topStart = if (index == 0) outerCorner else innerCorner,
+                    topEnd = if (index == sources.lastIndex) outerCorner else innerCorner,
+                    bottomStart = if (index == 0) outerCorner else innerCorner,
+                    bottomEnd = if (index == sources.lastIndex) outerCorner else innerCorner
+                )
+                Surface(
+                    onClick = {
+                        enabledSources = if (active) enabledSources - source else enabledSources + source
+                    },
+                    interactionSource = pressSources[index],
+                    modifier = Modifier.weight(expandedWeight).height(48.dp),
                     shape = shape,
                     color = if (active) MaterialTheme.colorScheme.secondaryContainer
-                        else MaterialTheme.colorScheme.surfaceContainerHigh) {
+                        else MaterialTheme.colorScheme.surfaceContainerHigh
+                ) {
                     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(8.dp), contentAlignment = Alignment.Center) {
-                            Surface(shape = RoundedCornerShape(50), color = sourceColors[index],
-                                modifier = Modifier.size(8.dp)) {}
-                        }
+                        Surface(shape = RoundedCornerShape(50), color = sourceColors[index],
+                            modifier = Modifier.size(8.dp)) {}
                         Spacer(Modifier.width(6.dp))
                         Text(source, style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
                             color = if (active) MaterialTheme.colorScheme.onSecondaryContainer
                                 else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
