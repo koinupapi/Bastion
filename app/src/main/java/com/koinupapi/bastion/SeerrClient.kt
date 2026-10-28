@@ -222,6 +222,14 @@ object SeerrClient {
             Unit
         }
 
+    suspend fun submitIssue(config: ServiceConfig, mediaId: Int, type: Int, message: String): Result<Unit> =
+        runCatching {
+            require(mediaId > 0) { "Seerr media record is unavailable" }
+            api(config, "/api/v1/issue", JSONObject()
+                .put("mediaId", mediaId).put("issueType", type).put("message", message))
+            Unit
+        }
+
     suspend fun issuePage(config: ServiceConfig, take: Int, skip: Int, filter: String): SeerrIssueResult =
         withContext(Dispatchers.IO) {
             val addresses = when (config.mode) {
@@ -421,7 +429,8 @@ object SeerrClient {
                         rating = detail.optDouble("voteAverage", 0.0).takeIf { it > 0 },
                         releaseDate = detail.optString(if (request.isTv) "firstAirDate" else "releaseDate"),
                         recommendations = related("recommendations"), similar = related("similar"),
-                        mediaStatus = detail.optJSONObject("mediaInfo")?.optInt("status", 0) ?: 0)
+                        mediaStatus = detail.optJSONObject("mediaInfo")?.optInt("status", 0) ?: 0,
+                        seerrMediaId = detail.optJSONObject("mediaInfo")?.optInt("id", 0) ?: 0)
                 } catch (e: Exception) {
                     errors.add("$label: ${e.message ?: e.javaClass.simpleName}")
                     if (e.message == "HTTP 401" || e.message == "HTTP 403") break
@@ -544,7 +553,7 @@ data class SeerrMediaDetails(
     val runtime: Int? = null, val rating: Double? = null, val releaseDate: String = "",
     val recommendations: List<SeerrRelatedTitle> = emptyList(),
     val similar: List<SeerrRelatedTitle> = emptyList(),
-    val mediaStatus: Int = 0, val error: String? = null
+    val mediaStatus: Int = 0, val seerrMediaId: Int = 0, val error: String? = null
 )
 
 data class SeerrDiscoverResult(val items: List<SeerrRelatedTitle> = emptyList(), val error: String? = null)
