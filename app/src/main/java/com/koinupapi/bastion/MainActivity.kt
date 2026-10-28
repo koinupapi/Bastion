@@ -2,6 +2,10 @@ package com.koinupapi.bastion
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
+import android.graphics.Color as AndroidColor
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,6 +26,7 @@ private val containers = listOf("sonarr", "radarr", "qbittorrent", "plex", "seer
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent { BastionApp() }
     }
 }
@@ -34,10 +39,19 @@ private fun BastionApp() {
     val colors = if (dynamic && android.os.Build.VERSION.SDK_INT >= 31) {
         if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     } else if (dark) darkColorScheme() else lightColorScheme()
+    val activity = context as ComponentActivity
+    SideEffect {
+        activity.enableEdgeToEdge(
+            statusBarStyle = if (dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT) else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
+            navigationBarStyle = if (dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT) else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
+        )
+        @Suppress("DEPRECATION")
+        activity.window.isNavigationBarContrastEnforced = false
+    }
     MaterialTheme(colorScheme = colors) {
         var tab by remember { mutableIntStateOf(0) }
-        val labels = listOf("Home", "Servers", "Media", "Services")
-        val icons = listOf(Icons.Default.Home, Icons.Default.Dns, Icons.Default.Movie, Icons.Default.Widgets)
+        val labels = listOf("Home", "Servers", "Media", "Settings")
+        val icons = listOf(Icons.Default.Home, Icons.Default.Dns, Icons.Default.Movie, Icons.Default.Settings)
         Scaffold(bottomBar = {
             NavigationBar {
                 labels.forEachIndexed { index, label ->
@@ -88,7 +102,7 @@ private fun BastionApp() {
                         }
                     }
                     else -> {
-                        item { SectionTitle("Connected services") }
+                        item { SectionTitle("Service connections") }
                         items(services) { DemoRow(it, "Demo instance • not connected") }
                         item { SectionTitle("Appearance") }
                         item {
@@ -187,7 +201,7 @@ private fun DownloadLine(name: String, progress: Float) {
             Spacer(Modifier.width(8.dp))
             Text("${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
         }
-        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+        LinearWavyProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
     }
 }
 
