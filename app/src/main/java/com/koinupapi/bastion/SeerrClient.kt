@@ -161,22 +161,24 @@ object SeerrClient {
                         connection.connectTimeout = 2500
                         connection.readTimeout = 7000
                         connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        connection.setRequestProperty("Accept", "application/json")
                         val status = connection.responseCode
                         if (status !in 200..299) throw IllegalStateException("HTTP $status")
                         raw = connection.inputStream.bufferedReader().use { it.readText() }
                     } finally { connection.disconnect() }
                     break
                 } catch (e: Exception) {
-                    error = "$label: ${e.message}"
+                    error = "$label: ${e.message ?: e.javaClass.simpleName}"
                     if (error.contains("HTTP 401") || error.contains("HTTP 403")) break
                 }
             }
-            val array = JSONArray(raw ?: throw IllegalStateException(error))
+            val response = raw ?: throw IllegalStateException(error)
+            val array = if (response.trimStart().startsWith("[")) JSONArray(response)
+                else JSONObject(response).optJSONArray("results") ?: JSONArray()
             (0 until array.length()).mapNotNull { i ->
                 val entry = array.optJSONObject(i) ?: return@mapNotNull null
-                val server = api(config, path + "/" + entry.optInt("id"))
-                val profiles = server.optJSONArray("profiles") ?: JSONArray()
-                val roots = server.optJSONArray("rootFolders") ?: JSONArray()
+                val profiles = entry.optJSONArray("profiles") ?: JSONArray()
+                val roots = entry.optJSONArray("rootFolders") ?: JSONArray()
                 SeerrRequestServer(
                     id = entry.optInt("id"),
                     name = entry.optString("name"),
@@ -190,8 +192,8 @@ object SeerrClient {
                             SeerrRequestChoice(it.optInt("id"), it.optString("path"))
                         }
                     },
-                    defaultProfile = server.optInt("activeProfileId"),
-                    defaultRoot = server.optInt("activeDirectoryId")
+                    defaultProfile = entry.optInt("activeProfileId"),
+                    defaultRoot = entry.optInt("activeDirectoryId")
                 )
             }
         }
