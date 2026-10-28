@@ -1352,12 +1352,94 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
+    onDismiss: () -> Unit, onSubmitted: () -> Unit) {
+    var options by remember(instance.id) { mutableStateOf<Result<List<SeerrRequestServer>>?>(null) }
+    var serverIndex by remember { mutableIntStateOf(0) }
+    var profileId by remember { mutableIntStateOf(-1) }
+    var rootPath by remember { mutableStateOf("") }
+    var submitting by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(instance) { options = SeerrClient.requestOptions(instance, false) }
+    val servers = options?.getOrNull().orEmpty()
+    val server = servers.getOrNull(serverIndex)
+    LaunchedEffect(server?.id) {
+        profileId = server?.defaultProfile?.takeIf { id -> server.profiles.any { it.id == id } }
+            ?: server?.profiles?.firstOrNull()?.id ?: -1
+        rootPath = server?.roots?.firstOrNull {
+            it.id == server.defaultRoot
+        }?.name ?: server?.roots?.firstOrNull()?.name.orEmpty()
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Request movie", style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold)
+            Text("Choose your Radarr quality profile and root folder.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (options == null) LinearProgressIndicator(Modifier.fillMaxWidth())
+            options?.exceptionOrNull()?.let {
+                Text(it.message ?: "Could not load Radarr options",
+                    color = MaterialTheme.colorScheme.error)
+            }
+            if (options != null && servers.isEmpty() && options?.isSuccess == true)
+                Text("No Radarr servers are configured in Seerr.")
+            if (servers.size > 1) {
+                Text("Radarr server", style = MaterialTheme.typography.titleSmall)
+                servers.forEachIndexed { index, item ->
+                    FilterChip(selected = index == serverIndex,
+                        onClick = { serverIndex = index }, label = { Text(item.name) })
+                }
+            }
+            if (server != null) {
+                Text("Quality profile", style = MaterialTheme.typography.titleSmall)
+                server.profiles.forEach { profile ->
+                    FilterChip(selected = profileId == profile.id,
+                        onClick = { profileId = profile.id }, label = { Text(profile.name) })
+                }
+                Text("Root folder", style = MaterialTheme.typography.titleSmall)
+                server.roots.forEach { root ->
+                    FilterChip(selected = rootPath == root.name,
+                        onClick = { rootPath = root.name }, label = { Text(root.name) })
+                }
+                if (server.profiles.isEmpty() || server.roots.isEmpty())
+                    Text("This server has no selectable profiles or root folders.",
+                        color = MaterialTheme.colorScheme.error)
+            }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            Button(modifier = Modifier.fillMaxWidth(),
+                enabled = server != null && profileId >= 0 && rootPath.isNotBlank() && !submitting,
+                onClick = {
+                    val chosen = server ?: return@Button
+                    submitting = true
+                    error = null
+                    scope.launch {
+                        val response = SeerrClient.submitRequest(instance, tmdbId, false,
+                            chosen.id, profileId, rootPath, emptyList())
+                        submitting = false
+                        response.onSuccess { onSubmitted() }
+                            .onFailure { error = it.message ?: "Request failed" }
+                    }
+                }) {
+                if (submitting) CircularProgressIndicator(Modifier.size(20.dp),
+                    strokeWidth = 2.dp)
+                else Text("Submit request")
+            }
+        }
+    }
+}
+
 @Composable
 private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentRequest,
     cache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrMediaDetails>,
     carouselScrollStates: MutableMap<String, androidx.compose.foundation.ScrollState>,
     navigationDepth: Int,
     onBack: () -> Unit, onRelatedClick: (SeerrRecentRequest) -> Unit) {
+    var showRequestSheet by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
+    var requestSubmitted by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
     val cacheKey = "${request.tmdbId}-${request.isTv}"
     var expanded by remember(cacheKey) { mutableStateOf(false) }
     LaunchedEffect(instance, cacheKey) {
@@ -1365,6 +1447,11 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             val fetched = SeerrClient.mediaDetails(instance, request)
             if (fetched.error == null) cache[cacheKey] = fetched
         }
+    }
+    if (showRequestSheet) {
+        SeerrMovieRequestSheet(instance, request.tmdbId,
+            onDismiss = { showRequestSheet = false },
+            onSubmitted = { requestSubmitted = true; showRequestSheet = false })
     }
     val media = cache[cacheKey]
     val displayedStatus = if (request.status.isNotBlank()) request.status else when (media?.mediaStatus) {
@@ -1452,6 +1539,15 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+        if (request.tmdbId > 0 && !request.isTv && displayedStatus == null && !requestSubmitted) {
+            Button(onClick = { showRequestSheet = true }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Request movie")
+            }
+        }
+        if (requestSubmitted) Text("Request submitted successfully",
+            color = MaterialTheme.colorScheme.primary)
         if (media == null) LinearProgressIndicator(Modifier.fillMaxWidth())
         media?.error?.let { Text("Additional details unavailable: $it",
             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
