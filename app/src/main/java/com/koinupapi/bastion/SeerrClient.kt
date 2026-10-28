@@ -159,7 +159,14 @@ object SeerrClient {
                         }
                         val status = if (requestStatus == "Declined") requestStatus
                             else mediaStatus ?: requestStatus
-                        SeerrRecentRequest(title, status, posterUrl)
+                        val releaseDate = detail?.optString(
+                            if (type == "tv") "firstAirDate" else "releaseDate").orEmpty()
+                        val year = releaseDate.take(4).takeIf { it.length == 4 && it.all(Char::isDigit) }
+                        val requester = request.optJSONObject("requestedBy")
+                        val requestedBy = requester?.optString("displayName")
+                            ?.takeIf { it.isNotBlank() }
+                            ?: requester?.optString("username")?.takeIf { it.isNotBlank() }
+                        SeerrRecentRequest(title, status, posterUrl, year, requestedBy)
                     }
                     return@withContext SeerrRecentResult(config.name, total.coerceAtLeast(requests.size), requests, null)
                 } catch (e: Exception) {
@@ -170,7 +177,10 @@ object SeerrClient {
             SeerrRecentResult(config.name, 0, emptyList(), failures.joinToString("; ").ifBlank { "No connection configured" })
         }
 }
-data class SeerrRecentRequest(val title: String, val status: String, val posterUrl: String?)
+data class SeerrRecentRequest(
+    val title: String, val status: String, val posterUrl: String?,
+    val year: String?, val requestedBy: String?
+)
 data class SeerrRecentResult(
     val instance: String, val total: Int, val requests: List<SeerrRecentRequest>, val error: String?
 )

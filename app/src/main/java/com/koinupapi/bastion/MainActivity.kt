@@ -523,6 +523,7 @@ private fun SectionTitle(title: String) {
 
 @Composable
 private fun WidgetCard(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector,
+    trailing: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit) {
     Card(shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
@@ -532,6 +533,7 @@ private fun WidgetCard(title: String, icon: androidx.compose.ui.graphics.vector.
                 Spacer(Modifier.width(10.dp))
                 Text(title, style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                trailing?.invoke()
             }
             content()
         }
@@ -599,7 +601,17 @@ private fun RequestsWidget(instances: List<ServiceConfig>) {
             } finally { loading = false }
         }
     }
-    WidgetCard("Seerr requests", Icons.Default.Movie) {
+    val total = results.filter { it.error == null }.sumOf { it.total }
+    WidgetCard("Seerr requests", Icons.Default.Movie, trailing = {
+        if (instances.isNotEmpty() && !loading && results.any { it.error == null }) {
+            Surface(shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.secondaryContainer) {
+                Text("$total requested", modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer)
+            }
+        }
+    }) {
         if (instances.isEmpty()) {
             Text("Add Seerr in Settings → Services to see live requests.")
         } else {
@@ -620,12 +632,9 @@ private fun RequestsWidget(instances: List<ServiceConfig>) {
                         Text(result.error, color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall)
                     } else {
-                        Text("${result.total} requested",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (result.requests.isEmpty()) Text("No requests yet.")
                         result.requests.forEachIndexed { index, request ->
-                            if (index > 0) HorizontalDivider()
+                            if (index > 0) Spacer(Modifier.height(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 Surface(shape = RoundedCornerShape(12.dp),
@@ -645,10 +654,16 @@ private fun RequestsWidget(instances: List<ServiceConfig>) {
                                 }
                                 Column(Modifier.weight(1f),
                                     verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(request.title, style = MaterialTheme.typography.bodyMedium,
+                                    Text(request.title + (request.year?.let { " ($it)" } ?: ""),
+                                        style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.SemiBold)
                                     Text(request.status, style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.primary)
+                                    request.requestedBy?.let { username ->
+                                        Text("Requested by $username",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                 }
                             }
                         }
