@@ -1387,8 +1387,11 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
             }
             if (options != null && servers.isEmpty() && options?.isSuccess == true)
                 Text("No Radarr servers are configured in Seerr.")
-            if (servers.size > 1) {
+            if (servers.isNotEmpty()) {
                 Text("Radarr server", style = MaterialTheme.typography.titleSmall)
+                Text("Choose the instance for this request",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 servers.forEachIndexed { index, item ->
                     FilterChip(selected = index == serverIndex,
                         onClick = { serverIndex = index }, label = { Text(item.name) })
