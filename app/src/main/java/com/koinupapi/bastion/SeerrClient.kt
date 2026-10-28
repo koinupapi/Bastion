@@ -450,7 +450,20 @@ object SeerrClient {
                         releaseDate = detail.optString(if (request.isTv) "firstAirDate" else "releaseDate"),
                         recommendations = related("recommendations"), similar = related("similar"),
                         mediaStatus = detail.optJSONObject("mediaInfo")?.optInt("status", 0) ?: 0,
-                        seerrMediaId = detail.optJSONObject("mediaInfo")?.optInt("id", 0) ?: 0)
+                        seerrMediaId = detail.optJSONObject("mediaInfo")?.optInt("id", 0) ?: 0,
+                        tvSeasons = (0 until (detail.optJSONArray("seasons")?.length() ?: 0)).mapNotNull { index ->
+                            detail.optJSONArray("seasons")?.optJSONObject(index)?.let { season ->
+                                val number = season.optInt("seasonNumber", -1)
+                                if (number < 0) null else SeerrTvSeason(number,
+                                    season.optString("name").ifBlank { "Season $number" },
+                                    season.optInt("episodeCount", 0),
+                                    detail.optJSONObject("mediaInfo")?.optJSONArray("seasons")?.let { info ->
+                                        (0 until info.length()).mapNotNull { i -> info.optJSONObject(i) }
+                                            .firstOrNull { it.optInt("seasonNumber", -1) == number }
+                                            ?.optInt("status", 0)
+                                    } ?: 0)
+                            }
+                        })
                 } catch (e: Exception) {
                     errors.add("$label: ${e.message ?: e.javaClass.simpleName}")
                     if (e.message == "HTTP 401" || e.message == "HTTP 403") break
@@ -564,6 +577,7 @@ data class SeerrRecentResult(
 
 data class SeerrCast(val name: String, val character: String, val photoUrl: String?)
 data class SeerrRelatedTitle(val title: String, val posterUrl: String?, val year: String, val rating: Double, val tmdbId: Int, val isTv: Boolean, val mediaStatus: Int = 0)
+data class SeerrTvSeason(val number: Int, val name: String, val episodes: Int, val status: Int)
 data class SeerrMediaDetails(
     val backdropUrl: String? = null, val posterUrl: String? = null,
     val overview: String? = null, val tagline: String? = null,
@@ -573,7 +587,8 @@ data class SeerrMediaDetails(
     val runtime: Int? = null, val rating: Double? = null, val releaseDate: String = "",
     val recommendations: List<SeerrRelatedTitle> = emptyList(),
     val similar: List<SeerrRelatedTitle> = emptyList(),
-    val mediaStatus: Int = 0, val seerrMediaId: Int = 0, val error: String? = null
+    val mediaStatus: Int = 0, val seerrMediaId: Int = 0,
+    val tvSeasons: List<SeerrTvSeason> = emptyList(), val error: String? = null
 )
 
 data class SeerrDiscoverResult(val items: List<SeerrRelatedTitle> = emptyList(), val error: String? = null)
