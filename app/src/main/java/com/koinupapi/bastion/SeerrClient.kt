@@ -100,6 +100,70 @@ object SeerrClient {
             }
             "Connection failed — " + failures.joinToString("; ")
         }
+    suspend fun issuePage(config: ServiceConfig, take: Int, skip: Int, filter: String): SeerrIssueResult =
+        withContext(Dispatchers.IO) {
+            val addresses = when (config.mode) {
+                "Local only" -> listOf("Local" to config.localUrl)
+                "Remote only" -> listOf("Remote" to config.remoteUrl)
+                else -> listOf("Local" to config.localUrl, "Remote" to config.remoteUrl)
+            }.filter { it.second.isNotBlank() }
+            val failures = mutableListOf<String>()
+            for ((label, address) in addresses) {
+                try {
+                    val url = URL(address.trimEnd('/') +
+                        "/api/v1/issue?take=$take&skip=$skip&sort=added&filter=${filter.lowercase()}")
+                    require(url.protocol == "https" || (label == "Local" && url.protocol == "http"))
+                    val connection = url.openConnection() as HttpURLConnection
+                    try {
+                        connection.instanceFollowRedirects = false
+                        connection.connectTimeout = 2500
+                        connection.readTimeout = 5000
+                        connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        connection.setRequestProperty("Accept", "application/json")
+                        val code = connection.responseCode
+                        if (code !in 200..299) throw IllegalStateException("HTTP $code")
+                        val data = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                        val rows = data.optJSONArray("results") ?: JSONArray()
+                        val issues = (0 until rows.length()).mapNotNull { index ->
+                            val issue = rows.optJSONObject(index) ?: return@mapNotNull null
+                            val media = issue.optJSONObject("media")
+                            val author = issue.optJSONObject("createdBy")
+                            val comments = issue.optJSONArray("comments") ?: JSONArray()
+                            SeerrIssue(
+                                id = issue.optInt("id"),
+                                type = when (issue.optInt("issueType")) {
+                                    1 -> "Video"
+                                    2 -> "Audio"
+                                    3 -> "Subtitles"
+                                    4 -> "Other"
+                                    else -> "Issue"
+                                },
+                                resolved = issue.optInt("status") == 2,
+                                tmdbId = media?.optInt("tmdbId") ?: 0,
+                                author = author?.optString("displayName")?.takeIf { it.isNotBlank() }
+                                    ?: author?.optString("username")?.takeIf { it.isNotBlank() }
+                                    ?: "Unknown user",
+                                createdAt = issue.optString("createdAt").take(10),
+                                message = (0 until comments.length()).mapNotNull { i ->
+                                    comments.optJSONObject(i)?.optString("message")?.takeIf { it.isNotBlank() }
+                                }.firstOrNull().orEmpty(),
+                                comments = (0 until comments.length()).mapNotNull { i ->
+                                    comments.optJSONObject(i)?.optString("message")?.takeIf { it.isNotBlank() }
+                                }
+                            )
+                        }
+                        return@withContext SeerrIssueResult(
+                            issues, data.optJSONObject("pageInfo")?.optInt("results", issues.size)
+                                ?: issues.size)
+                    } finally { connection.disconnect() }
+                } catch (e: Exception) {
+                    failures.add("$label: ${e.message ?: e.javaClass.simpleName}")
+                    if (e.message == "HTTP 401" || e.message == "HTTP 403") break
+                }
+            }
+            SeerrIssueResult(error = failures.joinToString("; ").ifBlank { "No connection configured" })
+        }
+
     suspend fun discover(config: ServiceConfig, category: String): SeerrDiscoverResult =
         withContext(Dispatchers.IO) {
             val paths = mapOf(
@@ -361,3 +425,13 @@ data class SeerrMediaDetails(
 )
 
 data class SeerrDiscoverResult(val items: List<SeerrRelatedTitle> = emptyList(), val error: String? = null)
+
+data class SeerrIssue(
+    val id: Int, val type: String, val resolved: Boolean, val tmdbId: Int,
+    val author: String, val createdAt: String, val message: String,
+    val comments: List<String>
+)
+data class SeerrIssueResult(
+    val issues: List<SeerrIssue> = emptyList(), val total: Int = 0,
+    val error: String? = null
+)
