@@ -124,6 +124,8 @@ private fun BastionApp() {
         var selectedMediaId by remember { mutableStateOf<String?>(null) }
         var seerrTab by remember(selectedMediaId) { mutableIntStateOf(0) }
         val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
+        val seerrDiscoverCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrDiscoverResult>() }
+        val seerrPageStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
         val openSeerrRequest = seerrMediaStack.lastOrNull()
         val popSeerrMedia = { if (seerrMediaStack.isNotEmpty()) seerrMediaStack.removeAt(seerrMediaStack.lastIndex) }
         var settingsPage by remember { mutableStateOf("Settings") }
@@ -357,7 +359,13 @@ private fun BastionApp() {
                         if (openSeerrRequest != null) item { SeerrRequestDetails(service, openSeerrRequest!!,
                             onBack = { popSeerrMedia() },
                             onRelatedClick = { seerrMediaStack.add(it) }) }
-                        else item { SeerrManagementScreen(service, seerrTab) { seerrMediaStack.add(it) } }
+                        else item {
+                            seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${seerrTab}") {
+                                SeerrManagementScreen(service, seerrTab, seerrDiscoverCache) {
+                                    seerrMediaStack.add(it)
+                                }
+                            }
+                        }
                     }
                     else item { Text("Service management coming soon.") }
                 } else when (tab) {
@@ -945,14 +953,15 @@ private fun SettingsEntry(
 }
 
 @Composable
-private fun SeerrDiscoverScreen(instance: ServiceConfig, onMediaClick: (SeerrRecentRequest) -> Unit) {
+private fun SeerrDiscoverScreen(instance: ServiceConfig,
+    results: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
+    onMediaClick: (SeerrRecentRequest) -> Unit) {
     val sections = remember { listOf("Trending", "Popular Movies", "Popular TV Shows",
         "Upcoming Movies", "Upcoming TV Shows") }
-    val results = remember(instance.id) { mutableStateMapOf<String, SeerrDiscoverResult>() }
-    var category by remember(instance.id) { mutableStateOf("All") }
+    var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
     LaunchedEffect(instance) {
         kotlinx.coroutines.coroutineScope {
-            sections.forEach { section ->
+            sections.filter { it !in results }.forEach { section ->
                 launch {
                     val response = SeerrClient.discover(instance, section)
                     results[section] = response
@@ -1034,21 +1043,24 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig, onMediaClick: (SeerrRec
 }
 
 @Composable
-private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int, onRequestClick: (SeerrRecentRequest) -> Unit) {
+private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
+    discoverResults: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
+    onRequestClick: (SeerrRecentRequest) -> Unit) {
     var page by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
     var filter by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
     var result by remember(instance.id) { mutableStateOf<SeerrRecentResult?>(null) }
     var loading by remember(instance.id) { mutableStateOf(false) }
     var refresh by remember(instance.id) { mutableIntStateOf(0) }
     val pageSize = 20
-    LaunchedEffect(instance, page, filter, refresh) {
+    LaunchedEffect(instance, destination, page, filter, refresh) {
+        if (destination != 1) return@LaunchedEffect
         loading = true
         result = SeerrClient.requestPage(instance, pageSize, page * pageSize, filter)
         loading = false
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (destination == 0) {
-            SeerrDiscoverScreen(instance, onRequestClick)
+            SeerrDiscoverScreen(instance, discoverResults, onRequestClick)
         } else if (destination != 1) {
             val heading = when (destination) {
                 0 -> "Discover"
