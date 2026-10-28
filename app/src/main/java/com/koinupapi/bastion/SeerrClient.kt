@@ -177,10 +177,14 @@ object SeerrClient {
                 else JSONObject(response).optJSONArray("results") ?: JSONArray()
             (0 until array.length()).mapNotNull { i ->
                 val entry = array.optJSONObject(i) ?: return@mapNotNull null
-                val profiles = entry.optJSONArray("profiles")
-                    ?: entry.optJSONArray("qualityProfiles") ?: JSONArray()
-                val roots = entry.optJSONArray("rootFolders")
-                    ?: entry.optJSONArray("directories") ?: JSONArray()
+                // The server list is intentionally non-sensitive and does not contain
+                // quality profiles/root folders. Fetch the documented per-server endpoint.
+                val detail = api(config, "$path/${entry.optInt("id")}")
+                val settings = detail.optJSONObject("server") ?: entry
+                val profiles = detail.optJSONArray("profiles") ?: JSONArray()
+                val roots = detail.optJSONArray("rootFolders")
+                    ?: detail.optJSONArray("rootfolders")
+                    ?: detail.optJSONArray("directories") ?: JSONArray()
                 SeerrRequestServer(
                     id = entry.optInt("id"),
                     name = entry.optString("name"),
@@ -194,8 +198,12 @@ object SeerrClient {
                             SeerrRequestChoice(it.optInt("id"), it.optString("path").ifBlank { it.optString("name") })
                         }
                     },
-                    defaultProfile = entry.optInt("activeProfileId"),
-                    defaultRoot = entry.optInt("activeDirectoryId")
+                    defaultProfile = settings.optInt("activeProfileId"),
+                    defaultRoot = roots.let { folders ->
+                        (0 until folders.length()).firstOrNull { index ->
+                            folders.optJSONObject(index)?.optString("path") == settings.optString("activeDirectory")
+                        }?.let { folders.optJSONObject(it)?.optInt("id") } ?: -1
+                    }
                 )
             }
         } }
