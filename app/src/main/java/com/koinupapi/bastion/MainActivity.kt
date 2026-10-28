@@ -1436,6 +1436,28 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                     val chosen = server ?: return@Button
                     submitting = true
          
+
+           error = null
+                    scope.launch {
+                        val response = SeerrClient.submitRequest(instance, tmdbId, false,
+                            chosen.id, profileId, rootPath, emptyList())
+                        submitting = false
+                        response.onSuccess { onSubmitted() }
+                            .onFailure { error = it.message ?: "Request failed" }
+                    }
+                }) {
+                if (submitting) CircularProgressIndicator(Modifier.size(20.dp),
+                    strokeWidth = 2.dp)
+                else {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Submit request")
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun SeerrRequestDropdown(label: String, selected: String,
     leadingIcon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -1469,26 +1491,6 @@ private fun SeerrRequestDropdown(label: String, selected: String,
                         leadingIcon = if (index == selectedIndex) {
                             { Icon(Icons.Default.Check, contentDescription = null) }
                         } else null)
-                }
-            }
-        }
-    }
-}
-           error = null
-                    scope.launch {
-                        val response = SeerrClient.submitRequest(instance, tmdbId, false,
-                            chosen.id, profileId, rootPath, emptyList())
-                        submitting = false
-                        response.onSuccess { onSubmitted() }
-                            .onFailure { error = it.message ?: "Request failed" }
-                    }
-                }) {
-                if (submitting) CircularProgressIndicator(Modifier.size(20.dp),
-                    strokeWidth = 2.dp)
-                else {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Submit request")
                 }
             }
         }
