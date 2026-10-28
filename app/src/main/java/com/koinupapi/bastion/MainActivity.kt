@@ -36,6 +36,7 @@ private fun BastionApp() {
     val context = LocalContext.current
     var dark by remember { mutableStateOf(false) }
     var dynamic by remember { mutableStateOf(true) }
+    var showAllNavLabels by remember { mutableStateOf(true) }
     val colors = if (dynamic && android.os.Build.VERSION.SDK_INT >= 31) {
         if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     } else if (dark) darkColorScheme() else lightColorScheme()
@@ -60,7 +61,8 @@ private fun BastionApp() {
                         selected = tab == index,
                         onClick = { tab = index; settingsPage = "Settings" },
                         icon = { Icon(icons[index], contentDescription = null) },
-                        label = { Text(label) }
+                        label = { Text(label) },
+                        alwaysShowLabel = showAllNavLabels
                     )
                 }
             }
@@ -143,6 +145,27 @@ private fun BastionApp() {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text("Dynamic colors", Modifier.weight(1f))
                                                 Switch(checked = dynamic, onCheckedChange = { dynamic = it })
+                                            }
+                                            HorizontalDivider()
+                                            Text("Navigation labels", style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+                                            Text("Choose which destination names appear in the bottom bar.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            SingleChoiceSegmentedButtonRow(
+                                                modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                                            ) {
+                                                SegmentedButton(
+                                                    selected = showAllNavLabels,
+                                                    onClick = { showAllNavLabels = true },
+                                                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                                                ) { Text("All labels") }
+                                                SegmentedButton(
+                                                    selected = !showAllNavLabels,
+                                                    onClick = { showAllNavLabels = false },
+                                                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                                                ) { Text("Selected only") }
                                             }
                                         }
                                     }
