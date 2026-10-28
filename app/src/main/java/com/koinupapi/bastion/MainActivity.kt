@@ -140,8 +140,8 @@ private fun BastionApp() {
         var lastExitBackAt by remember { mutableLongStateOf(0L) }
         BackHandler {
             when {
-                tab == 2 && settingsPage != "Settings" -> goBackSettings()
                 selectedMediaId != null -> selectedMediaId = null
+                tab == 2 && settingsPage != "Settings" -> goBackSettings()
                 tab != 0 && returnToDashboard -> {
                     tab = 0
                     settingsPage = "Settings"
@@ -248,7 +248,7 @@ private fun BastionApp() {
             }
         }) {
         Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }, bottomBar = {
-            if (selectedMediaId == null) NavigationBar {
+            if (selectedMediaId == null && (tab != 2 || settingsPage == "Settings")) NavigationBar {
                 labels.forEachIndexed { index, label ->
                     NavigationBarItem(
                         selected = tab == index,
@@ -266,14 +266,42 @@ private fun BastionApp() {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) { Icon(Icons.Default.Menu, contentDescription = "Open services") }
-                        Column(Modifier.weight(1f)) {
-                            Text("YOUR HOMELAB", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                            Text(if (selectedMediaId != null) savedInstances.firstOrNull { it.id == selectedMediaId }?.name ?: "Service" else if (tab == 0) "Bastion" else labels[tab],
-                                style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                    val nestedSettings = selectedMediaId == null && tab == 2 && settingsPage != "Settings"
+                    val serviceScreen = selectedMediaId != null
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()) {
+                        IconButton(onClick = {
+                            when {
+                                serviceScreen -> selectedMediaId = null
+                                nestedSettings -> goBackSettings()
+                                else -> scope.launch { drawerState.open() }
+                            }
+                        }) {
+                            Icon(if (nestedSettings || serviceScreen) Icons.Default.ArrowBack
+                                else Icons.Default.Menu,
+                                contentDescription = if (nestedSettings || serviceScreen) "Navigate back"
+                                    else "Open services")
                         }
-                        Icon(Icons.Default.Shield, contentDescription = "Bastion", tint = MaterialTheme.colorScheme.primary)
+                        Column(Modifier.weight(1f)) {
+                            if (!nestedSettings && !serviceScreen && tab == 0)
+                                Text("YOUR HOMELAB", style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary)
+                            Text(
+                                when {
+                                    serviceScreen -> savedInstances.firstOrNull { it.id == selectedMediaId }?.name ?: "Service"
+                                    nestedSettings -> if (settingsPage == "Service detail") selectedIntegration else settingsPage
+                                    tab == 0 -> "Bastion"
+                                    else -> labels[tab]
+                                },
+                                style = if (nestedSettings || serviceScreen)
+                                    MaterialTheme.typography.headlineMedium
+                                else MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        if (!nestedSettings && !serviceScreen)
+                            Icon(Icons.Default.Shield, contentDescription = "Bastion",
+                                tint = MaterialTheme.colorScheme.primary)
                     }
                 }
                 if (selectedMediaId == null && tab == 0) item { DemoNotice() }
@@ -317,14 +345,6 @@ private fun BastionApp() {
                                 }
                             }
                         } else {
-                            item {
-                                TextButton(onClick = { goBackSettings() }) {
-                                    Icon(Icons.Default.ArrowBack, contentDescription = null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(settingsHistory.lastOrNull() ?: "Settings")
-                                }
-                            }
-                            item { SectionTitle(if (settingsPage == "Service detail") selectedIntegration else settingsPage) }
                             when (settingsPage) {
                                 "Appearance" -> item {
                                     Card(shape = MaterialTheme.shapes.extraLarge) {
