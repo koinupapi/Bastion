@@ -10,6 +10,8 @@ import androidx.activity.SystemBarStyle
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -38,7 +40,7 @@ private val integrationCatalog = listOf(
     Integration("Navidrome", "Media servers"),
     Integration("Immich", "Other services")
 )
-private data class ServicePreview(val id: Int, val type: String, val name: String)
+
 private val containers = listOf("sonarr", "radarr", "qbittorrent", "plex", "seerr", "uptime-kuma")
 
 class MainActivity : ComponentActivity() {
@@ -76,8 +78,27 @@ private fun BastionApp() {
         var selectedIntegration by remember { mutableStateOf("Seerr") }
         var serviceSearch by remember { mutableStateOf("") }
         var previewName by remember { mutableStateOf("") }
-        val previewInstances = remember { mutableStateListOf<ServicePreview>() }
-        var nextPreviewId by remember { mutableIntStateOf(1) }
+        val serviceStore = remember(context) { ServiceStore(context) }
+        val savedInstances = remember { mutableStateListOf<ServiceConfig>().apply { addAll(serviceStore.load()) } }
+        var editingId by remember { mutableStateOf<String?>(null) }
+        var localUrl by remember { mutableStateOf("") }
+        var remoteUrl by remember { mutableStateOf("") }
+        var apiKey by remember { mutableStateOf("") }
+        var connectionMode by remember { mutableStateOf("Automatic") }
+        var testResult by remember { mutableStateOf("") }
+        var isTesting by remember { mutableStateOf(false) }
+        var deleteConfirmation by remember { mutableStateOf(false) }
+        fun persistServices() { serviceStore.save(savedInstances.toList()) }
+        fun editService(config: ServiceConfig?) {
+            editingId = config?.id
+            selectedIntegration = config?.type ?: selectedIntegration
+            previewName = config?.name ?: selectedIntegration
+            localUrl = config?.localUrl.orEmpty()
+            remoteUrl = config?.remoteUrl.orEmpty()
+            apiKey = config?.apiKey.orEmpty()
+            connectionMode = config?.mode ?: "Automatic"
+            testResult = ""
+        }
         val settingsHistory = remember { mutableStateListOf<String>() }
         fun openSettingsPage(page: String) {
             settingsHistory.add(settingsPage)
@@ -300,7 +321,7 @@ private fun BastionApp() {
                                         }
                                     }
                                     item { SectionTitle("Your services") }
-                                    if (previewInstances.isEmpty()) {
+                                    if (savedInstances.isEmpty()) {
                                         item {
                                             Card(shape = MaterialTheme.shapes.extraLarge) {
                                                 Column(Modifier.fillMaxWidth().padding(24.dp),
@@ -308,18 +329,17 @@ private fun BastionApp() {
                                                     Icon(Icons.Default.Extension, contentDescription = null,
                                                         tint = MaterialTheme.colorScheme.primary)
                                                     Text("No services configured yet", style = MaterialTheme.typography.titleMedium)
-                                                    Text("Add a service to start setting up Bastion. Connections are not active in this preview.",
+                                                    Text("Add Seerr to connect your server. Other integrations are coming later.",
                                                         style = MaterialTheme.typography.bodyMedium,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                                 }
                                             }
                                         }
                                     } else {
-                                        items(previewInstances, key = { it.id }) { instance ->
-                                            SettingsEntry(instance.name, "${instance.type} • Preview only",
+                                        items(savedInstances, key = { it.id }) { instance ->
+                                            SettingsEntry(instance.name, "${instance.type} • Configured",
                                                 Icons.Default.Dns) {
-                                                selectedIntegration = instance.type
-                                                previewName = instance.name
+                                                editService(instance)
                                                 openSettingsPage("Service detail")
                                             }
                                         }
@@ -351,7 +371,7 @@ private fun BastionApp() {
                                                 SettingsEntry(integration.name, "Add ${integration.name} instance",
                                                     Icons.Default.Add) {
                                                     selectedIntegration = integration.name
-                                                    previewName = integration.name
+                                                    editService(null)
                                                     openSettingsPage("Service detail")
                                                 }
                                             }
@@ -359,33 +379,114 @@ private fun BastionApp() {
                                     }
                                 }
                                 "Service detail" -> item {
-                                    Card(shape = MaterialTheme.shapes.extraLarge) {
-                                        Column(Modifier.fillMaxWidth().padding(20.dp),
-                                            verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                            Text("Instance preview", style = MaterialTheme.typography.titleMedium)
-                                            Text("This screen previews the configuration flow. No server connection or credentials are stored yet.",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            OutlinedTextField(
-                                                value = previewName,
-                                                onValueChange = { previewName = it },
-                                                label = { Text("Display name") },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                singleLine = true
-                                            )
-                                            Button(
-                                                enabled = previewName.isNotBlank(),
-                                                onClick = {
-                                                    previewInstances.add(ServicePreview(nextPreviewId++, selectedIntegration, previewName.trim()))
-                                                    settingsHistory.clear()
-                                                    settingsHistory.add("Settings")
-                                                    settingsPage = "Services"
+                                    if (selectedIntegration != "Seerr") {
+                                        Card(shape = MaterialTheme.shapes.extraLarge) {
+                                            Column(Modifier.fillMaxWidth().padding(20.dp),
+                                                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                Text("Coming soon", style = MaterialTheme.typography.titleLarge)
+                                                Text("Real connections for ${selectedIntegration} aren't implemented yet. Seerr is our first integration.")
+                                            }
+                                        }
+                                    } else {
+                                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                            Card(shape = MaterialTheme.shapes.extraLarge) {
+                                                Column(Modifier.fillMaxWidth().padding(20.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                                    Text("Seerr connection", style = MaterialTheme.typography.titleLarge)
+                                                    OutlinedTextField(value = previewName, onValueChange = { previewName = it },
+                                                        label = { Text("Display name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                                    OutlinedTextField(value = localUrl, onValueChange = { localUrl = it },
+                                                        label = { Text("Local URL (HTTP or HTTPS)") },
+                                                        placeholder = { Text("http://192.168.1.100:5055") },
+                                                        modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                                    OutlinedTextField(value = remoteUrl, onValueChange = { remoteUrl = it },
+                                                        label = { Text("Remote URL (HTTPS)") },
+                                                        placeholder = { Text("https://seerr.example.com") },
+                                                        modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                                    OutlinedTextField(value = apiKey, onValueChange = { apiKey = it },
+                                                        label = { Text("Seerr API key") },
+                                                        visualTransformation = PasswordVisualTransformation(),
+                                                        modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                                    Text("Connection preference", style = MaterialTheme.typography.titleMedium)
+                                                    listOf("Automatic", "Local only", "Remote only").forEach { mode ->
+                                                        Row(verticalAlignment = Alignment.CenterVertically,
+                                                            modifier = Modifier.fillMaxWidth().clickable { connectionMode = mode }) {
+                                                            RadioButton(selected = connectionMode == mode,
+                                                                onClick = { connectionMode = mode })
+                                                            Text(mode)
+                                                        }
+                                                    }
+                                                    Text("Automatic tries your local address first, then falls back to HTTPS remotely.",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    val valid = previewName.isNotBlank() && apiKey.isNotBlank() &&
+                                                        (localUrl.isNotBlank() || remoteUrl.isNotBlank()) &&
+                                                        (localUrl.isBlank() || localUrl.startsWith("http://") || localUrl.startsWith("https://")) &&
+                                                        (remoteUrl.isBlank() || remoteUrl.startsWith("https://")) &&
+                                                        (connectionMode != "Local only" || localUrl.isNotBlank()) &&
+                                                        (connectionMode != "Remote only" || remoteUrl.isNotBlank())
+                                                    OutlinedButton(enabled = valid && !isTesting,
+                                                        onClick = {
+                                                            isTesting = true
+                                                            testResult = "Connecting…"
+                                                            scope.launch {
+                                                                val result = SeerrClient.test(localUrl.trim(), remoteUrl.trim(),
+                                                                    apiKey.trim(), connectionMode)
+                                                                testResult = result
+                                                                isTesting = false
+                                                            }
+                                                        }, modifier = Modifier.fillMaxWidth()) {
+                                                        if (isTesting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                                        else Icon(Icons.Default.WifiFind, contentDescription = null)
+                                                        Spacer(Modifier.width(8.dp))
+                                                        Text("Test connection")
+                                                    }
+                                                    if (testResult.isNotBlank()) Text(testResult,
+                                                        style = MaterialTheme.typography.bodySmall)
+                                                    Button(enabled = valid, onClick = {
+                                                        val config = ServiceConfig(
+                                                            editingId ?: java.util.UUID.randomUUID().toString(),
+                                                            "Seerr", previewName.trim(), localUrl.trim(),
+                                                            remoteUrl.trim(), apiKey.trim(), connectionMode
+                                                        )
+                                                        val index = savedInstances.indexOfFirst { it.id == config.id }
+                                                        if (index >= 0) savedInstances[index] = config
+                                                        else savedInstances.add(config)
+                                                        persistServices()
+                                                        settingsHistory.clear()
+                                                        settingsHistory.add("Settings")
+                                                        settingsPage = "Services"
+                                                    }, modifier = Modifier.fillMaxWidth()) {
+                                                        Text(if (editingId == null) "Save service" else "Save changes")
+                                                    }
+                                                }
+                                            }
+                                            if (editingId != null) {
+                                                OutlinedButton(onClick = { deleteConfirmation = true },
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    colors = ButtonDefaults.outlinedButtonColors(
+                                                        contentColor = MaterialTheme.colorScheme.error)) {
+                                                    Icon(Icons.Default.DeleteOutline, contentDescription = null)
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text("Remove service")
+                                                }
+                                            }
+                                        }
+                                        if (deleteConfirmation) {
+                                            AlertDialog(onDismissRequest = { deleteConfirmation = false },
+                                                title = { Text("Remove ${previewName}?") },
+                                                text = { Text("This removes the Bastion connection and its saved API key. Your Seerr server and media will not be changed.") },
+                                                confirmButton = {
+                                                    TextButton(onClick = {
+                                                        savedInstances.removeAll { it.id == editingId }
+                                                        persistServices()
+                                                        deleteConfirmation = false
+                                                        settingsHistory.clear()
+                                                        settingsHistory.add("Settings")
+                                                        settingsPage = "Services"
+                                                    }) { Text("Remove", color = MaterialTheme.colorScheme.error) }
                                                 },
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) { Text("Add preview instance") }
-                                            Text("You can add multiple instances of the same integration. Live configuration comes next.",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                dismissButton = { TextButton(onClick = { deleteConfirmation = false }) { Text("Cancel") } })
                                         }
                                     }
                                 }
