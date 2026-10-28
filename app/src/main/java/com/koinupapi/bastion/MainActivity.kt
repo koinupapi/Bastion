@@ -1376,13 +1376,29 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
             it.id == server.defaultRoot
         }?.name ?: server?.roots?.firstOrNull()?.name.orEmpty()
     }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Request movie", style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold)
-            Text("Choose your Radarr quality profile and root folder.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+    ModalBottomSheet(onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) {
+        Column(Modifier.fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Surface(shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Icon(Icons.Default.Movie, contentDescription = null,
+                        modifier = Modifier.padding(16.dp).size(28.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                }
+                Column {
+                    Text("Request movie", style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold)
+                    Text("Choose how to add this movie",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             if (options == null) LinearProgressIndicator(Modifier.fillMaxWidth())
             options?.exceptionOrNull()?.let {
                 Text(it.message ?: "Could not load Radarr options",
@@ -1391,37 +1407,74 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
             if (options != null && servers.isEmpty() && options?.isSuccess == true)
                 Text("No Radarr servers are configured in Seerr.")
             if (servers.isNotEmpty()) {
-                Text("Radarr server", style = MaterialTheme.typography.titleSmall)
-                Text("Choose the instance for this request",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                servers.forEachIndexed { index, item ->
-                    FilterChip(selected = index == serverIndex,
-                        onClick = { serverIndex = index }, label = { Text(item.name) })
+                SeerrRequestDropdown("Radarr server", server?.name ?: "Choose server",
+                    Icons.Default.Dns, servers.map { it.name }, serverIndex) {
+                    serverIndex = it
                 }
             }
             if (server != null) {
-                Text("Quality profile", style = MaterialTheme.typography.titleSmall)
-                server.profiles.forEach { profile ->
-                    FilterChip(selected = profileId == profile.id,
-                        onClick = { profileId = profile.id }, label = { Text(profile.name) })
+                SeerrRequestDropdown("Quality profile",
+                    server.profiles.firstOrNull { it.id == profileId }?.name ?: "Choose profile",
+                    Icons.Default.Tune, server.profiles.map { it.name },
+                    server.profiles.indexOfFirst { it.id == profileId }) {
+                    profileId = server.profiles[it].id
                 }
-                Text("Root folder", style = MaterialTheme.typography.titleSmall)
-                server.roots.forEach { root ->
-                    FilterChip(selected = rootPath == root.name,
-                        onClick = { rootPath = root.name }, label = { Text(root.name) })
+                SeerrRequestDropdown("Root folder", rootPath.ifBlank { "Choose folder" },
+                    Icons.Default.Folder, server.roots.map { it.name },
+                    server.roots.indexOfFirst { it.name == rootPath }) {
+                    rootPath = server.roots[it].name
                 }
                 if (server.profiles.isEmpty() || server.roots.isEmpty())
                     Text("This server has no selectable profiles or root folders.",
                         color = MaterialTheme.colorScheme.error)
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            Button(modifier = Modifier.fillMaxWidth(),
+            Button(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                shape = RoundedCornerShape(24.dp),
                 enabled = server != null && profileId >= 0 && rootPath.isNotBlank() && !submitting,
                 onClick = {
                     val chosen = server ?: return@Button
                     submitting = true
-                    error = null
+         
+@Composable
+private fun SeerrRequestDropdown(label: String, selected: String,
+    leadingIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    choices: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Box(Modifier.fillMaxWidth()) {
+            Surface(onClick = { if (choices.isNotEmpty()) expanded = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                Row(Modifier.padding(horizontal = 18.dp, vertical = 17.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(leadingIcon, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary)
+                    Text(selected, modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyLarge)
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = "Choose $label")
+                }
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false },
+                modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer)) {
+                choices.forEachIndexed { index, choice ->
+                    DropdownMenuItem(text = {
+                        Text(choice, fontWeight = if (index == selectedIndex)
+                            FontWeight.Bold else FontWeight.Normal)
+                    }, onClick = { onSelect(index); expanded = false },
+                        leadingIcon = if (index == selectedIndex) {
+                            { Icon(Icons.Default.Check, contentDescription = null) }
+                        } else null)
+                }
+            }
+        }
+    }
+}
+           error = null
                     scope.launch {
                         val response = SeerrClient.submitRequest(instance, tmdbId, false,
                             chosen.id, profileId, rootPath, emptyList())
@@ -1432,7 +1485,11 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                 }) {
                 if (submitting) CircularProgressIndicator(Modifier.size(20.dp),
                     strokeWidth = 2.dp)
-                else Text("Submit request")
+                else {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Submit request")
+                }
             }
         }
     }
