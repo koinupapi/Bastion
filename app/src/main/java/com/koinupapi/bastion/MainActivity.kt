@@ -41,6 +41,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import coil.compose.AsyncImage
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -1653,13 +1654,23 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                     if (titles.isNotEmpty()) {
                         Text(heading, style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold)
-                        // The carousel must be laid out in a full-width parent; offsetting a
-                        // screen-width child inside the padded details Column clips its far edge.
                         val carouselKey = "${instance.id}-${navigationDepth}-${request.tmdbId}-${request.isTv}-$heading"
                         val carouselScroll = carouselScrollStates.getOrPut(carouselKey) {
                             androidx.compose.foundation.ScrollState(0)
                         }
-                        Row(Modifier.fillMaxWidth().horizontalScroll(carouselScroll),
+                        Row(Modifier
+                            .layout { measurable, constraints ->
+                                // Give the carousel a genuine full-screen viewport even though
+                                // its heading and surrounding details are padded by 20dp.
+                                val inset = 20.dp.roundToPx()
+                                val fullWidth = constraints.maxWidth + inset * 2
+                                val child = measurable.measure(
+                                    constraints.copy(minWidth = fullWidth, maxWidth = fullWidth))
+                                layout(constraints.maxWidth, child.height) {
+                                    child.placeRelative(-inset, 0)
+                                }
+                            }
+                            .horizontalScroll(carouselScroll),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Spacer(Modifier.width(20.dp))
                             titles.forEach { title ->
