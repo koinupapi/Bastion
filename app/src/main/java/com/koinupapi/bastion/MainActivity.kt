@@ -71,7 +71,8 @@ private fun BastionApp() {
                         item { ServerWidget() }
                         item { DownloadsWidget() }
                         item { RequestsWidget() }
-                        item { MediaWidget() }
+                        item { SonarrWidget() }
+                        item { RadarrWidget() }
                         item { ServicesWidget() }
                     }
                     1 -> {
@@ -139,8 +140,6 @@ private fun WidgetCard(title: String, icon: androidx.compose.ui.graphics.vector.
                 Spacer(Modifier.width(10.dp))
                 Text(title, style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                Icon(Icons.Default.ChevronRight, contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             content()
         }
@@ -202,18 +201,20 @@ private fun RequestsWidget() {
 }
 
 @Composable
-private fun MediaWidget() {
-    WidgetCard("Media library", Icons.Default.VideoLibrary) {
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column(Modifier.weight(1f)) {
-                Text("Sonarr", style = MaterialTheme.typography.labelMedium)
-                Text("128 series", style = MaterialTheme.typography.titleMedium)
-            }
-            Column(Modifier.weight(1f)) {
-                Text("Radarr", style = MaterialTheme.typography.labelMedium)
-                Text("342 movies", style = MaterialTheme.typography.titleMedium)
-            }
-        }
+private fun SonarrWidget() {
+    WidgetCard("Sonarr", Icons.Default.Tv) {
+        Text("128 series  •  3 upcoming episodes", style = MaterialTheme.typography.bodyMedium)
+        Text("Next: Example Series — Tomorrow", style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun RadarrWidget() {
+    WidgetCard("Radarr", Icons.Default.Movie) {
+        Text("342 movies  •  2 monitored missing", style = MaterialTheme.typography.bodyMedium)
+        Text("Recently added: Example Movie (2026)", style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
