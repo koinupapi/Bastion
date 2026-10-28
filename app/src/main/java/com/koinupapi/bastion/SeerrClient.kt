@@ -142,6 +142,9 @@ object SeerrClient {
             throw IllegalStateException(failure)
         }
 
+    suspend fun partialRequestsEnabled(config: ServiceConfig): Result<Boolean> =
+        runCatching { api(config, "/api/v1/settings/main").optBoolean("partialRequestsEnabled", false) }
+
     suspend fun requestOptions(config: ServiceConfig, isTv: Boolean): Result<List<SeerrRequestServer>> =
         withContext(Dispatchers.IO) { runCatching {
             val path = if (isTv) "/api/v1/service/sonarr" else "/api/v1/service/radarr"
