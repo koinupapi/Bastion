@@ -1,5 +1,7 @@
 package com.koinupapi.bastion
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.animation.AnimatedContent
@@ -166,20 +168,83 @@ private fun BastionApp() {
         val icons = listOf(Icons.Default.Home, Icons.Default.CalendarMonth, Icons.Default.Settings)
         ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
             ModalDrawerSheet {
-                Text("Bastion", modifier = Modifier.padding(24.dp), style = MaterialTheme.typography.headlineSmall)
-                Text("SERVICES", modifier = Modifier.padding(24.dp), style = MaterialTheme.typography.labelMedium)
-                savedInstances.groupBy { config ->
-                    integrationCatalog.firstOrNull { it.name == config.type }?.category ?: "Other"
-                }.forEach { (category, entries) ->
-                    Text(category, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.labelSmall)
-                    entries.forEach { service ->
-                        NavigationDrawerItem(label = { Text(service.name) }, selected = selectedMediaId == service.id,
-                            icon = { Icon(Icons.Default.Movie, contentDescription = null) },
-                            onClick = { selectedMediaId = service.id; scope.launch { drawerState.close() } })
+                Column(Modifier.fillMaxHeight().padding(horizontal = 12.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(start = 12.dp, top = 24.dp, bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Shield, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("Bastion", style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold)
+                            Text("Your homelab", style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
+                    Spacer(Modifier.weight(1f))
+                    Text("YOUR SERVICES", modifier = Modifier.padding(start = 16.dp, bottom = 10.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val categories = savedInstances.groupBy { config ->
+                            integrationCatalog.firstOrNull { it.name == config.type }?.category ?: "Other services"
+                        }
+                        categories.forEach { (category, entries) ->
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(category, modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                entries.forEachIndexed { index, service ->
+                                    val shape = connectedServiceShape(index, entries.size)
+                                    Surface(onClick = {
+                                        selectedMediaId = service.id
+                                        scope.launch { drawerState.close() }
+                                    }, shape = shape,
+                                        color = if (selectedMediaId == service.id)
+                                            MaterialTheme.colorScheme.secondaryContainer
+                                        else MaterialTheme.colorScheme.surfaceContainer,
+                                        modifier = Modifier.fillMaxWidth()) {
+                                        Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                                            verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(if (service.type == "Seerr") Icons.Default.Movie
+                                                else Icons.Default.Dns, contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary)
+                                            Spacer(Modifier.width(14.dp))
+                                            Column(Modifier.weight(1f)) {
+                                                Text(service.name, style = MaterialTheme.typography.titleSmall)
+                                                Text(service.type, style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            if (selectedMediaId == service.id)
+                                                Icon(Icons.Default.Check, contentDescription = "Selected")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (savedInstances.isEmpty()) {
+                            Text("Add a service in Settings to see it here.",
+                                modifier = Modifier.padding(16.dp),
+                                style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    HorizontalDivider()
+                    NavigationDrawerItem(
+                        label = { Text("Manage services") },
+                        selected = false,
+                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                        onClick = {
+                            selectedMediaId = null
+                            tab = 2
+                            settingsHistory.clear()
+                            settingsPage = "Services"
+                            scope.launch { drawerState.close() }
+                        }
+                    )
+                    Spacer(Modifier.height(16.dp))
                 }
-                if (savedInstances.isEmpty()) Text("Add services in Settings", modifier = Modifier.padding(24.dp))
             }
         }) {
         Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }, bottomBar = {
@@ -374,11 +439,18 @@ private fun BastionApp() {
                                             }
                                         }
                                     } else {
-                                        items(savedInstances, key = { it.id }) { instance ->
-                                            SettingsEntry(instance.name, "${instance.type} • Configured",
-                                                Icons.Default.Dns) {
-                                                editService(instance)
-                                                openSettingsPage("Service detail")
+                                        val groups = savedInstances.groupBy { it.type }
+                                        groups.forEach { (type, instances) ->
+                                            item { Text(type, style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                            items(instances, key = { it.id }) { instance ->
+                                                val index = instances.indexOfFirst { it.id == instance.id }
+                                                SettingsEntry(instance.name, instance.type + " • Configured",
+                                                    Icons.Default.Dns,
+                                                    shape = connectedServiceShape(index, instances.size)) {
+                                                    editService(instance)
+                                                    openSettingsPage("Service detail")
+                                                }
                                             }
                                         }
                                     }
@@ -762,9 +834,10 @@ private fun SettingsEntry(
     title: String,
     subtitle: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    shape: androidx.compose.ui.graphics.Shape = MaterialTheme.shapes.extraLarge,
     onClick: () -> Unit
 ) {
-    Card(onClick = onClick, shape = MaterialTheme.shapes.extraLarge,
+    Card(onClick = onClick, shape = shape,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
         Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = MaterialTheme.shapes.large,
@@ -1050,4 +1123,16 @@ private fun CalendarDateCell(date: LocalDate, selected: Boolean, today: Boolean,
                 textAlign = TextAlign.Center)
         }
     }
+}
+
+private fun connectedServiceShape(index: Int, count: Int): RoundedCornerShape {
+    if (count <= 1) return RoundedCornerShape(28.dp)
+    val large = 28.dp
+    val small = 6.dp
+    return RoundedCornerShape(
+        topStart = if (index == 0) large else small,
+        topEnd = if (index == 0) large else small,
+        bottomStart = if (index == count - 1) large else small,
+        bottomEnd = if (index == count - 1) large else small
+    )
 }
