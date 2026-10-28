@@ -1176,14 +1176,23 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int, onR
                                 Text(request.title + (request.year?.let { " ($it)" } ?: ""),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold)
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = MaterialTheme.colorScheme.secondaryContainer
-                                ) {
+                                val statusColor = when (request.status.lowercase()) {
+                                    "available" -> Color(0xFF176B43)
+                                    "processing" -> Color(0xFF245DA3)
+                                    "pending" -> Color(0xFF996000)
+                                    "declined", "failed" -> MaterialTheme.colorScheme.error
+                                    "partially available" -> Color(0xFF7652A2)
+                                    else -> MaterialTheme.colorScheme.secondary
+                                }
+                                Surface(shape = RoundedCornerShape(50),
+                                    color = statusColor.copy(alpha = 0.16f)) {
                                     Text(request.status,
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
                                         style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                        color = if (request.status.lowercase() in listOf("available", "processing",
+                                                "pending", "partially available") &&
+                                            !androidx.compose.foundation.isSystemInDarkTheme())
+                                            statusColor else MaterialTheme.colorScheme.onSurface)
                                 }
                                 request.requestedBy?.let {
                                     Text("Requested by $it",
