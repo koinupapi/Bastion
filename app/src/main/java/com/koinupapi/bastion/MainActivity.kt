@@ -261,7 +261,7 @@ private fun BastionApp() {
                         NavigationBarItem(selected = seerrTab == index,
                             onClick = { seerrTab = index },
                             icon = { Icon(icon, contentDescription = null) },
-                            label = { Text(label) }, alwaysShowLabel = true)
+                            label = { Text(label) }, alwaysShowLabel = showAllNavLabels)
                     }
                 }
             } else if (selectedMediaId == null && (tab != 2 || settingsPage == "Settings")) NavigationBar {
@@ -967,7 +967,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int) {
             Text("Overview", style = MaterialTheme.typography.titleMedium)
             Text(request.overview ?: "No synopsis available.")
         } else {
-        Text(instance.name, style = MaterialTheme.typography.titleLarge)
+        Text("Requests", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Browse requests • Read-only", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
@@ -992,27 +992,72 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int) {
             result?.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             if (result?.error == null && result?.requests?.isEmpty() == true) Text("No matching requests.")
             result?.requests?.forEach { request ->
-                Row(verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth().clickable { selectedRequest = request }) {
-                    Surface(shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.width(58.dp).height(86.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest) {
-                        if (request.posterUrl != null) AsyncImage(model = request.posterUrl,
-                            contentDescription = "Poster for ${request.title}",
-                            contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                        else Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Movie, contentDescription = null)
+                key(request.id) {
+                    val interaction = remember { MutableInteractionSource() }
+                    val pressed by interaction.collectIsPressedAsState()
+                    val cardScale by androidx.compose.animation.core.animateFloatAsState(
+                        targetValue = if (pressed) 0.975f else 1f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMedium),
+                        label = "Request card press"
+                    )
+                    ElevatedCard(
+                        onClick = { selectedRequest = request },
+                        interactionSource = interaction,
+                        modifier = Modifier.fillMaxWidth()
+                            .graphicsLayer {
+                                scaleX = cardScale
+                                scaleY = cardScale
+                            },
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Row(Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Surface(shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.width(88.dp).height(132.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+                                if (request.posterUrl != null) AsyncImage(
+                                    model = request.posterUrl,
+                                    contentDescription = "Poster for ${request.title}",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize())
+                                else Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Movie, contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            Column(Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(request.title + (request.year?.let { " ($it)" } ?: ""),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold)
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = MaterialTheme.colorScheme.secondaryContainer
+                                ) {
+                                    Text(request.status,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                }
+                                request.requestedBy?.let {
+                                    Text("Requested by $it",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Text(if (request.isTv) "TV series" else "Movie",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text(request.title + (request.year?.let { " ($it)" } ?: ""),
-                            style = MaterialTheme.typography.titleSmall)
-                        Text(request.status, style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary)
-                        request.requestedBy?.let { Text("Requested by $it",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                 }
             }
