@@ -1653,12 +1653,13 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                     if (titles.isNotEmpty()) {
                         Text(heading, style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold)
+                        // The carousel must be laid out in a full-width parent; offsetting a
+                        // screen-width child inside the padded details Column clips its far edge.
                         val carouselKey = "${instance.id}-${navigationDepth}-${request.tmdbId}-${request.isTv}-$heading"
                         val carouselScroll = carouselScrollStates.getOrPut(carouselKey) {
                             androidx.compose.foundation.ScrollState(0)
                         }
-                        Row(Modifier.width(androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp)
-                            .offset(x = (-20).dp).horizontalScroll(carouselScroll),
+                        Row(Modifier.fillMaxWidth().horizontalScroll(carouselScroll),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Spacer(Modifier.width(20.dp))
                             titles.forEach { title ->
