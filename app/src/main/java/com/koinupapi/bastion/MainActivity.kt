@@ -1,5 +1,20 @@
 package com.koinupapi.bastion
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import java.time.LocalDate
 import java.time.YearMonth
 import android.os.Bundle
@@ -876,70 +891,150 @@ private fun UnifiedCalendarScreen() {
     var month by remember { mutableStateOf(YearMonth.from(today)) }
     var selected by remember { mutableStateOf(today) }
     var hideDownloaded by remember { mutableStateOf(false) }
-    var showSonarr by remember { mutableStateOf(true) }
-    var showRadarr by remember { mutableStateOf(true) }
-    var showBindery by remember { mutableStateOf(true) }
+    val sources = listOf("Sonarr", "Radarr", "Bindery")
+    val sourceColors = listOf(Color(0xFF448DD6), Color(0xFF51B86B), Color(0xFFB18CE6))
+    var enabledSources by remember { mutableStateOf(setOf("Sonarr", "Radarr", "Bindery")) }
+    val motion = spring<Float>(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
     val days = month.lengthOfMonth()
     val leading = month.atDay(1).dayOfWeek.value % 7
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Unified release calendar", style = MaterialTheme.typography.titleMedium)
-        Row(verticalAlignment = Alignment.CenterVertically) {
+
+    Column(Modifier.fillMaxWidth().animateContentSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Column(Modifier.weight(1f)) {
-                Text(month.year.toString(), style = MaterialTheme.typography.labelMedium)
+                Text(month.year.toString(), style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(month.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()),
-                    style = MaterialTheme.typography.headlineMedium)
+                    style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
             }
-            TextButton(onClick = { month = YearMonth.from(today); selected = today }) { Text("Today") }
-            IconButton(onClick = { month = month.minusMonths(1) }) {
+            FilledTonalButton(onClick = { month = YearMonth.from(today); selected = today },
+                contentPadding = PaddingValues(horizontal = 14.dp)) { Text("Today") }
+            IconButton(onClick = { month = month.minusMonths(1); selected = month.atDay(1) }) {
                 Icon(Icons.Default.ChevronLeft, contentDescription = "Previous month")
             }
-            IconButton(onClick = { month = month.plusMonths(1) }) {
+            IconButton(onClick = { month = month.plusMonths(1); selected = month.atDay(1) }) {
                 Icon(Icons.Default.ChevronRight, contentDescription = "Next month")
             }
         }
-        Row(Modifier.fillMaxWidth()) {
-            listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach {
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    Text(it, style = MaterialTheme.typography.labelSmall)
+
+        AnimatedContent(targetState = month, label = "Calendar month",
+            transitionSpec = {
+                val direction = if (targetState > initialState) 1 else -1
+                (slideInHorizontally { direction * it / 3 } + fadeIn())
+                    .togetherWith(slideOutHorizontally { -direction * it / 3 } + fadeOut())
+            }) { visibleMonth ->
+            val firstOffset = visibleMonth.atDay(1).dayOfWeek.value % 7
+            val rows = (firstOffset + visibleMonth.lengthOfMonth() + 6) / 7
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(Modifier.fillMaxWidth()) {
+                    listOf("S", "M", "T", "W", "T", "F", "S").forEach { label ->
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                            Text(label, style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
-            }
-        }
-        repeat((leading + days + 6) / 7) { week ->
-            Row(Modifier.fillMaxWidth()) {
-                repeat(7) { weekday ->
-                    val day = week * 7 + weekday - leading + 1
-                    Box(Modifier.weight(1f).height(56.dp), contentAlignment = Alignment.Center) {
-                        if (day in 1..days) {
-                            val date = month.atDay(day)
-                            Surface(onClick = { selected = date },
-                                shape = MaterialTheme.shapes.extraLarge,
-                                color = if (selected == date) MaterialTheme.colorScheme.primaryContainer
-                                    else MaterialTheme.colorScheme.surface) {
-                                Text(day.toString(), modifier = Modifier.padding(12.dp),
-                                    color = if (selected == date) MaterialTheme.colorScheme.onPrimaryContainer
-                                        else MaterialTheme.colorScheme.onSurface)
+                repeat(rows) { week ->
+                    Row(Modifier.fillMaxWidth()) {
+                        repeat(7) { weekday ->
+                            val day = week * 7 + weekday - firstOffset + 1
+                            Box(Modifier.weight(1f).height(48.dp), contentAlignment = Alignment.Center) {
+                                if (day in 1..visibleMonth.lengthOfMonth()) {
+                                    val date = visibleMonth.atDay(day)
+                                    CalendarDateCell(date, selected == date, today == date) { selected = date }
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        Text("Sources", style = MaterialTheme.typography.titleSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = showSonarr, onClick = { showSonarr = !showSonarr },
-                label = { Text("Sonarr") })
-            FilterChip(selected = showRadarr, onClick = { showRadarr = !showRadarr },
-                label = { Text("Radarr") })
-            FilterChip(selected = showBindery, onClick = { showBindery = !showBindery },
-                label = { Text("Bindery") })
+
+        Text("RELEASE SOURCES", style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            sources.forEachIndexed { index, source ->
+                val active = source in enabledSources
+                val corner by animateDpAsState(if (active) 28.dp else 10.dp,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                    label = "Source shape")
+                val outer = 24.dp
+                val shape = RoundedCornerShape(
+                    topStart = if (index == 0) outer else corner,
+                    topEnd = if (index == sources.lastIndex) outer else corner,
+                    bottomStart = if (index == 0) outer else corner,
+                    bottomEnd = if (index == sources.lastIndex) outer else corner
+                )
+                Surface(onClick = {
+                    enabledSources = if (active) enabledSources - source else enabledSources + source
+                }, modifier = Modifier.weight(1f).height(46.dp),
+                    shape = shape,
+                    color = if (active) MaterialTheme.colorScheme.secondaryContainer
+                        else MaterialTheme.colorScheme.surfaceContainerHigh) {
+                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp), contentAlignment = Alignment.Center) {
+                            Surface(shape = RoundedCornerShape(50), color = sourceColors[index],
+                                modifier = Modifier.size(8.dp)) {}
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        Text(source, style = MaterialTheme.typography.labelMedium,
+                            color = if (active) MaterialTheme.colorScheme.onSecondaryContainer
+                                else MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Hide downloaded", modifier = Modifier.weight(1f))
+            Text("Hide downloaded", modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium)
             Switch(checked = hideDownloaded, onCheckedChange = { hideDownloaded = it })
         }
         HorizontalDivider()
-        Text(selected.toString(), style = MaterialTheme.typography.titleLarge)
-        Text("Release events will appear here once Sonarr and Radarr are connected. Bindery support is planned.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        AnimatedContent(targetState = selected, label = "Selected day agenda",
+            transitionSpec = { fadeIn().togetherWith(fadeOut()) }) { date ->
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(date.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d")),
+                    style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Surface(shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Default.EventNote, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary)
+                        Column {
+                            Text("No release data yet", style = MaterialTheme.typography.titleMedium)
+                            Text("Your Sonarr and Radarr releases will appear here after calendar integration. Bindery support is being investigated.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CalendarDateCell(date: LocalDate, selected: Boolean, today: Boolean, onClick: () -> Unit) {
+    val scale by animateFloatAsState(if (selected) 1.08f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium), label = "Day bounce")
+    val radius by animateDpAsState(if (selected) 24.dp else 12.dp,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "Day shape")
+    Surface(onClick = onClick,
+        modifier = Modifier.size(42.dp).graphicsLayer { scaleX = scale; scaleY = scale },
+        shape = RoundedCornerShape(radius),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(date.dayOfMonth.toString(),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (selected || today) FontWeight.Bold else FontWeight.Normal,
+                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                    else if (today) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center)
+        }
     }
 }
