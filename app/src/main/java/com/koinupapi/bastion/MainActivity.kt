@@ -1506,6 +1506,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
     onBack: () -> Unit, onRelatedClick: (SeerrRecentRequest) -> Unit) {
     var showRequestSheet by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
     var requestSubmitted by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
+    var showIssueSheet by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
     val cacheKey = "${request.tmdbId}-${request.isTv}"
     var expanded by remember(cacheKey) { mutableStateOf(false) }
     LaunchedEffect(instance, cacheKey) {
@@ -1518,6 +1519,12 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
         SeerrMovieRequestSheet(instance, request.tmdbId,
             onDismiss = { showRequestSheet = false },
             onSubmitted = { requestSubmitted = true; showRequestSheet = false })
+    }
+    if (showIssueSheet) {
+        SeerrReportIssueSheet(instance, request.title,
+            cache[cacheKey]?.seerrMediaId ?: 0,
+            onDismiss = { showIssueSheet = false },
+            onSubmitted = { showIssueSheet = false })
     }
     val media = cache[cacheKey]
     val displayedStatus = when (media?.mediaStatus) {
@@ -1593,7 +1600,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             Row(Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                if (displayedStatus != null) Surface(shape = RoundedCornerShape(24.dp),
+                if (displayedStatus != null && displayedStatus != "Available") Surface(shape = RoundedCornerShape(24.dp),
                     color = MaterialTheme.colorScheme.secondaryContainer) {
                     Text(displayedStatus, Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
                         style = MaterialTheme.typography.labelLarge,
@@ -1605,6 +1612,32 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+        if (!request.isTv && displayedStatus == "Available") {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Surface(modifier = Modifier.weight(1f).heightIn(min = 54.dp),
+                    shape = RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp,
+                        topEnd = 8.dp, bottomEnd = 8.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Available", color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+                Button(onClick = { showIssueSheet = true },
+                    modifier = Modifier.weight(1f).heightIn(min = 54.dp),
+                    shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp,
+                        topEnd = 28.dp, bottomEnd = 28.dp)) {
+                    Icon(Icons.Default.ReportProblem, contentDescription = null)
+                    Spacer(Modifier.width(5.dp))
+                    Text("Report issue", maxLines = 1)
+                }
+            }
+        }
         if (request.tmdbId > 0 && !request.isTv && displayedStatus == null && !requestSubmitted) {
             Button(onClick = { showRequestSheet = true }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Add, contentDescription = null)
