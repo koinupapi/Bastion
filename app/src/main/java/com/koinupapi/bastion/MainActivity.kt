@@ -583,20 +583,16 @@ private fun DownloadLine(name: String, progress: Float) {
 
 @Composable
 private fun RequestsWidget(instances: List<ServiceConfig>) {
-    var requests by remember { mutableStateOf<List<String>>(emptyList()) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var results by remember { mutableStateOf<List<SeerrRecentResult>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     val fingerprint = instances.joinToString("|") { it.id + it.apiKey + it.localUrl + it.remoteUrl + it.mode }
     LaunchedEffect(fingerprint, refresh) {
-        requests = emptyList()
-        error = null
+        results = emptyList()
         if (instances.isNotEmpty()) {
             loading = true
             try {
-                requests = SeerrClient.pendingRequests(instances)
-            } catch (e: Exception) {
-                error = e.message ?: "Could not load requests"
+                results = instances.map { SeerrClient.recentRequests(it) }
             } finally { loading = false }
         }
     }
@@ -605,18 +601,44 @@ private fun RequestsWidget(instances: List<ServiceConfig>) {
             Text("Add Seerr in Settings → Services to see live requests.")
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Pending requests", Modifier.weight(1f),
+                Text("Recent requests", Modifier.weight(1f),
                     style = MaterialTheme.typography.titleMedium)
                 IconButton(onClick = { refresh++ }, enabled = !loading) {
                     Icon(Icons.Default.Refresh, contentDescription = "Refresh requests")
                 }
             }
             if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-            else if (error != null) Text(error!!, color = MaterialTheme.colorScheme.error)
-            else if (requests.isEmpty()) Text("No pending requests!")
-            else requests.forEachIndexed { index, title ->
-                if (index > 0) HorizontalDivider()
-                Text(title, style = MaterialTheme.typography.bodyMedium)
+            else {
+                results.forEach { result ->
+                    if (instances.size > 1) Text(result.instance,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary)
+                    if (result.error != null) {
+                        Text(result.error, color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        Text("${result.total} requested",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (result.requests.isEmpty()) Text("No requests yet.")
+                        result.requests.forEachIndexed { index, request ->
+                            if (index > 0) HorizontalDivider()
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(request.title, Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.width(8.dp))
+                                Text(request.status, style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                        if (result.total > result.requests.size) {
+                            Text("+${result.total - result.requests.size} more",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
         }
     }
