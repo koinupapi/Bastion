@@ -78,6 +78,8 @@ private fun BastionApp() {
     }
     MaterialTheme(colorScheme = colors) {
         var tab by remember { mutableIntStateOf(0) }
+        var mediaPage by remember { mutableStateOf("Hub") }
+        var selectedMediaId by remember { mutableStateOf<String?>(null) }
         var settingsPage by remember { mutableStateOf("Settings") }
         var selectedIntegration by remember { mutableStateOf("Seerr") }
         var serviceSearch by remember { mutableStateOf("") }
@@ -118,6 +120,7 @@ private fun BastionApp() {
         BackHandler {
             when {
                 tab == 3 && settingsPage != "Settings" -> goBackSettings()
+                tab == 2 && mediaPage != "Hub" -> mediaPage = "Hub"
                 tab != 0 && returnToDashboard -> {
                     tab = 0
                     settingsPage = "Settings"
@@ -143,11 +146,11 @@ private fun BastionApp() {
         val labels = listOf("Home", "Servers", "Media", "Settings")
         val icons = listOf(Icons.Default.Home, Icons.Default.Dns, Icons.Default.Movie, Icons.Default.Settings)
         Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }, bottomBar = {
-            NavigationBar {
+            if (tab != 2 || mediaPage == "Hub") NavigationBar {
                 labels.forEachIndexed { index, label ->
                     NavigationBarItem(
                         selected = tab == index,
-                        onClick = { tab = index; settingsPage = "Settings"; settingsHistory.clear(); lastExitBackAt = 0L },
+                        onClick = { tab = index; mediaPage = "Hub"; settingsPage = "Settings"; settingsHistory.clear(); lastExitBackAt = 0L },
                         icon = { Icon(icons[index], contentDescription = null) },
                         label = { Text(label) },
                         alwaysShowLabel = showAllNavLabels
@@ -164,7 +167,7 @@ private fun BastionApp() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("YOUR HOMELAB", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                            Text(if (tab == 0) "Bastion" else labels[tab],
+                            Text(if (tab == 0) "Bastion" else if (tab == 2 && mediaPage != "Hub") "Seerr" else labels[tab],
                                 style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                         }
                         Icon(Icons.Default.Shield, contentDescription = "Bastion", tint = MaterialTheme.colorScheme.primary)
@@ -186,10 +189,38 @@ private fun BastionApp() {
                         items(containers) { DemoRow(it, "● Running • Demo container") }
                     }
                     2 -> {
-                        item { SectionTitle("Media management") }
-                        items(listOf("Sonarr • 128 series", "Radarr • 342 movies",
-                            "qBittorrent • 2 downloads", "Seerr • 4 requests")) {
-                            DemoRow(it, "Full management coming later")
+                        val mediaInstances = savedInstances.filter {
+                            it.type in listOf("Seerr", "Sonarr", "Radarr", "qBittorrent", "Plex", "Audiobookshelf", "Navidrome")
+                        }
+                        if (mediaPage == "Hub") {
+                            item { Text("Your connected media services",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            if (mediaInstances.isEmpty()) {
+                                item { Text("No media services configured. Add Seerr in Settings → Services to get started.") }
+                            }
+                            items(mediaInstances, key = { it.id }) { service ->
+                                SettingsEntry(service.name,
+                                    if (service.type == "Seerr") "Requests and approvals" else "Coming soon",
+                                    Icons.Default.Movie) {
+                                    if (service.type == "Seerr") {
+                                        selectedMediaId = service.id
+                                        mediaPage = "Seerr"
+                                    }
+                                }
+                            }
+                        } else {
+                            val instance = savedInstances.firstOrNull { it.id == selectedMediaId }
+                            item {
+                                TextButton(onClick = { mediaPage = "Hub" }) {
+                                    Icon(Icons.Default.ArrowBack, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Media Hub")
+                                }
+                            }
+                            if (instance?.type == "Seerr") {
+                                item { SeerrManagementScreen(instance) }
+                            } else item { Text("Service is no longer configured.") }
                         }
                     }
                     else -> {
