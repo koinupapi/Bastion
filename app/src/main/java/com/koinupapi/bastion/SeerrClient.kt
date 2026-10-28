@@ -146,7 +146,8 @@ object SeerrClient {
                                 ?.let { "https://image.tmdb.org/t/p/w342$it" }
                             val date = item.optString(if (isTv) "firstAirDate" else "releaseDate")
                             SeerrRelatedTitle(title, poster, date.take(4),
-                                item.optDouble("voteAverage", 0.0), id, isTv)
+                                item.optDouble("voteAverage", 0.0), id, isTv,
+                                item.optJSONObject("mediaInfo")?.optInt("status", 0) ?: 0)
                         }
                         return@withContext SeerrDiscoverResult(items)
                     } finally { connection.disconnect() }
@@ -346,7 +347,7 @@ data class SeerrRecentResult(
 )
 
 data class SeerrCast(val name: String, val character: String, val photoUrl: String?)
-data class SeerrRelatedTitle(val title: String, val posterUrl: String?, val year: String, val rating: Double, val tmdbId: Int, val isTv: Boolean)
+data class SeerrRelatedTitle(val title: String, val posterUrl: String?, val year: String, val rating: Double, val tmdbId: Int, val isTv: Boolean, val mediaStatus: Int = 0)
 data class SeerrMediaDetails(
     val backdropUrl: String? = null, val posterUrl: String? = null,
     val overview: String? = null, val tagline: String? = null,
