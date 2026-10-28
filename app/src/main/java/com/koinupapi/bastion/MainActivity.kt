@@ -992,7 +992,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int) {
             result?.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             if (result?.error == null && result?.requests?.isEmpty() == true) Text("No matching requests.")
             result?.requests?.forEach { request ->
-                key(request.id) {
+                key(request.title, request.requestedBy, request.releaseDate) {
                     val interaction = remember { MutableInteractionSource() }
                     val pressed by interaction.collectIsPressedAsState()
                     val cardScale by androidx.compose.animation.core.animateFloatAsState(
