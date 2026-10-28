@@ -48,6 +48,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -944,6 +945,95 @@ private fun SettingsEntry(
 }
 
 @Composable
+private fun SeerrDiscoverScreen(instance: ServiceConfig, onMediaClick: (SeerrRecentRequest) -> Unit) {
+    val sections = remember { listOf("Trending", "Popular Movies", "Popular TV Shows",
+        "Upcoming Movies", "Upcoming TV Shows") }
+    val results = remember(instance.id) { mutableStateMapOf<String, SeerrDiscoverResult>() }
+    var category by remember(instance.id) { mutableStateOf("All") }
+    LaunchedEffect(instance) {
+        kotlinx.coroutines.coroutineScope {
+            sections.forEach { section ->
+                launch {
+                    val response = SeerrClient.discover(instance, section)
+                    results[section] = response
+                }
+            }
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Text("Discover", style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold)
+        Text("Find something worth watching",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("All", "Movies", "TV Shows").forEach { choice ->
+                FilterChip(selected = category == choice, onClick = { category = choice },
+                    label = { Text(choice) },
+                    leadingIcon = if (category == choice) {
+                        { Icon(Icons.Default.Check, contentDescription = null,
+                            modifier = Modifier.size(16.dp)) }
+                    } else null)
+            }
+        }
+        sections.filter { section ->
+            category == "All" || section == "Trending" ||
+                (category == "Movies" && section.contains("Movies")) ||
+                (category == "TV Shows" && section.contains("TV"))
+        }.forEach { section ->
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(section, style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold)
+                val result = results[section]
+                if (result == null) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                } else if (result.error != null) {
+                    Text(result.error, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error)
+                } else if (result.items.isEmpty()) {
+                    Text("No titles found", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(end = 16.dp)) {
+                        items(result.items, key = { "${it.tmdbId}-${it.isTv}" }) { title ->
+                            Column(Modifier.width(124.dp).clickable {
+                                onMediaClick(SeerrRecentRequest(
+                                    title = title.title, status = "",
+                                    posterUrl = title.posterUrl, year = title.year,
+                                    requestedBy = null, isTv = title.isTv, tmdbId = title.tmdbId))
+                            }, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Surface(shape = RoundedCornerShape(18.dp),
+                                    modifier = Modifier.width(124.dp).height(186.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                    if (title.posterUrl != null)
+                                        AsyncImage(model = title.posterUrl,
+                                            contentDescription = title.title,
+                                            contentScale = ContentScale.Crop)
+                                    else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Movie, contentDescription = null)
+                                    }
+                                }
+                                Text(title.title, style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 2, minLines = 2, lineHeight = MaterialTheme.typography.labelMedium.lineHeight)
+                                Text(listOfNotNull(title.year.takeIf { it.isNotBlank() },
+                                    title.rating.takeIf { it > 0 }?.let {
+                                        "★ " + String.format(java.util.Locale.US, "%.1f", it)
+                                    }).joinToString(" • "),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int, onRequestClick: (SeerrRecentRequest) -> Unit) {
     var page by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
     var filter by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
@@ -957,7 +1047,9 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int, onR
         loading = false
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (destination != 1) {
+        if (destination == 0) {
+            SeerrDiscoverScreen(instance, onRequestClick)
+        } else if (destination != 1) {
             val heading = when (destination) {
                 0 -> "Discover"
                 2 -> "Issues"
