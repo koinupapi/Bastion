@@ -126,6 +126,7 @@ private fun BastionApp() {
         val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
         val seerrMediaCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrMediaDetails>() }
         val seerrScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.lazy.LazyListState>() }
+        val seerrCarouselScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.ScrollState>() }
         val seerrDiscoverCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrDiscoverResult>() }
         val seerrPageStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
         val openSeerrRequest = seerrMediaStack.lastOrNull()
@@ -367,6 +368,8 @@ private fun BastionApp() {
                     if (service?.type == "Seerr") {
                         if (openSeerrRequest != null) item { SeerrRequestDetails(service, openSeerrRequest!!,
                             cache = seerrMediaCache,
+                            carouselScrollStates = seerrCarouselScrollStates,
+                            navigationDepth = seerrMediaStack.size,
                             onBack = { popSeerrMedia() },
                             onRelatedClick = { seerrMediaStack.add(it) }) }
                         else item {
@@ -1278,6 +1281,8 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
 @Composable
 private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentRequest,
     cache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrMediaDetails>,
+    carouselScrollStates: MutableMap<String, androidx.compose.foundation.ScrollState>,
+    navigationDepth: Int,
     onBack: () -> Unit, onRelatedClick: (SeerrRecentRequest) -> Unit) {
     val cacheKey = "${request.tmdbId}-${request.isTv}"
     var expanded by remember(cacheKey) { mutableStateOf(false) }
@@ -1473,7 +1478,11 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                     if (titles.isNotEmpty()) {
                         Text(heading, style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold)
-                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        val carouselKey = "${instance.id}-${navigationDepth}-${request.tmdbId}-${request.isTv}-$heading"
+                        val carouselScroll = carouselScrollStates.getOrPut(carouselKey) {
+                            androidx.compose.foundation.ScrollState(0)
+                        }
+                        Row(Modifier.fillMaxWidth().horizontalScroll(carouselScroll),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             titles.forEach { title ->
                                 Column(Modifier.width(125.dp)
