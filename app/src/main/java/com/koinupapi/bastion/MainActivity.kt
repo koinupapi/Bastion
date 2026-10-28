@@ -1350,6 +1350,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
+    isTv: Boolean = false, seasons: List<SeerrTvSeason> = emptyList(),
     onDismiss: () -> Unit, onSubmitted: () -> Unit) {
     var options by remember(instance.id) { mutableStateOf<Result<List<SeerrRequestServer>>?>(null) }
     var serverIndex by remember { mutableIntStateOf(0) }
@@ -1357,8 +1358,9 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
     var rootPath by remember { mutableStateOf("") }
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val selectedSeasons = remember(tmdbId) { mutableStateListOf<Int>() }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(instance) { options = SeerrClient.requestOptions(instance, false) }
+    LaunchedEffect(instance, isTv) { options = SeerrClient.requestOptions(instance, isTv) }
     val servers = options?.getOrNull().orEmpty()
     val server = servers.getOrNull(serverIndex)
     LaunchedEffect(server?.id) {
@@ -1369,6 +1371,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
         }?.name ?: server?.roots?.firstOrNull()?.name.orEmpty()
     }
     ModalBottomSheet(onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) {
         Column(Modifier.fillMaxWidth()
             .verticalScroll(rememberScrollState())
@@ -1384,22 +1387,22 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                         tint = MaterialTheme.colorScheme.onSecondaryContainer)
                 }
                 Column {
-                    Text("Request movie", style = MaterialTheme.typography.headlineSmall,
+                    Text(if (isTv) "Request TV series" else "Request movie", style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold)
-                    Text("Choose how to add this movie",
+                    Text(if (isTv) "Choose seasons and Sonarr settings" else "Choose how to add this movie",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (options == null) LinearProgressIndicator(Modifier.fillMaxWidth())
             options?.exceptionOrNull()?.let {
-                Text(it.message ?: "Could not load Radarr options",
+                Text(it.message ?: "Could not load server options",
                     color = MaterialTheme.colorScheme.error)
             }
             if (options != null && servers.isEmpty() && options?.isSuccess == true)
-                Text("No Radarr servers are configured in Seerr.")
+                Text(if (isTv) "No Sonarr servers are configured in Seerr." else "No Radarr servers are configured in Seerr.")
             if (servers.isNotEmpty()) {
-                SeerrRequestDropdown("Radarr server", server?.name ?: "Choose server",
+                SeerrRequestDropdown(if (isTv) "Sonarr server" else "Radarr server", server?.name ?: "Choose server",
                     Icons.Default.Dns, servers.map { it.name }, serverIndex) {
                     serverIndex = it
                 }
@@ -1420,10 +1423,42 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                     Text("This server has no selectable profiles or root folders.",
                         color = MaterialTheme.colorScheme.error)
             }
+            if (isTv) {
+                Text("Select seasons", style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold)
+                if (seasons.isEmpty()) Text("Season information isn't available yet.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                seasons.filter { it.number > 0 }.forEach { season ->
+                    val unavailable = season.status in listOf(2, 3, 4, 5)
+                    Surface(onClick = {
+                        if (!unavailable) {
+                            if (season.number in selectedSeasons) selectedSeasons.remove(season.number)
+                            else selectedSeasons.add(season.number)
+                        }
+                    }, enabled = !unavailable,
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                        Row(Modifier.fillMaxWidth().padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Checkbox(checked = season.number in selectedSeasons,
+                                onCheckedChange = null, enabled = !unavailable)
+                            Column(Modifier.weight(1f)) {
+                                Text(season.name.ifBlank { "Season ${season.number}" },
+                                    style = MaterialTheme.typography.titleMedium)
+                                Text("${season.episodes} episodes" +
+                                    if (unavailable) " • Already requested or available" else "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                 shape = RoundedCornerShape(24.dp),
-                enabled = server != null && profileId >= 0 && rootPath.isNotBlank() && !submitting,
+                enabled = server != null && profileId >= 0 && rootPath.isNotBlank() && !submitting && (!isTv || selectedSeasons.isNotEmpty()),
                 onClick = {
                     val chosen = server ?: return@Button
                     submitting = true
@@ -1431,8 +1466,8 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
 
            error = null
                     scope.launch {
-                        val response = SeerrClient.submitRequest(instance, tmdbId, false,
-                            chosen.id, profileId, rootPath, emptyList())
+                        val response = SeerrClient.submitRequest(instance, tmdbId, isTv,
+                            chosen.id, profileId, rootPath, selectedSeasons.toList())
                         submitting = false
                         response.onSuccess { onSubmitted() }
                             .onFailure { error = it.message ?: "Request failed" }
@@ -1508,6 +1543,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
     }
     if (showRequestSheet) {
         SeerrMovieRequestSheet(instance, request.tmdbId,
+            isTv = request.isTv, seasons = cache[cacheKey]?.tvSeasons.orEmpty(),
             onDismiss = { showRequestSheet = false },
             onSubmitted = { requestSubmitted = true; showRequestSheet = false })
     }
@@ -1629,11 +1665,11 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                 }
             }
         }
-        if (request.tmdbId > 0 && !request.isTv && displayedStatus == null && !requestSubmitted) {
+        if (request.tmdbId > 0 && (displayedStatus == null || (request.isTv && displayedStatus == "Partially available")) && !requestSubmitted) {
             Button(onClick = { showRequestSheet = true }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Request movie")
+                Text(if (request.isTv) "Request seasons" else "Request movie")
             }
         }
         if (requestSubmitted) Text("Request submitted successfully",
