@@ -279,38 +279,9 @@ private fun BastionApp() {
             }
         }) {
         LaunchedEffect(tab, selectedMediaId, seerrTab, settingsPage, hideNavOnScroll) { navVisible = true }
-        Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }, bottomBar = {
-            AnimatedVisibility(visible = openSeerrRequest == null && (!hideNavOnScroll || navVisible),
-                enter = androidx.compose.animation.slideInVertically { it } + fadeIn(),
-                exit = androidx.compose.animation.slideOutVertically { it } + fadeOut()) {
-            if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
-                NavigationBar {
-                    listOf("Discover", "Requests", "Issues", "Settings").forEachIndexed { index, label ->
-                        val icon = when (index) {
-                            0 -> Icons.Default.Explore
-                            1 -> Icons.Default.ListAlt
-                            2 -> Icons.Default.ReportProblem
-                            else -> Icons.Default.Settings
-                        }
-                        NavigationBarItem(selected = seerrTab == index,
-                            onClick = { seerrTab = index },
-                            icon = { Icon(icon, contentDescription = null) },
-                            label = { Text(label) }, alwaysShowLabel = showAllNavLabels)
-                    }
-                }
-            } else if (selectedMediaId == null && (tab != 2 || settingsPage == "Settings")) NavigationBar {
-                labels.forEachIndexed { index, label ->
-                    NavigationBarItem(
-                        selected = tab == index,
-                        onClick = { tab = index; selectedMediaId = null; settingsPage = "Settings"; settingsHistory.clear(); lastExitBackAt = 0L },
-                        icon = { Icon(icons[index], contentDescription = null) },
-                        label = { Text(label) },
-                        alwaysShowLabel = showAllNavLabels
-                    )
-                }
-            }
-            }
-        }) { insets ->
+        Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) },
+            containerColor = MaterialTheme.colorScheme.background) { insets ->
+            Box(Modifier.fillMaxSize()) {
             val scrollKey = if (openSeerrRequest != null)
                 "media-${seerrMediaStack.size}-${openSeerrRequest.tmdbId}-${openSeerrRequest.isTv}"
                 else "main-${selectedMediaId ?: "bastion"}-${if (selectedMediaId == null) tab else seerrTab}"
@@ -320,7 +291,8 @@ private fun BastionApp() {
             LazyColumn(
                 state = screenScroll,
                 modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).padding(insets),
-                contentPadding = if (openSeerrRequest != null) PaddingValues(bottom = 28.dp) else PaddingValues(16.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp,
+                    bottom = if (openSeerrRequest != null) 28.dp else if (!hideNavOnScroll || navVisible) 100.dp else 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if (openSeerrRequest == null) item {
@@ -715,6 +687,37 @@ private fun BastionApp() {
                     }
                 }
             }
+            AnimatedVisibility(modifier = Modifier.align(Alignment.BottomCenter), visible = openSeerrRequest == null && (!hideNavOnScroll || navVisible),
+                enter = androidx.compose.animation.slideInVertically { it } + fadeIn(),
+                exit = androidx.compose.animation.slideOutVertically { it } + fadeOut()) {
+            if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
+                NavigationBar {
+                    listOf("Discover", "Requests", "Issues", "Settings").forEachIndexed { index, label ->
+                        val icon = when (index) {
+                            0 -> Icons.Default.Explore
+                            1 -> Icons.Default.ListAlt
+                            2 -> Icons.Default.ReportProblem
+                            else -> Icons.Default.Settings
+                        }
+                        NavigationBarItem(selected = seerrTab == index,
+                            onClick = { seerrTab = index },
+                            icon = { Icon(icon, contentDescription = null) },
+                            label = { Text(label) }, alwaysShowLabel = showAllNavLabels)
+                    }
+                }
+            } else if (selectedMediaId == null && (tab != 2 || settingsPage == "Settings")) NavigationBar {
+                labels.forEachIndexed { index, label ->
+                    NavigationBarItem(
+                        selected = tab == index,
+                        onClick = { tab = index; selectedMediaId = null; settingsPage = "Settings"; settingsHistory.clear(); lastExitBackAt = 0L },
+                        icon = { Icon(icons[index], contentDescription = null) },
+                        label = { Text(label) },
+                        alwaysShowLabel = showAllNavLabels
+                    )
+                }
+            }
+            }
+        }
         }
     }
     }
