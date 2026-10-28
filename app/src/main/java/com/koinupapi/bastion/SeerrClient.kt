@@ -100,4 +100,57 @@ object SeerrClient {
             }
             "Connection failed — " + failures.joinToString("; ")
         }
+    suspend fun pendingRequests(instances: List<ServiceConfig>): List<String> =
+        withContext(Dispatchers.IO) {
+            val all = mutableListOf<String>()
+            val failures = mutableListOf<String>()
+            for (instance in instances) {
+                val addresses = when (instance.mode) {
+                    "Local only" -> listOf("Local" to instance.localUrl)
+                    "Remote only" -> listOf("Remote" to instance.remoteUrl)
+                    else -> listOf("Local" to instance.localUrl, "Remote" to instance.remoteUrl)
+                }.filter { it.second.isNotBlank() }
+                var success = false
+                for ((label, address) in addresses) {
+                    try {
+                        fun get(path: String): JSONObject {
+                            val url = URL(address.trimEnd('/') + path)
+                            require(url.protocol == "https" || (label == "Local" && url.protocol == "http"))
+                            val connection = url.openConnection() as HttpURLConnection
+                            try {
+                                connection.instanceFollowRedirects = false
+                                connection.connectTimeout = 2500
+                                connection.readTimeout = 4000
+                                connection.setRequestProperty("X-Api-Key", instance.apiKey)
+                                connection.setRequestProperty("Accept", "application/json")
+                                val code = connection.responseCode
+                                if (code !in 200..299) throw IllegalStateException("HTTP $code")
+                                return JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                            } finally { connection.disconnect() }
+                        }
+                        val data = get("/api/v1/request?take=10&skip=0&filter=pending&sort=added")
+                        val results = data.optJSONArray("results") ?: JSONArray()
+                        for (i in 0 until results.length()) {
+                            val media = results.optJSONObject(i)?.optJSONObject("media") ?: continue
+                            val type = media.optString("mediaType", "movie")
+                            val id = media.optInt("tmdbId", 0)
+                            val fallback = if (type == "tv") "Series #$id" else "Movie #$id"
+                            val title = if (id > 0) try {
+                                val detail = get("/api/v1/${if (type == "tv") "tv" else "movie"}/$id")
+                                detail.optString(if (type == "tv") "name" else "title").ifBlank { fallback }
+                            } catch (_: Exception) { fallback } else fallback
+                            all.add("${instance.name} • $title")
+                        }
+                        success = true
+                        break
+                    } catch (e: Exception) {
+                        failures.add("${instance.name} ($label): ${e.message ?: "Connection failed"}")
+                        if (e.message == "HTTP 401" || e.message == "HTTP 403") break
+                    }
+                }
+                if (!success) throw IllegalStateException(failures.joinToString("; "))
+            }
+            all
+        }
+
 }
