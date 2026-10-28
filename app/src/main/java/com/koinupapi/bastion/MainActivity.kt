@@ -119,6 +119,7 @@ private fun BastionApp() {
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         var selectedMediaId by remember { mutableStateOf<String?>(null) }
         var seerrTab by remember(selectedMediaId) { mutableIntStateOf(0) }
+        var openSeerrRequest by remember { mutableStateOf<SeerrRecentRequest?>(null) }
         var settingsPage by remember { mutableStateOf("Settings") }
         var selectedIntegration by remember { mutableStateOf("Seerr") }
         var serviceSearch by remember { mutableStateOf("") }
@@ -158,6 +159,7 @@ private fun BastionApp() {
         var lastExitBackAt by remember { mutableLongStateOf(0L) }
         BackHandler {
             when {
+                openSeerrRequest != null -> openSeerrRequest = null
                 selectedMediaId != null -> selectedMediaId = null
                 tab == 2 && settingsPage != "Settings" -> goBackSettings()
                 tab != 0 && returnToDashboard -> {
@@ -267,7 +269,7 @@ private fun BastionApp() {
         }) {
         LaunchedEffect(tab, selectedMediaId, seerrTab, settingsPage, hideNavOnScroll) { navVisible = true }
         Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }, bottomBar = {
-            AnimatedVisibility(visible = !hideNavOnScroll || navVisible,
+            AnimatedVisibility(visible = openSeerrRequest == null && (!hideNavOnScroll || navVisible),
                 enter = androidx.compose.animation.slideInVertically { it } + fadeIn(),
                 exit = androidx.compose.animation.slideOutVertically { it } + fadeOut()) {
             if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
@@ -303,7 +305,7 @@ private fun BastionApp() {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                item {
+                if (openSeerrRequest == null) item {
                     val nestedSettings = selectedMediaId == null && tab == 2 && settingsPage != "Settings"
                     val serviceScreen = selectedMediaId != null
                     Row(verticalAlignment = Alignment.CenterVertically,
@@ -345,7 +347,10 @@ private fun BastionApp() {
                 if (selectedMediaId == null && tab == 0) item { DemoNotice() }
                 if (selectedMediaId != null) {
                     val service = savedInstances.firstOrNull { it.id == selectedMediaId }
-                    if (service?.type == "Seerr") item { SeerrManagementScreen(service, seerrTab) }
+                    if (service?.type == "Seerr") {
+                        if (openSeerrRequest != null) item { SeerrRequestDetails(openSeerrRequest!!) { openSeerrRequest = null } }
+                        else item { SeerrManagementScreen(service, seerrTab) { openSeerrRequest = it } }
+                    }
                     else item { Text("Service management coming soon.") }
                 } else when (tab) {
                     0 -> {
@@ -932,11 +937,9 @@ private fun SettingsEntry(
 }
 
 @Composable
-private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int) {
-    var selectedRequest by remember(instance.id) { mutableStateOf<SeerrRecentRequest?>(null) }
-    BackHandler(enabled = selectedRequest != null) { selectedRequest = null }
-    var page by remember(instance.id) { mutableIntStateOf(0) }
-    var filter by remember(instance.id) { mutableStateOf("All") }
+private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int, onRequestClick: (SeerrRecentRequest) -> Unit) {
+    var page by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
+    var filter by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
     var result by remember(instance.id) { mutableStateOf<SeerrRecentResult?>(null) }
     var loading by remember(instance.id) { mutableStateOf(false) }
     var refresh by remember(instance.id) { mutableIntStateOf(0) }
@@ -977,30 +980,6 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int) {
                         style = MaterialTheme.typography.bodySmall)
                 }
             }
-        } else if (selectedRequest != null) {
-            val request = selectedRequest!!
-            TextButton(onClick = { selectedRequest = null }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("All requests")
-            }
-            request.posterUrl?.let {
-                AsyncImage(model = it, contentDescription = "Poster for ${request.title}",
-                    modifier = Modifier.width(150.dp).height(225.dp),
-                    contentScale = ContentScale.Crop)
-            }
-            Text(request.title, style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold)
-            request.releaseDate?.let { Text("Release date: $it") }
-            Text("Status: ${request.status}", color = MaterialTheme.colorScheme.primary)
-            request.requestedBy?.let { Text("Requested by $it") }
-            if (request.isTv && request.seasons.isNotEmpty()) {
-                Text("Requested seasons: " + request.seasons.joinToString(", ") {
-                    if (it == 0) "Specials" else "Season $it"
-                })
-            }
-            Text("Overview", style = MaterialTheme.typography.titleMedium)
-            Text(request.overview ?: "No synopsis available.")
         } else {
         Text("Requests", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Browse requests • Read-only", style = MaterialTheme.typography.bodySmall,
@@ -1065,7 +1044,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int) {
                         label = "Request card press"
                     )
                     ElevatedCard(
-                        onClick = { selectedRequest = request },
+                        onClick = { onRequestClick(request) },
                         interactionSource = interaction,
                         modifier = Modifier.fillMaxWidth()
                             .graphicsLayer {
@@ -1133,6 +1112,72 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int) {
                 }
             }
         }
+        }
+    }
+}
+
+@Composable
+private fun SeerrRequestDetails(request: SeerrRecentRequest, onBack: () -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Box(Modifier.fillMaxWidth().height(240.dp)) {
+            Surface(modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                if (request.posterUrl != null) {
+                    AsyncImage(model = request.posterUrl,
+                        contentDescription = "Artwork for ${request.title}",
+                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
+                        alpha = 0.45f)
+                }
+            }
+            FilledTonalIconButton(onClick = onBack,
+                modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back to requests")
+            }
+            request.posterUrl?.let { url ->
+                Surface(shape = RoundedCornerShape(18.dp), shadowElevation = 6.dp,
+                    modifier = Modifier.align(Alignment.BottomStart)
+                        .padding(start = 20.dp, bottom = 12.dp).width(98.dp).height(147.dp)) {
+                    AsyncImage(model = url, contentDescription = "Poster for ${request.title}",
+                        contentScale = ContentScale.Crop)
+                }
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(request.title, style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold)
+            Text(listOfNotNull(if (request.isTv) "TV series" else "Movie",
+                request.year).joinToString(" • "),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        ElevatedCard(shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+            modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Request details", style = MaterialTheme.typography.titleLarge)
+                Surface(shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Text(request.status,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        style = MaterialTheme.typography.labelLarge)
+                }
+                request.requestedBy?.let { Text("Requested by $it") }
+                if (request.isTv && request.seasons.isNotEmpty()) {
+                    Text("Requested seasons: " + request.seasons.joinToString(", ") {
+                        if (it == 0) "Specials" else "Season $it"
+                    })
+                }
+            }
+        }
+        request.releaseDate?.let {
+            Text("Release date: $it", style = MaterialTheme.typography.bodyMedium)
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Overview", style = MaterialTheme.typography.titleLarge)
+            Text(request.overview?.takeIf { it.isNotBlank() } ?: "No synopsis available.",
+                style = MaterialTheme.typography.bodyLarge)
         }
     }
 }
