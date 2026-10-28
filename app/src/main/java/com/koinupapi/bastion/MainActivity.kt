@@ -1104,7 +1104,7 @@ private fun SeerrIssuesScreen(instance: ServiceConfig) {
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Issues", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Reported media problems • Read-only",
+        Text("Reported media problems • Manage issues",
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("open", "resolved", "all").forEach { option ->
@@ -1145,18 +1145,9 @@ private fun SeerrIssuesScreen(instance: ServiceConfig) {
         }
     }
     selected?.let { issue ->
-        AlertDialog(onDismissRequest = { selected = null },
-            title = { Text(issue.type + " issue") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Reported by " + issue.author)
-                    Text(if (issue.resolved) "Resolved" else "Open")
-                    if (issue.tmdbId > 0) Text("TMDB ID: " + issue.tmdbId)
-                    issue.comments.forEach { Text(it) }
-                    if (issue.comments.isEmpty()) Text("No comments yet.")
-                }
-            },
-            confirmButton = { TextButton(onClick = { selected = null }) { Text("Close") } })
+        SeerrIssueManagementSheet(instance, issue,
+            onDismiss = { selected = null },
+            onChanged = { refresh++ })
     }
 }
 
