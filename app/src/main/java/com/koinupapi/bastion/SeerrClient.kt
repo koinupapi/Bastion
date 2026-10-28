@@ -153,10 +153,10 @@ object SeerrClient {
                         (0 until minOf(arr?.length() ?: 0, 16)).mapNotNull { i ->
                             arr?.optJSONObject(i)?.let {
                                 val title = it.optString(if (request.isTv) "name" else "title")
-                                if (title.isBlank()) null else SeerrRelatedTitle(title,
+                                if (title.isBlank() || it.optInt("id", 0) <= 0) null else SeerrRelatedTitle(title,
                                     image(it.optString("posterPath"), "w342"),
                                     it.optString(if (request.isTv) "firstAirDate" else "releaseDate").take(4),
-                                    it.optDouble("voteAverage", 0.0))
+                                    it.optDouble("voteAverage", 0.0), it.optInt("id"), request.isTv)
                             }
                         }
                     } catch (_: Exception) { emptyList() }
@@ -174,7 +174,8 @@ object SeerrClient {
                             ?: detail.optJSONArray("episodeRunTime")?.optInt(0)?.takeIf { it > 0 },
                         rating = detail.optDouble("voteAverage", 0.0).takeIf { it > 0 },
                         releaseDate = detail.optString(if (request.isTv) "firstAirDate" else "releaseDate"),
-                        recommendations = related("recommendations"), similar = related("similar"))
+                        recommendations = related("recommendations"), similar = related("similar"),
+                        mediaStatus = detail.optJSONObject("mediaInfo")?.optInt("status", 0) ?: 0)
                 } catch (e: Exception) {
                     errors.add("$label: ${e.message ?: e.javaClass.simpleName}")
                     if (e.message == "HTTP 401" || e.message == "HTTP 403") break
@@ -287,7 +288,7 @@ data class SeerrRecentResult(
 )
 
 data class SeerrCast(val name: String, val character: String, val photoUrl: String?)
-data class SeerrRelatedTitle(val title: String, val posterUrl: String?, val year: String, val rating: Double)
+data class SeerrRelatedTitle(val title: String, val posterUrl: String?, val year: String, val rating: Double, val tmdbId: Int, val isTv: Boolean)
 data class SeerrMediaDetails(
     val backdropUrl: String? = null, val posterUrl: String? = null,
     val overview: String? = null, val tagline: String? = null,
@@ -296,5 +297,6 @@ data class SeerrMediaDetails(
     val directors: List<String> = emptyList(), val cast: List<SeerrCast> = emptyList(),
     val runtime: Int? = null, val rating: Double? = null, val releaseDate: String = "",
     val recommendations: List<SeerrRelatedTitle> = emptyList(),
-    val similar: List<SeerrRelatedTitle> = emptyList(), val error: String? = null
+    val similar: List<SeerrRelatedTitle> = emptyList(),
+    val mediaStatus: Int = 0, val error: String? = null
 )
