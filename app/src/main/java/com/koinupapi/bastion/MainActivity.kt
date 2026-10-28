@@ -348,7 +348,7 @@ private fun BastionApp() {
                 if (selectedMediaId != null) {
                     val service = savedInstances.firstOrNull { it.id == selectedMediaId }
                     if (service?.type == "Seerr") {
-                        if (openSeerrRequest != null) item { SeerrRequestDetails(openSeerrRequest!!) { openSeerrRequest = null } }
+                        if (openSeerrRequest != null) item { SeerrRequestDetails(service, openSeerrRequest!!) { openSeerrRequest = null } }
                         else item { SeerrManagementScreen(service, seerrTab) { openSeerrRequest = it } }
                     }
                     else item { Text("Service management coming soon.") }
@@ -1117,67 +1117,187 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int, onR
 }
 
 @Composable
-private fun SeerrRequestDetails(request: SeerrRecentRequest, onBack: () -> Unit) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Box(Modifier.fillMaxWidth().height(240.dp)) {
-            Surface(modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(28.dp),
+private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentRequest, onBack: () -> Unit) {
+    var details by remember(instance.id, request.tmdbId) { mutableStateOf<SeerrMediaDetails?>(null) }
+    var expanded by remember(request.tmdbId) { mutableStateOf(false) }
+    LaunchedEffect(instance, request.tmdbId) {
+        details = SeerrClient.mediaDetails(instance, request)
+    }
+    val media = details
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Box(Modifier.fillMaxWidth().height(250.dp)) {
+            Surface(Modifier.fillMaxSize(), shape = RoundedCornerShape(28.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                if (request.posterUrl != null) {
-                    AsyncImage(model = request.posterUrl,
-                        contentDescription = "Artwork for ${request.title}",
-                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
-                        alpha = 0.45f)
+                if (media?.backdropUrl != null) {
+                    AsyncImage(model = media.backdropUrl, contentDescription = "Backdrop for ${request.title}",
+                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 }
             }
             FilledTonalIconButton(onClick = onBack,
-                modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
+                modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Back to requests")
             }
-            request.posterUrl?.let { url ->
-                Surface(shape = RoundedCornerShape(18.dp), shadowElevation = 6.dp,
-                    modifier = Modifier.align(Alignment.BottomStart)
-                        .padding(start = 20.dp, bottom = 12.dp).width(98.dp).height(147.dp)) {
-                    AsyncImage(model = url, contentDescription = "Poster for ${request.title}",
-                        contentScale = ContentScale.Crop)
+        }
+        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            val poster = media?.posterUrl ?: request.posterUrl
+            Surface(shape = RoundedCornerShape(20.dp), shadowElevation = 3.dp,
+                modifier = Modifier.width(112.dp).height(168.dp)) {
+                if (poster != null) AsyncImage(model = poster, contentDescription = "Poster",
+                    contentScale = ContentScale.Crop)
+                else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Movie, contentDescription = null)
                 }
             }
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(request.title, style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold)
-            Text(listOfNotNull(if (request.isTv) "TV series" else "Movie",
-                request.year).joinToString(" • "),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        ElevatedCard(shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.elevatedCardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-            modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Request details", style = MaterialTheme.typography.titleLarge)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(request.title, style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold)
+                Text(listOfNotNull(if (request.isTv) "TV series" else "Movie",
+                    request.year, media?.runtime?.let { "${it / 60}h ${it % 60}m" })
+                    .joinToString(" • "), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                media?.rating?.let {
+                    Text("★ " + String.format(java.util.Locale.US, "%.1f", it) + " / 10",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLarge)
+                }
                 Surface(shape = RoundedCornerShape(50),
                     color = MaterialTheme.colorScheme.secondaryContainer) {
-                    Text(request.status,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    Text(request.status, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         style = MaterialTheme.typography.labelLarge)
                 }
-                request.requestedBy?.let { Text("Requested by $it") }
-                if (request.isTv && request.seasons.isNotEmpty()) {
-                    Text("Requested seasons: " + request.seasons.joinToString(", ") {
-                        if (it == 0) "Specials" else "Season $it"
-                    })
+            }
+        }
+        if (media == null) LinearProgressIndicator(Modifier.fillMaxWidth())
+        media?.error?.let { Text("Additional details unavailable: $it",
+            color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        if (!media?.tagline.isNullOrBlank()) Text(media!!.tagline!!,
+            style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (!media?.genres.isNullOrEmpty()) {
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                media!!.genres.forEach { genre ->
+                    Surface(shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.tertiaryContainer) {
+                        Text(genre, Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer)
+                    }
                 }
             }
         }
-        request.releaseDate?.let {
-            Text("Release date: $it", style = MaterialTheme.typography.bodyMedium)
+        val overview = media?.overview ?: request.overview
+        if (!overview.isNullOrBlank()) {
+            ElevatedCard(shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Column(Modifier.fillMaxWidth().padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Overview", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold)
+                    Text(overview, maxLines = if (expanded) Int.MAX_VALUE else 4,
+                        style = MaterialTheme.typography.bodyMedium)
+                    if (overview.length > 150) TextButton(onClick = { expanded = !expanded }) {
+                        Text(if (expanded) "Show less" else "Show more")
+                    }
+                }
+            }
         }
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Overview", style = MaterialTheme.typography.titleLarge)
-            Text(request.overview?.takeIf { it.isNotBlank() } ?: "No synopsis available.",
-                style = MaterialTheme.typography.bodyLarge)
+        if (request.requestedBy != null || (request.isTv && request.seasons.isNotEmpty())) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Request", style = MaterialTheme.typography.titleLarge)
+                request.requestedBy?.let { Text("Requested by $it") }
+                if (request.isTv && request.seasons.isNotEmpty())
+                    Text("Seasons: " + request.seasons.joinToString(", ") {
+                        if (it == 0) "Specials" else "Season $it"
+                    })
+            }
+        }
+        if (media != null && media.cast.isNotEmpty()) {
+            Text("Cast", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                media.cast.forEach { actor ->
+                    Column(Modifier.width(92.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Surface(shape = RoundedCornerShape(50),
+                            modifier = Modifier.size(82.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                            if (actor.photoUrl != null) AsyncImage(model = actor.photoUrl,
+                                contentDescription = actor.name, contentScale = ContentScale.Crop)
+                            else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Person, contentDescription = null)
+                            }
+                        }
+                        Text(actor.name, style = MaterialTheme.typography.labelMedium,
+                            maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        if (actor.character.isNotBlank()) Text(actor.character,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
+                }
+            }
+        }
+        if (media != null) {
+            val facts = listOfNotNull(
+                (media.releaseDate.ifBlank { request.releaseDate.orEmpty() }).takeIf { it.isNotBlank() }?.let { "Release date" to it },
+                media.runtime?.let { "Runtime" to "${it / 60}h ${it % 60}m" },
+                media.directors.takeIf { it.isNotEmpty() }?.let { "Director" to it.joinToString(", ") },
+                media.studios.takeIf { it.isNotEmpty() }?.let { (if (request.isTv) "Networks" else "Studios") to it.joinToString(", ") },
+                media.countries.takeIf { it.isNotEmpty() }?.let { "Countries" to it.joinToString(", ") },
+                media.languages.takeIf { it.isNotEmpty() }?.let { "Languages" to it.joinToString(", ") })
+            if (facts.isNotEmpty()) {
+                Text(if (request.isTv) "Series details" else "Movie details",
+                    style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Surface(shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                    Column(Modifier.fillMaxWidth().padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        facts.forEach { (label, value) ->
+                            Text(label, style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(value, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
+            listOf("Recommendations" to media.recommendations, "Similar" to media.similar)
+                .forEach { (heading, titles) ->
+                    if (titles.isNotEmpty()) {
+                        Text(heading, style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold)
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            titles.forEach { title ->
+                                Column(Modifier.width(125.dp),
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Surface(shape = RoundedCornerShape(18.dp),
+                                        modifier = Modifier.width(125.dp).height(185.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                        if (title.posterUrl != null)
+                                            AsyncImage(model = title.posterUrl,
+                                                contentDescription = title.title,
+                                                contentScale = ContentScale.Crop)
+                                        else Box(Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Movie, contentDescription = null)
+                                        }
+                                    }
+                                    Text(title.title, style = MaterialTheme.typography.labelMedium,
+                                        maxLines = 2)
+                                    Text(listOfNotNull(title.year.takeIf { it.isNotBlank() },
+                                        title.rating.takeIf { it > 0 }?.let {
+                                            "★ " + String.format(java.util.Locale.US, "%.1f", it)
+                                        }).joinToString(" • "),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                }
         }
     }
 }
