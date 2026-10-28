@@ -101,6 +101,7 @@ private fun BastionApp() {
         var tab by remember { mutableIntStateOf(0) }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         var selectedMediaId by remember { mutableStateOf<String?>(null) }
+        var seerrTab by remember(selectedMediaId) { mutableIntStateOf(0) }
         var settingsPage by remember { mutableStateOf("Settings") }
         var selectedIntegration by remember { mutableStateOf("Seerr") }
         var serviceSearch by remember { mutableStateOf("") }
@@ -248,7 +249,22 @@ private fun BastionApp() {
             }
         }) {
         Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }, bottomBar = {
-            if (selectedMediaId == null && (tab != 2 || settingsPage == "Settings")) NavigationBar {
+            if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
+                NavigationBar {
+                    listOf("Discover", "Requests", "Issues", "Settings").forEachIndexed { index, label ->
+                        val icon = when (index) {
+                            0 -> Icons.Default.Explore
+                            1 -> Icons.Default.ListAlt
+                            2 -> Icons.Default.ReportProblem
+                            else -> Icons.Default.Settings
+                        }
+                        NavigationBarItem(selected = seerrTab == index,
+                            onClick = { seerrTab = index },
+                            icon = { Icon(icon, contentDescription = null) },
+                            label = { Text(label) }, alwaysShowLabel = true)
+                    }
+                }
+            } else if (selectedMediaId == null && (tab != 2 || settingsPage == "Settings")) NavigationBar {
                 labels.forEachIndexed { index, label ->
                     NavigationBarItem(
                         selected = tab == index,
@@ -307,7 +323,7 @@ private fun BastionApp() {
                 if (selectedMediaId == null && tab == 0) item { DemoNotice() }
                 if (selectedMediaId != null) {
                     val service = savedInstances.firstOrNull { it.id == selectedMediaId }
-                    if (service?.type == "Seerr") item { SeerrManagementScreen(service) }
+                    if (service?.type == "Seerr") item { SeerrManagementScreen(service, seerrTab) }
                     else item { Text("Service management coming soon.") }
                 } else when (tab) {
                     0 -> {
@@ -881,7 +897,7 @@ private fun SettingsEntry(
 }
 
 @Composable
-private fun SeerrManagementScreen(instance: ServiceConfig) {
+private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int) {
     var selectedRequest by remember(instance.id) { mutableStateOf<SeerrRecentRequest?>(null) }
     BackHandler(enabled = selectedRequest != null) { selectedRequest = null }
     var page by remember(instance.id) { mutableIntStateOf(0) }
@@ -896,7 +912,37 @@ private fun SeerrManagementScreen(instance: ServiceConfig) {
         loading = false
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (selectedRequest != null) {
+        if (destination != 1) {
+            val heading = when (destination) {
+                0 -> "Discover"
+                2 -> "Issues"
+                else -> "Seerr settings"
+            }
+            Text(heading, style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold)
+            Text(when (destination) {
+                0 -> "Discover browsing is next. This screen will show live movies and TV shows from your Seerr instance."
+                2 -> "Issue management is next. This screen will show reported media problems from your Seerr instance."
+                else -> "Service administration is next. General settings, user management, user defaults, and integrations will live here."
+            }, style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Surface(shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(when (destination) {
+                        0 -> Icons.Default.Explore
+                        2 -> Icons.Default.ReportProblem
+                        else -> Icons.Default.Settings
+                    }, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary)
+                    Text("Coming soon", style = MaterialTheme.typography.titleMedium)
+                    Text("No demo data or unverified API controls are shown.",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        } else if (selectedRequest != null) {
             val request = selectedRequest!!
             TextButton(onClick = { selectedRequest = null }) {
                 Icon(Icons.Default.ArrowBack, contentDescription = null)
