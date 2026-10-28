@@ -778,3 +778,79 @@ private fun SettingsEntry(
         }
     }
 }
+
+@Composable
+private fun SeerrManagementScreen(instance: ServiceConfig) {
+    var page by remember(instance.id) { mutableIntStateOf(0) }
+    var filter by remember(instance.id) { mutableStateOf("All") }
+    var result by remember(instance.id) { mutableStateOf<SeerrRecentResult?>(null) }
+    var loading by remember(instance.id) { mutableStateOf(false) }
+    var refresh by remember(instance.id) { mutableIntStateOf(0) }
+    val pageSize = 20
+    LaunchedEffect(instance, page, filter, refresh) {
+        loading = true
+        result = SeerrClient.requestPage(instance, pageSize, page * pageSize, filter)
+        loading = false
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(instance.name, style = MaterialTheme.typography.titleLarge)
+        Text("Browse requests • Read-only", style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            listOf("All", "Pending", "Approved").forEachIndexed { index, option ->
+                SegmentedButton(selected = filter == option, onClick = {
+                    filter = option
+                    page = 0
+                }, shape = SegmentedButtonDefaults.itemShape(index, 3)) {
+                    Text(option)
+                }
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (result?.error == null) "${result?.total ?: 0} requests" else "Requests",
+                modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+            IconButton(onClick = { refresh++ }, enabled = !loading) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh requests")
+            }
+        }
+        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        else {
+            result?.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            if (result?.error == null && result?.requests?.isEmpty() == true) Text("No matching requests.")
+            result?.requests?.forEach { request ->
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()) {
+                    Surface(shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.width(58.dp).height(86.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+                        if (request.posterUrl != null) AsyncImage(model = request.posterUrl,
+                            contentDescription = "Poster for ${request.title}",
+                            contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        else Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Movie, contentDescription = null)
+                        }
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(request.title + (request.year?.let { " ($it)" } ?: ""),
+                            style = MaterialTheme.typography.titleSmall)
+                        Text(request.status, style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary)
+                        request.requestedBy?.let { Text("Requested by $it",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
+                }
+            }
+            if (result?.error == null && (result?.total ?: 0) > pageSize) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { page-- }, enabled = page > 0) { Text("Previous") }
+                    Text("Page ${page + 1}", style = MaterialTheme.typography.labelMedium)
+                    TextButton(onClick = { page++ },
+                        enabled = (page + 1) * pageSize < (result?.total ?: 0)) { Text("Next") }
+                }
+            }
+        }
+    }
+}
