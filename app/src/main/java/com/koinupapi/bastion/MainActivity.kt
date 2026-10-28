@@ -1,5 +1,7 @@
 package com.koinupapi.bastion
 
+import java.time.LocalDate
+import java.time.YearMonth
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
@@ -78,7 +80,7 @@ private fun BastionApp() {
     }
     MaterialTheme(colorScheme = colors) {
         var tab by remember { mutableIntStateOf(0) }
-        var mediaPage by remember { mutableStateOf("Hub") }
+        val drawerState = rememberDrawerState(DrawerValue.Closed)
         var selectedMediaId by remember { mutableStateOf<String?>(null) }
         var settingsPage by remember { mutableStateOf("Settings") }
         var selectedIntegration by remember { mutableStateOf("Seerr") }
@@ -119,8 +121,8 @@ private fun BastionApp() {
         var lastExitBackAt by remember { mutableLongStateOf(0L) }
         BackHandler {
             when {
-                tab == 3 && settingsPage != "Settings" -> goBackSettings()
-                tab == 2 && mediaPage != "Hub" -> mediaPage = "Hub"
+                tab == 2 && settingsPage != "Settings" -> goBackSettings()
+                selectedMediaId != null -> selectedMediaId = null
                 tab != 0 && returnToDashboard -> {
                     tab = 0
                     settingsPage = "Settings"
@@ -143,14 +145,32 @@ private fun BastionApp() {
                 }
             }
         }
-        val labels = listOf("Home", "Servers", "Media", "Settings")
-        val icons = listOf(Icons.Default.Home, Icons.Default.Dns, Icons.Default.Movie, Icons.Default.Settings)
+        val labels = listOf("Dash", "Calendar", "Settings")
+        val icons = listOf(Icons.Default.Home, Icons.Default.CalendarMonth, Icons.Default.Settings)
+        ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
+            ModalDrawerSheet {
+                Text("Bastion", modifier = Modifier.padding(24.dp), style = MaterialTheme.typography.headlineSmall)
+                Text("SERVICES", modifier = Modifier.padding(24.dp), style = MaterialTheme.typography.labelMedium)
+                savedInstances.groupBy { config ->
+                    integrationCatalog.firstOrNull { it.name == config.type }?.category ?: "Other"
+                }.forEach { (category, entries) ->
+                    Text(category, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.labelSmall)
+                    entries.forEach { service ->
+                        NavigationDrawerItem(label = { Text(service.name) }, selected = selectedMediaId == service.id,
+                            icon = { Icon(Icons.Default.Movie, contentDescription = null) },
+                            onClick = { selectedMediaId = service.id; scope.launch { drawerState.close() } })
+                    }
+                }
+                if (savedInstances.isEmpty()) Text("Add services in Settings", modifier = Modifier.padding(24.dp))
+            }
+        }) {
         Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }, bottomBar = {
-            if (tab != 2 || mediaPage == "Hub") NavigationBar {
+            if (selectedMediaId == null) NavigationBar {
                 labels.forEachIndexed { index, label ->
                     NavigationBarItem(
                         selected = tab == index,
-                        onClick = { tab = index; mediaPage = "Hub"; settingsPage = "Settings"; settingsHistory.clear(); lastExitBackAt = 0L },
+                        onClick = { tab = index; selectedMediaId = null; settingsPage = "Settings"; settingsHistory.clear(); lastExitBackAt = 0L },
                         icon = { Icon(icons[index], contentDescription = null) },
                         label = { Text(label) },
                         alwaysShowLabel = showAllNavLabels
@@ -165,16 +185,21 @@ private fun BastionApp() {
             ) {
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) { Icon(Icons.Default.Menu, contentDescription = "Open services") }
                         Column(Modifier.weight(1f)) {
                             Text("YOUR HOMELAB", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                            Text(if (tab == 0) "Bastion" else if (tab == 2 && mediaPage != "Hub") "Seerr" else labels[tab],
+                            Text(if (selectedMediaId != null) savedInstances.firstOrNull { it.id == selectedMediaId }?.name ?: "Service" else if (tab == 0) "Bastion" else labels[tab],
                                 style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                         }
                         Icon(Icons.Default.Shield, contentDescription = "Bastion", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
-                item { DemoNotice() }
-                when (tab) {
+                if (selectedMediaId == null && tab == 0) item { DemoNotice() }
+                if (selectedMediaId != null) {
+                    val service = savedInstances.firstOrNull { it.id == selectedMediaId }
+                    if (service?.type == "Seerr") item { SeerrManagementScreen(service) }
+                    else item { Text("Service management coming soon.") }
+                } else when (tab) {
                     0 -> {
                         item { ServerWidget() }
                         item { DownloadsWidget() }
@@ -183,46 +208,7 @@ private fun BastionApp() {
                         item { RadarrWidget() }
                         item { ServicesWidget() }
                     }
-                    1 -> {
-                        item { ServerWidget() }
-                        item { SectionTitle("Docker containers") }
-                        items(containers) { DemoRow(it, "● Running • Demo container") }
-                    }
-                    2 -> {
-                        val mediaInstances = savedInstances.filter {
-                            it.type in listOf("Seerr", "Sonarr", "Radarr", "qBittorrent", "Plex", "Audiobookshelf", "Navidrome")
-                        }
-                        if (mediaPage == "Hub") {
-                            item { Text("Your connected media services",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                            if (mediaInstances.isEmpty()) {
-                                item { Text("No media services configured. Add Seerr in Settings → Services to get started.") }
-                            }
-                            items(mediaInstances, key = { it.id }) { service ->
-                                SettingsEntry(service.name,
-                                    if (service.type == "Seerr") "Requests and approvals" else "Coming soon",
-                                    Icons.Default.Movie) {
-                                    if (service.type == "Seerr") {
-                                        selectedMediaId = service.id
-                                        mediaPage = "Seerr"
-                                    }
-                                }
-                            }
-                        } else {
-                            val instance = savedInstances.firstOrNull { it.id == selectedMediaId }
-                            item {
-                                TextButton(onClick = { mediaPage = "Hub" }) {
-                                    Icon(Icons.Default.ArrowBack, contentDescription = null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Media Hub")
-                                }
-                            }
-                            if (instance?.type == "Seerr") {
-                                item { SeerrManagementScreen(instance) }
-                            } else item { Text("Service is no longer configured.") }
-                        }
-                    }
+                    1 -> { item { UnifiedCalendarScreen() } }
                     else -> {
                         if (settingsPage == "Settings") {
                             item { Text("Customize Bastion and manage your integrations",
@@ -532,6 +518,7 @@ private fun BastionApp() {
                 }
             }
         }
+    }
     }
 }
 
@@ -880,5 +867,79 @@ private fun SeerrManagementScreen(instance: ServiceConfig) {
             }
         }
         }
+    }
+}
+
+@Composable
+private fun UnifiedCalendarScreen() {
+    val today = remember { LocalDate.now() }
+    var month by remember { mutableStateOf(YearMonth.from(today)) }
+    var selected by remember { mutableStateOf(today) }
+    var hideDownloaded by remember { mutableStateOf(false) }
+    var showSonarr by remember { mutableStateOf(true) }
+    var showRadarr by remember { mutableStateOf(true) }
+    var showBindery by remember { mutableStateOf(true) }
+    val days = month.lengthOfMonth()
+    val leading = month.atDay(1).dayOfWeek.value % 7
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("Unified release calendar", style = MaterialTheme.typography.titleMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(month.year.toString(), style = MaterialTheme.typography.labelMedium)
+                Text(month.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()),
+                    style = MaterialTheme.typography.headlineMedium)
+            }
+            TextButton(onClick = { month = YearMonth.from(today); selected = today }) { Text("Today") }
+            IconButton(onClick = { month = month.minusMonths(1) }) {
+                Icon(Icons.Default.ChevronLeft, contentDescription = "Previous month")
+            }
+            IconButton(onClick = { month = month.plusMonths(1) }) {
+                Icon(Icons.Default.ChevronRight, contentDescription = "Next month")
+            }
+        }
+        Row(Modifier.fillMaxWidth()) {
+            listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach {
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Text(it, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+        repeat((leading + days + 6) / 7) { week ->
+            Row(Modifier.fillMaxWidth()) {
+                repeat(7) { weekday ->
+                    val day = week * 7 + weekday - leading + 1
+                    Box(Modifier.weight(1f).height(56.dp), contentAlignment = Alignment.Center) {
+                        if (day in 1..days) {
+                            val date = month.atDay(day)
+                            Surface(onClick = { selected = date },
+                                shape = MaterialTheme.shapes.extraLarge,
+                                color = if (selected == date) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surface) {
+                                Text(day.toString(), modifier = Modifier.padding(12.dp),
+                                    color = if (selected == date) MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Text("Sources", style = MaterialTheme.typography.titleSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = showSonarr, onClick = { showSonarr = !showSonarr },
+                label = { Text("Sonarr") })
+            FilterChip(selected = showRadarr, onClick = { showRadarr = !showRadarr },
+                label = { Text("Radarr") })
+            FilterChip(selected = showBindery, onClick = { showBindery = !showBindery },
+                label = { Text("Bindery") })
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Hide downloaded", modifier = Modifier.weight(1f))
+            Switch(checked = hideDownloaded, onCheckedChange = { hideDownloaded = it })
+        }
+        HorizontalDivider()
+        Text(selected.toString(), style = MaterialTheme.typography.titleLarge)
+        Text("Release events will appear here once Sonarr and Radarr are connected. Bindery support is planned.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
