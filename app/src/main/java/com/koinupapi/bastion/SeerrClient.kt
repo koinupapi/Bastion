@@ -136,17 +136,30 @@ object SeerrClient {
                         val type = media.optString("mediaType", "movie")
                         val id = media.optInt("tmdbId", 0)
                         val fallback = if (type == "tv") "Series #$id" else "Movie #$id"
-                        val title = if (id > 0) try {
-                            val detail = get("/api/v1/${if (type == "tv") "tv" else "movie"}/$id")
-                            detail.optString(if (type == "tv") "name" else "title").ifBlank { fallback }
-                        } catch (_: Exception) { fallback } else fallback
-                        val status = when (request.optInt("status", 0)) {
+                        val detail = if (id > 0) try {
+                            get("/api/v1/${if (type == "tv") "tv" else "movie"}/$id")
+                        } catch (_: Exception) { null } else null
+                        val title = detail?.optString(if (type == "tv") "name" else "title")
+                            ?.takeIf { it.isNotBlank() } ?: fallback
+                        val posterPath = detail?.optString("posterPath")
+                            ?.takeIf { it.startsWith("/") && !it.startsWith("//") }
+                        val posterUrl = posterPath?.let { "https://image.tmdb.org/t/p/w185$it" }
+                        val mediaStatus = when (media.optInt("status", 0)) {
+                            2 -> "Pending"
+                            3 -> "Processing"
+                            4 -> "Partially available"
+                            5 -> "Available"
+                            else -> null
+                        }
+                        val requestStatus = when (request.optInt("status", 0)) {
                             1 -> "Pending"
                             2 -> "Approved"
                             3 -> "Declined"
                             else -> "Requested"
                         }
-                        SeerrRecentRequest(title, status)
+                        val status = if (requestStatus == "Declined") requestStatus
+                            else mediaStatus ?: requestStatus
+                        SeerrRecentRequest(title, status, posterUrl)
                     }
                     return@withContext SeerrRecentResult(config.name, total.coerceAtLeast(requests.size), requests, null)
                 } catch (e: Exception) {
@@ -157,7 +170,7 @@ object SeerrClient {
             SeerrRecentResult(config.name, 0, emptyList(), failures.joinToString("; ").ifBlank { "No connection configured" })
         }
 }
-data class SeerrRecentRequest(val title: String, val status: String)
+data class SeerrRecentRequest(val title: String, val status: String, val posterUrl: String?)
 data class SeerrRecentResult(
     val instance: String, val total: Int, val requests: List<SeerrRecentRequest>, val error: String?
 )

@@ -11,6 +11,9 @@ import androidx.activity.SystemBarStyle
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.activity.compose.setContent
@@ -623,13 +626,30 @@ private fun RequestsWidget(instances: List<ServiceConfig>) {
                         if (result.requests.isEmpty()) Text("No requests yet.")
                         result.requests.forEachIndexed { index, request ->
                             if (index > 0) HorizontalDivider()
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(request.title, Modifier.weight(1f),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.SemiBold)
-                                Spacer(Modifier.width(8.dp))
-                                Text(request.status, style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary)
+                            Row(verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Surface(shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    modifier = Modifier.width(58.dp).height(86.dp)) {
+                                    if (request.posterUrl != null) {
+                                        AsyncImage(model = request.posterUrl,
+                                            contentDescription = "Poster for ${request.title}",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize())
+                                    } else {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Movie, contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
+                                Column(Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(request.title, style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold)
+                                    Text(request.status, style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary)
+                                }
                             }
                         }
                         if (result.total > result.requests.size) {
