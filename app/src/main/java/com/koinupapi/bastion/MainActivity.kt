@@ -122,7 +122,9 @@ private fun BastionApp() {
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         var selectedMediaId by remember { mutableStateOf<String?>(null) }
         var seerrTab by remember(selectedMediaId) { mutableIntStateOf(0) }
-        var openSeerrRequest by remember { mutableStateOf<SeerrRecentRequest?>(null) }
+        val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
+        val openSeerrRequest = seerrMediaStack.lastOrNull()
+        val popSeerrMedia = { if (seerrMediaStack.isNotEmpty()) seerrMediaStack.removeAt(seerrMediaStack.lastIndex) }
         var settingsPage by remember { mutableStateOf("Settings") }
         var selectedIntegration by remember { mutableStateOf("Seerr") }
         var serviceSearch by remember { mutableStateOf("") }
@@ -162,7 +164,7 @@ private fun BastionApp() {
         var lastExitBackAt by remember { mutableLongStateOf(0L) }
         BackHandler {
             when {
-                openSeerrRequest != null -> openSeerrRequest = null
+                openSeerrRequest != null -> popSeerrMedia()
                 selectedMediaId != null -> selectedMediaId = null
                 tab == 2 && settingsPage != "Settings" -> goBackSettings()
                 tab != 0 && returnToDashboard -> {
@@ -351,8 +353,10 @@ private fun BastionApp() {
                 if (selectedMediaId != null) {
                     val service = savedInstances.firstOrNull { it.id == selectedMediaId }
                     if (service?.type == "Seerr") {
-                        if (openSeerrRequest != null) item { SeerrRequestDetails(service, openSeerrRequest!!) { openSeerrRequest = null } }
-                        else item { SeerrManagementScreen(service, seerrTab) { openSeerrRequest = it } }
+                        if (openSeerrRequest != null) item { SeerrRequestDetails(service, openSeerrRequest!!,
+                            onBack = { popSeerrMedia() },
+                            onRelatedClick = { seerrMediaStack.add(it) }) }
+                        else item { SeerrManagementScreen(service, seerrTab) { seerrMediaStack.add(it) } }
                     }
                     else item { Text("Service management coming soon.") }
                 } else when (tab) {
@@ -1120,13 +1124,21 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int, onR
 }
 
 @Composable
-private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentRequest, onBack: () -> Unit) {
+private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentRequest,
+    onBack: () -> Unit, onRelatedClick: (SeerrRecentRequest) -> Unit) {
     var details by remember(instance.id, request.tmdbId) { mutableStateOf<SeerrMediaDetails?>(null) }
     var expanded by remember(request.tmdbId) { mutableStateOf(false) }
     LaunchedEffect(instance, request.tmdbId) {
         details = SeerrClient.mediaDetails(instance, request)
     }
     val media = details
+    val displayedStatus = if (request.status.isNotBlank()) request.status else when (media?.mediaStatus) {
+        2 -> "Pending"
+        3 -> "Processing"
+        4 -> "Partially available"
+        5 -> "Available"
+        else -> null
+    }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Box(Modifier.fillMaxWidth().height(405.dp)) {
             val pageColor = MaterialTheme.colorScheme.background
@@ -1193,9 +1205,9 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             Row(Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = RoundedCornerShape(24.dp),
+                if (displayedStatus != null) Surface(shape = RoundedCornerShape(24.dp),
                     color = MaterialTheme.colorScheme.secondaryContainer) {
-                    Text(request.status, Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                    Text(displayedStatus, Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSecondaryContainer)
                 }
@@ -1308,7 +1320,14 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             titles.forEach { title ->
-                                Column(Modifier.width(125.dp),
+                                Column(Modifier.width(125.dp)
+                                    .clickable {
+                                        onRelatedClick(SeerrRecentRequest(
+                                            title = title.title, status = "",
+                                            posterUrl = title.posterUrl,
+                                            year = title.year, requestedBy = null,
+                                            isTv = title.isTv, tmdbId = title.tmdbId))
+                                    },
                                     verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                     Surface(shape = RoundedCornerShape(18.dp),
                                         modifier = Modifier.width(125.dp).height(185.dp),
