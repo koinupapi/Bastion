@@ -177,8 +177,10 @@ object SeerrClient {
                 else JSONObject(response).optJSONArray("results") ?: JSONArray()
             (0 until array.length()).mapNotNull { i ->
                 val entry = array.optJSONObject(i) ?: return@mapNotNull null
-                val profiles = entry.optJSONArray("profiles") ?: JSONArray()
-                val roots = entry.optJSONArray("rootFolders") ?: JSONArray()
+                val profiles = entry.optJSONArray("profiles")
+                    ?: entry.optJSONArray("qualityProfiles") ?: JSONArray()
+                val roots = entry.optJSONArray("rootFolders")
+                    ?: entry.optJSONArray("directories") ?: JSONArray()
                 SeerrRequestServer(
                     id = entry.optInt("id"),
                     name = entry.optString("name"),
@@ -189,7 +191,7 @@ object SeerrClient {
                     },
                     roots = (0 until roots.length()).mapNotNull { j ->
                         roots.optJSONObject(j)?.let {
-                            SeerrRequestChoice(it.optInt("id"), it.optString("path"))
+                            SeerrRequestChoice(it.optInt("id"), it.optString("path").ifBlank { it.optString("name") })
                         }
                     },
                     defaultProfile = entry.optInt("activeProfileId"),
@@ -391,7 +393,8 @@ object SeerrClient {
                                 if (title.isBlank() || it.optInt("id", 0) <= 0) null else SeerrRelatedTitle(title,
                                     image(it.optString("posterPath"), "w342"),
                                     it.optString(if (request.isTv) "firstAirDate" else "releaseDate").take(4),
-                                    it.optDouble("voteAverage", 0.0), it.optInt("id"), request.isTv)
+                                    it.optDouble("voteAverage", 0.0), it.optInt("id"), request.isTv,
+                                    it.optJSONObject("mediaInfo")?.optInt("status") ?: 0)
                             }
                         }
                     } catch (_: Exception) { emptyList() }
