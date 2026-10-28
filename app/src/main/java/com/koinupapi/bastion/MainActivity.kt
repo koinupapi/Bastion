@@ -1088,6 +1088,75 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
 }
 
 @Composable
+private fun SeerrIssuesScreen(instance: ServiceConfig) {
+    var filter by remember { mutableStateOf("open") }
+    var page by remember { mutableIntStateOf(0) }
+    var refresh by remember { mutableIntStateOf(0) }
+    var result by remember(instance.id) { mutableStateOf<SeerrIssueResult?>(null) }
+    var selected by remember { mutableStateOf<SeerrIssue?>(null) }
+    LaunchedEffect(instance, filter, page, refresh) {
+        result = null
+        result = SeerrClient.issuePage(instance, 20, page * 20, filter)
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Issues", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Reported media problems • Read-only",
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("open", "resolved", "all").forEach { option ->
+                FilterChip(selected = filter == option,
+                    onClick = { filter = option; page = 0 },
+                    label = { Text(option.replaceFirstChar { it.uppercase() }) })
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${result?.total ?: 0} issues", Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium)
+            IconButton(onClick = { refresh++ }) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh issues")
+            }
+        }
+        if (result == null) LinearProgressIndicator(Modifier.fillMaxWidth())
+        result?.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (result?.issues?.isEmpty() == true) Text("No matching issues.")
+        result?.issues?.forEach { issue ->
+            ElevatedCard(onClick = { selected = issue }, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(issue.type + " issue", style = MaterialTheme.typography.titleMedium)
+                    Text(if (issue.resolved) "Resolved" else "Open",
+                        color = MaterialTheme.colorScheme.primary)
+                    if (issue.message.isNotBlank()) Text(issue.message, maxLines = 2)
+                    Text(issue.author + " • " + issue.createdAt,
+                        style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+        if (page > 0 || (result?.total ?: 0) > (page + 1) * 20) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = { page-- }, enabled = page > 0) { Text("Previous") }
+                Text("Page " + (page + 1))
+                TextButton(onClick = { page++ },
+                    enabled = (result?.total ?: 0) > (page + 1) * 20) { Text("Next") }
+            }
+        }
+    }
+    selected?.let { issue ->
+        AlertDialog(onDismissRequest = { selected = null },
+            title = { Text(issue.type + " issue") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Reported by " + issue.author)
+                    Text(if (issue.resolved) "Resolved" else "Open")
+                    if (issue.tmdbId > 0) Text("TMDB ID: " + issue.tmdbId)
+                    issue.comments.forEach { Text(it) }
+                    if (issue.comments.isEmpty()) Text("No comments yet.")
+                }
+            },
+            confirmButton = { TextButton(onClick = { selected = null }) { Text("Close") } })
+    }
+}
+
+@Composable
 private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     discoverResults: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
     onRequestClick: (SeerrRecentRequest) -> Unit) {
