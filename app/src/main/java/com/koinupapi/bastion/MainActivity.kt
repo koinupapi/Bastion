@@ -1457,12 +1457,12 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             onSubmitted = { requestSubmitted = true; showRequestSheet = false })
     }
     val media = cache[cacheKey]
-    val displayedStatus = if (request.status.isNotBlank()) request.status else when (media?.mediaStatus) {
+    val displayedStatus = when (media?.mediaStatus) {
         2 -> "Pending"
         3 -> "Processing"
         4 -> "Partially available"
         5 -> "Available"
-        else -> null
+        else -> request.status.takeIf { it.isNotBlank() }
     }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Box(Modifier.fillMaxWidth().height(405.dp)) {
