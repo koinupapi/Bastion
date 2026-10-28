@@ -193,7 +193,6 @@ private fun DownloadsWidget() {
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun DownloadLine(name: String, progress: Float) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row {
@@ -202,7 +201,7 @@ private fun DownloadLine(name: String, progress: Float) {
             Spacer(Modifier.width(8.dp))
             Text("${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
         }
-        LinearWavyProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
     }
 }
 
