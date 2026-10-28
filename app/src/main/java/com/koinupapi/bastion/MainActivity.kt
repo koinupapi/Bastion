@@ -1683,8 +1683,9 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                                             isTv = title.isTv, tmdbId = title.tmdbId))
                                     },
                                     verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    Surface(shape = RoundedCornerShape(18.dp),
-                                        modifier = Modifier.width(125.dp).height(185.dp),
+                                    Box(Modifier.width(125.dp).height(185.dp)) {
+                                        Surface(shape = RoundedCornerShape(18.dp),
+                                        modifier = Modifier.fillMaxSize(),
                                         color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                                         if (title.posterUrl != null)
                                             AsyncImage(model = title.posterUrl,
@@ -1695,15 +1696,17 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                                             Icon(Icons.Default.Movie, contentDescription = null)
                                         }
                                     }
-                                    val relatedBadge = when (title.mediaStatus) {
+
+                                        val relatedBadge = when (title.mediaStatus) {
                                         2 -> "Pending"
                                         3 -> "Processing"
                                         4 -> "Partial"
                                         5 -> "Available"
                                         else -> null
                                     }
-                                    if (relatedBadge != null) {
-                                        Surface(shape = RoundedCornerShape(12.dp),
+                                        if (relatedBadge != null) {
+                                            Surface(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+                                                shape = RoundedCornerShape(12.dp),
                                             color = when (title.mediaStatus) {
                                                 2 -> Color(0xFFE3A008)
                                                 3 -> Color(0xFF247AC0)
@@ -1715,6 +1718,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = Color.White)
                                         }
+                                    }
                                     }
                                     Text(title.title, style = MaterialTheme.typography.labelMedium,
                                         maxLines = 2)
