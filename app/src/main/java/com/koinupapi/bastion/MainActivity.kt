@@ -87,6 +87,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun BastionApp() {
     val context = LocalContext.current
+    val preferences = remember(context) { context.getSharedPreferences("bastion_settings", android.content.Context.MODE_PRIVATE) }
+    var hideNavOnScroll by remember { mutableStateOf(preferences.getBoolean("hide_nav_on_scroll", false)) }
     var navVisible by remember { mutableStateOf(true) }
     val navigationScrollConnection = remember(hideNavOnScroll) {
         object : NestedScrollConnection {
@@ -99,11 +101,9 @@ private fun BastionApp() {
             }
         }
     }
-    val preferences = remember(context) { context.getSharedPreferences("bastion_settings", android.content.Context.MODE_PRIVATE) }
     var dark by remember { mutableStateOf(preferences.getBoolean("dark_theme", false)) }
     var dynamic by remember { mutableStateOf(preferences.getBoolean("dynamic_colors", true)) }
     var showAllNavLabels by remember { mutableStateOf(preferences.getBoolean("show_all_nav_labels", true)) }
-    var hideNavOnScroll by remember { mutableStateOf(preferences.getBoolean("hide_nav_on_scroll", false)) }
     var returnToDashboard by remember { mutableStateOf(preferences.getBoolean("return_to_dashboard", true)) }
     var doubleBackToExit by remember { mutableStateOf(preferences.getBoolean("double_back_exit", true)) }
     val colors = if (dynamic && android.os.Build.VERSION.SDK_INT >= 31) {
