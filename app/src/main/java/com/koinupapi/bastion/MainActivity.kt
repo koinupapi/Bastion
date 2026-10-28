@@ -203,7 +203,7 @@ private fun BastionApp() {
                                     }, shape = shape,
                                         color = if (selectedMediaId == service.id)
                                             MaterialTheme.colorScheme.secondaryContainer
-                                        else MaterialTheme.colorScheme.surfaceContainer,
+                                        else MaterialTheme.colorScheme.surfaceContainerHighest,
                                         modifier = Modifier.fillMaxWidth()) {
                                         Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                                             verticalAlignment = Alignment.CenterVertically) {
@@ -441,15 +441,19 @@ private fun BastionApp() {
                                     } else {
                                         val groups = savedInstances.groupBy { it.type }
                                         groups.forEach { (type, instances) ->
-                                            item { Text(type, style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                                            items(instances, key = { it.id }) { instance ->
-                                                val index = instances.indexOfFirst { it.id == instance.id }
-                                                SettingsEntry(instance.name, instance.type + " • Configured",
-                                                    Icons.Default.Dns,
-                                                    shape = connectedServiceShape(index, instances.size)) {
-                                                    editService(instance)
-                                                    openSettingsPage("Service detail")
+                                            item {
+                                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                                    Text(type, style = MaterialTheme.typography.labelMedium,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.padding(bottom = 8.dp))
+                                                    instances.forEachIndexed { index, instance ->
+                                                        SettingsEntry(instance.name, instance.type + " • Configured",
+                                                            Icons.Default.Dns,
+                                                            shape = connectedServiceShape(index, instances.size)) {
+                                                            editService(instance)
+                                                            openSettingsPage("Service detail")
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
