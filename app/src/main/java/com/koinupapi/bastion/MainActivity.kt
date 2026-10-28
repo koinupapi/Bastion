@@ -393,6 +393,7 @@ private fun BastionApp() {
                             }
                         } else {
                             when (settingsPage) {
+                                "About" -> item { BastionUpdateSettings() }
                                 "Appearance" -> item {
                                     Card(shape = MaterialTheme.shapes.extraLarge) {
                                         Column(Modifier.fillMaxWidth().padding(20.dp)) {
