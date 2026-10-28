@@ -101,6 +101,9 @@ object SeerrClient {
             "Connection failed — " + failures.joinToString("; ")
         }
     suspend fun recentRequests(config: ServiceConfig): SeerrRecentResult =
+        requestPage(config, 3, 0, "All")
+
+    suspend fun requestPage(config: ServiceConfig, take: Int, skip: Int, filter: String): SeerrRecentResult =
         withContext(Dispatchers.IO) {
             val addresses = when (config.mode) {
                 "Local only" -> listOf("Local" to config.localUrl)
@@ -125,7 +128,12 @@ object SeerrClient {
                             return JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
                         } finally { connection.disconnect() }
                     }
-                    val data = get("/api/v1/request?take=3&skip=0&sort=added")
+                    val queryFilter = when (filter) {
+                        "Pending" -> "&filter=pending"
+                        "Approved" -> "&filter=approved"
+                        else -> ""
+                    }
+                    val data = get("/api/v1/request?take=$take&skip=$skip&sort=added$queryFilter")
                     val total = data.optInt("pageInfoTotalResults", -1).let {
                         if (it >= 0) it else data.optJSONObject("pageInfo")?.optInt("results", 0) ?: 0
                     }
