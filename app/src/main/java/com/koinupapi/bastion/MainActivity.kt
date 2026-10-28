@@ -291,7 +291,7 @@ private fun BastionApp() {
             LazyColumn(
                 state = screenScroll,
                 modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).padding(insets),
-                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp,
+                contentPadding = PaddingValues(start = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp, top = if (openSeerrRequest != null) 0.dp else 16.dp, end = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp,
                     bottom = if (openSeerrRequest != null) 28.dp else if (!hideNavOnScroll || navVisible) 100.dp else 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -299,7 +299,7 @@ private fun BastionApp() {
                     val nestedSettings = selectedMediaId == null && tab == 2 && settingsPage != "Settings"
                     val serviceScreen = selectedMediaId != null
                     Row(verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()) {
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = if (selectedMediaId != null) 16.dp else 0.dp)) {
                         IconButton(onClick = {
                             when {
                                 serviceScreen -> selectedMediaId = null
@@ -346,8 +346,10 @@ private fun BastionApp() {
                             onRelatedClick = { seerrMediaStack.add(it) }) }
                         else item {
                             seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${seerrTab}") {
+                                Box(Modifier.fillMaxWidth().then(if (seerrTab == 0) Modifier else Modifier.padding(horizontal = 16.dp))) {
                                 SeerrManagementScreen(service, seerrTab, seerrDiscoverCache) {
                                     seerrMediaStack.add(it)
+                                }
                                 }
                             }
                         }
@@ -986,12 +988,12 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Text("Discover", style = MaterialTheme.typography.headlineMedium,
+        Text("Discover", modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold)
-        Text("Find something worth watching",
+        Text("Find something worth watching", modifier = Modifier.padding(horizontal = 16.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium)
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("All", "Movies", "TV Shows").forEach { choice ->
                 FilterChip(selected = category == choice, onClick = { category = choice },
@@ -1008,7 +1010,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 (category == "TV Shows" && section.contains("TV"))
         }.forEach { section ->
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(section, style = MaterialTheme.typography.titleLarge,
+                Text(section, modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold)
                 val result = results[section]
                 val visibleItems = result?.items?.filter {
@@ -1026,7 +1028,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(end = 16.dp)) {
+                        contentPadding = PaddingValues(horizontal = 16.dp)) {
                         items(visibleItems, key = { "${it.tmdbId}-${it.isTv}" }) { title ->
                             Column(Modifier.width(124.dp).clickable {
                                 onMediaClick(SeerrRecentRequest(
@@ -1655,8 +1657,10 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                         val carouselScroll = carouselScrollStates.getOrPut(carouselKey) {
                             androidx.compose.foundation.ScrollState(0)
                         }
-                        Row(Modifier.fillMaxWidth().horizontalScroll(carouselScroll),
+                        Row(Modifier.width(androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp)
+                            .offset(x = (-20).dp).horizontalScroll(carouselScroll),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Spacer(Modifier.width(20.dp))
                             titles.forEach { title ->
                                 Column(Modifier.width(125.dp)
                                     .clickable {
