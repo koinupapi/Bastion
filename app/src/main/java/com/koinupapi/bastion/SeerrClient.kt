@@ -814,6 +814,22 @@ object SeerrClient {
             SeerrMediaDetails(error = errors.joinToString("; ").ifBlank { "No connection configured" })
         }
 
+    /** Server-wide counts, independent of the currently selected list filter. */
+    suspend fun requestCounts(config: ServiceConfig): Result<SeerrRequestCounts> = runCatching {
+        val data = api(config, "/api/v1/request/count")
+        SeerrRequestCounts(
+            total = data.optInt("total"),
+            pending = data.optInt("pending"),
+            approved = data.optInt("approved"),
+            processing = data.optInt("processing"),
+            available = data.optInt("available"),
+            completed = data.optInt("completed"),
+            declined = data.optInt("declined"),
+            movies = data.optInt("movie"),
+            tv = data.optInt("tv")
+        )
+    }
+
     suspend fun recentRequests(config: ServiceConfig): SeerrRecentResult =
         requestPage(config, 3, 0, "All")
 
@@ -925,6 +941,11 @@ data class SeerrRecentRequest(
     val requestId: Int = 0, val requestStatus: String = "",
     val mediaStatus: String? = null
 )
+data class SeerrRequestCounts(
+    val total: Int, val pending: Int, val approved: Int, val processing: Int,
+    val available: Int, val completed: Int, val declined: Int, val movies: Int, val tv: Int
+)
+
 data class SeerrRecentResult(
     val instance: String, val total: Int, val requests: List<SeerrRecentRequest>, val error: String?
 )
