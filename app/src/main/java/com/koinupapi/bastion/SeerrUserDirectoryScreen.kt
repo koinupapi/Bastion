@@ -19,7 +19,10 @@ fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
     var directoryRevision by remember(instance.id) { mutableIntStateOf(0) }
     BackHandler(selectedUser != null) { selectedUser = null }
     if (selectedUser != null) {
-        SeerrAdminUserDetailsScreen(instance, selectedUser!!, onBack = { selectedUser = null }, onDeleted = {\n            selectedUser = null\n            directoryRevision++\n        })
+        SeerrAdminUserDetailsScreen(instance, selectedUser!!, onBack = { selectedUser = null }, onDeleted = {
+            selectedUser = null
+            directoryRevision++
+        })
         return
     }
     val scope = rememberCoroutineScope()
