@@ -7,7 +7,39 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-/** Read-only first pass. Server write operations will be added after device validation. */
+private val seerrPermissionOptions = listOf(
+    "Administrator" to 2,
+    "Manage settings" to 4,
+    "Manage users" to 8,
+    "Manage requests" to 16,
+    "Request media" to 32,
+    "Vote" to 64,
+    "Auto approve" to 128,
+    "Auto approve movies" to 256,
+    "Auto approve TV" to 512,
+    "Request 4K" to 1024,
+    "Request 4K movies" to 2048,
+    "Request 4K TV" to 4096,
+    "Advanced requests" to 8192,
+    "View requests" to 16384,
+    "Auto approve 4K" to 32768,
+    "Auto approve 4K movies" to 65536,
+    "Auto approve 4K TV" to 131072,
+    "Request movies" to 262144,
+    "Request TV" to 524288,
+    "Manage issues" to 1048576,
+    "View issues" to 2097152,
+    "Create issues" to 4194304,
+    "Auto request" to 8388608,
+    "Auto request movies" to 16777216,
+    "Auto request TV" to 33554432,
+    "View recently added" to 67108864,
+    "View watchlists" to 134217728,
+    "Manage blocklist" to 268435456,
+    "View blocklist" to 1073741824
+)
+
+
 @Composable
 fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: () -> Unit) {
     var user by remember(instance.id, userId) { mutableStateOf<SeerrAdminUserDetails?>(null) }
@@ -15,7 +47,7 @@ fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: ()
     var loading by remember(instance.id, userId) { mutableStateOf(true) }
     var refresh by remember(instance.id, userId) { mutableIntStateOf(0) }
     var editPermissions by remember(instance.id, userId) { mutableStateOf(false) }
-    var permissionText by remember(instance.id, userId) { mutableStateOf("") }
+    var selectedPermissions by remember(instance.id, userId) { mutableIntStateOf(0) }
     var editQuotas by remember(instance.id, userId) { mutableStateOf(false) }
     var quotaValues by remember(instance.id, userId) { mutableStateOf(listOf("", "", "", "")) }
     var confirmation by remember(instance.id, userId) { mutableStateOf<String?>(null) }
@@ -48,15 +80,21 @@ fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: ()
             Text("Permissions", style = MaterialTheme.typography.titleMedium)
             Text("Seerr permission bitmask: ${details.permissions}")
             OutlinedButton(onClick = {
-                permissionText = details.permissions.toString()
+                selectedPermissions = details.permissions
                 editPermissions = !editPermissions
             }) { Text(if (editPermissions) "Cancel permission edit" else "Edit permissions") }
             if (editPermissions) {
-                OutlinedTextField(value = permissionText, onValueChange = { permissionText = it },
-                    label = { Text("Seerr permissions bitmask") },
-                    supportingText = { Text("Advanced: enter the complete numeric Seerr permission value.") })
-                Button(onClick = { confirmation = "permissions" },
-                    enabled = permissionText.toIntOrNull()?.let { it >= 0 } == true && !saving) {
+                seerrPermissionOptions.forEach { (name, bit) ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(name, modifier = Modifier.weight(1f))
+                        Checkbox(checked = (selectedPermissions and bit) != 0,
+                            onCheckedChange = { checked ->
+                                selectedPermissions = if (checked) selectedPermissions or bit
+                                else selectedPermissions and bit.inv()
+                            })
+                    }
+                }
+                Button(onClick = { confirmation = "permissions" }, enabled = !saving) {
                     Text("Review permission change")
                 }
             }
@@ -64,11 +102,11 @@ fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: ()
             Text("Request quotas", style = MaterialTheme.typography.titleMedium)
             QuotaSummary("Movies", details.movieQuota)
             QuotaSummary("TV", details.tvQuota)
-            Text("Configured movie quota: ${details.movieQuotaLimit} per ${details.movieQuotaDays} days")
-            Text("Configured TV quota: ${details.tvQuotaLimit} per ${details.tvQuotaDays} days")
+            Text("Configured movie quota: ${details.movieQuotaLimit?.toString() ?: "Inherited"} · Period: ${details.movieQuotaDays?.toString() ?: "Inherited"}")
+            Text("Configured TV quota: ${details.tvQuotaLimit?.toString() ?: "Inherited"} · Period: ${details.tvQuotaDays?.toString() ?: "Inherited"}")
             OutlinedButton(onClick = {
                 quotaValues = listOf(details.movieQuotaLimit, details.movieQuotaDays,
-                    details.tvQuotaLimit, details.tvQuotaDays).map { it.toString() }
+                    details.tvQuotaLimit, details.tvQuotaDays).map { it?.toString() ?: "" }
                 editQuotas = !editQuotas
             }) { Text(if (editQuotas) "Cancel quota edit" else "Edit quotas") }
             if (editQuotas) {
@@ -93,7 +131,7 @@ fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: ()
             title = { Text(if (action == "permissions") "Save permissions?" else "Save quotas?") },
             text = {
                 Text(if (action == "permissions")
-                    "Change this user's Seerr permissions from ${user?.permissions} to $permissionText?"
+                    "Change this user's Seerr permissions from ${user?.permissions} to $selectedPermissions?"
                 else "Save movie and TV quota settings for this user? Blank fields inherit server defaults.")
             },
             confirmButton = {
@@ -101,7 +139,7 @@ fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: ()
                     saving = true
                     scope.launch {
                         val result = if (action == "permissions") {
-                            SeerrClient.updateAdminUserPermissions(instance, userId, permissionText.toInt())
+                            SeerrClient.updateAdminUserPermissions(instance, userId, selectedPermissions)
                         } else {
                             val values = quotaValues.map { it.trim().toIntOrNull() }
                             SeerrClient.updateAdminUserQuotas(instance, userId,
