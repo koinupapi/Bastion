@@ -117,7 +117,11 @@ object SeerrClient {
                         connection.connectTimeout = 2500
                         connection.readTimeout = 7000
                         connection.instanceFollowRedirects = false
-                        connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        if (config.apiKey.startsWith("session:")) {
+                            connection.setRequestProperty("Cookie", "connect.sid=" + config.apiKey.removePrefix("session:"))
+                        } else {
+                            connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        }
                         connection.setRequestProperty("Accept", "application/json")
                         if (payload != null) {
                             connection.requestMethod = "POST"
@@ -141,6 +145,53 @@ object SeerrClient {
             }
             throw IllegalStateException(failure)
         }
+
+    /** Authenticate as a local Seerr account; returns a session token, not the password. */
+    suspend fun loginLocal(local: String, remote: String, mode: String,
+        email: String, password: String): Result<Pair<String, String>> =
+        withContext(Dispatchers.IO) { runCatching {
+            require(email.isNotBlank() && password.isNotBlank()) { "Email and password required" }
+            val addresses = when (mode) {
+                "Local only" -> listOf("Local" to local)
+                "Remote only" -> listOf("Remote" to remote)
+                else -> listOf("Local" to local, "Remote" to remote)
+            }.filter { it.second.isNotBlank() }
+            var failure = "No server configured"
+            for ((label, address) in addresses) {
+                try {
+                    val url = URL(address.trimEnd('/') + "/api/v1/auth/local")
+                    require(url.protocol == "https" || (label == "Local" && url.protocol == "http"))
+                    val connection = url.openConnection() as HttpURLConnection
+                    try {
+                        connection.requestMethod = "POST"
+                        connection.doOutput = true
+                        connection.connectTimeout = 3000
+                        connection.readTimeout = 7000
+                        connection.instanceFollowRedirects = false
+                        connection.setRequestProperty("Content-Type", "application/json")
+                        connection.setRequestProperty("Accept", "application/json")
+                        connection.outputStream.bufferedWriter().use {
+                            it.write(JSONObject().put("email", email.trim())
+                                .put("password", password).toString())
+                        }
+                        val status = connection.responseCode
+                        if (status !in 200..299) throw IllegalStateException("HTTP $status")
+                        val cookie = connection.headerFields.entries
+                            .firstOrNull { it.key?.equals("Set-Cookie", true) == true }
+                            ?.value.orEmpty()
+                            .firstOrNull { it.startsWith("connect.sid=") }
+                            ?.substringAfter("connect.sid=")?.substringBefore(";")
+                            ?: throw IllegalStateException("Seerr did not return a session cookie")
+                        require(cookie.isNotBlank()) { "Empty Seerr session" }
+                        return@runCatching ("session:" + cookie) to label
+                    } finally { connection.disconnect() }
+                } catch (e: Exception) {
+                    failure = "$label: " + (e.message ?: "Connection failed")
+                    if (failure.contains("HTTP 401") || failure.contains("HTTP 403")) break
+                }
+            }
+            throw IllegalStateException(failure)
+        } }
 
     /** Read the settings saved on this request, rather than assuming server defaults. */
     suspend fun requestApprovalDetails(config: ServiceConfig, requestId: Int,
@@ -216,7 +267,11 @@ object SeerrClient {
                         connection.connectTimeout = 2500
                         connection.readTimeout = 7000
                         connection.instanceFollowRedirects = false
-                        connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        if (config.apiKey.startsWith("session:")) {
+                            connection.setRequestProperty("Cookie", "connect.sid=" + config.apiKey.removePrefix("session:"))
+                        } else {
+                            connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        }
                         val status = connection.responseCode
                         if (status !in 200..299) {
                             val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }
@@ -255,7 +310,11 @@ object SeerrClient {
                     try {
                         connection.connectTimeout = 2500
                         connection.readTimeout = 7000
-                        connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        if (config.apiKey.startsWith("session:")) {
+                            connection.setRequestProperty("Cookie", "connect.sid=" + config.apiKey.removePrefix("session:"))
+                        } else {
+                            connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        }
                         connection.setRequestProperty("Accept", "application/json")
                         val status = connection.responseCode
                         if (status !in 200..299) throw IllegalStateException("HTTP $status")
@@ -387,7 +446,11 @@ object SeerrClient {
                         connection.instanceFollowRedirects = false
                         connection.connectTimeout = 2500
                         connection.readTimeout = 5000
-                        connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        if (config.apiKey.startsWith("session:")) {
+                            connection.setRequestProperty("Cookie", "connect.sid=" + config.apiKey.removePrefix("session:"))
+                        } else {
+                            connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        }
                         connection.setRequestProperty("Accept", "application/json")
                         val code = connection.responseCode
                         if (code !in 200..299) throw IllegalStateException("HTTP $code")
@@ -433,7 +496,11 @@ object SeerrClient {
                         connection.instanceFollowRedirects = false
                         connection.connectTimeout = 2500
                         connection.readTimeout = 5000
-                        connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        if (config.apiKey.startsWith("session:")) {
+                            connection.setRequestProperty("Cookie", "connect.sid=" + config.apiKey.removePrefix("session:"))
+                        } else {
+                            connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        }
                         connection.setRequestProperty("Accept", "application/json")
                         val code = connection.responseCode
                         if (code !in 200..299) throw IllegalStateException("HTTP $code")
@@ -487,7 +554,11 @@ object SeerrClient {
                             connection.instanceFollowRedirects = false
                             connection.connectTimeout = 3000
                             connection.readTimeout = 6000
+                            if (config.apiKey.startsWith("session:")) {
+                            connection.setRequestProperty("Cookie", "connect.sid=" + config.apiKey.removePrefix("session:"))
+                        } else {
                             connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        }
                             connection.setRequestProperty("Accept", "application/json")
                             val status = connection.responseCode
                             if (status !in 200..299) throw IllegalStateException("HTTP $status")
@@ -588,7 +659,11 @@ object SeerrClient {
                             connection.instanceFollowRedirects = false
                             connection.connectTimeout = 2500
                             connection.readTimeout = 4000
+                            if (config.apiKey.startsWith("session:")) {
+                            connection.setRequestProperty("Cookie", "connect.sid=" + config.apiKey.removePrefix("session:"))
+                        } else {
                             connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        }
                             connection.setRequestProperty("Accept", "application/json")
                             val code = connection.responseCode
                             if (code !in 200..299) throw IllegalStateException("HTTP $code")
