@@ -59,10 +59,8 @@ jobs:
           TAG="build-${RUN_NUMBER}"
           APK="Bastion-${CHANNEL}-${RUN_NUMBER}.apk"
           cp app/build/outputs/apk/release/app-release.apk "$APK"
+          printf 'Channel: %s\nBranch: %s\nBuild: %s\nCommit: %s\n' "$CHANNEL" "$REF_NAME" "$RUN_NUMBER" "$COMMIT_SHA" > release-notes.txt
           gh release create "$TAG" "$APK" \
             --prerelease --target "$COMMIT_SHA" \
             --title "Bastion ${CHANNEL} build ${RUN_NUMBER}" \
-            --notes "Channel: ${CHANNEL}
-Branch: ${REF_NAME}
-Build: ${RUN_NUMBER}
-Commit: ${COMMIT_SHA}"
+            --notes-file release-notes.txt
