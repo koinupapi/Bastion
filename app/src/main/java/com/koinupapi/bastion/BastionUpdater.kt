@@ -14,12 +14,12 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
-data class BastionUpdate(val versionCode: Int, val url: String, val digest: String?, val page: String)
+data class BastionUpdate(val versionCode: Int, val url: String, val digest: String?, val page: String, val branch: String = "main")
 
 object BastionUpdater {
     private const val RELEASES = "https://api.github.com/repos/koinupapi/Bastion/releases?per_page=20"
 
-    suspend fun check(context: Context): BastionUpdate? = withContext(Dispatchers.IO) {
+    suspend fun check(context: Context, branch: String = "main"): BastionUpdate? = withContext(Dispatchers.IO) {
         val installed = if (Build.VERSION.SDK_INT >= 33)
             context.packageManager.getPackageInfo(context.packageName,
                 android.content.pm.PackageManager.PackageInfoFlags.of(0)).longVersionCode
@@ -35,16 +35,22 @@ object BastionUpdater {
             (0 until releases.length()).mapNotNull { index ->
                 val release = releases.getJSONObject(index)
                 if (release.optBoolean("draft")) return@mapNotNull null
-                val version = Regex("^dev-(\\d+)$").matchEntire(release.optString("tag_name"))
+                val version = Regex("^(?:dev|build)-(\\d+)$").matchEntire(release.optString("tag_name"))
                     ?.groupValues?.get(1)?.toIntOrNull() ?: return@mapNotNull null
                 if (version <= installed) return@mapNotNull null
+                val tag = release.optString("tag_name")
+                if (tag.startsWith("build-")) {
+                    val releaseBranch = release.optString("body").lineSequence()
+                        .firstOrNull { it.startsWith("Branch: ") }?.removePrefix("Branch: ")?.trim()
+                    if (releaseBranch != branch) return@mapNotNull null
+                } else if (branch != "main") return@mapNotNull null
                 val assets = release.optJSONArray("assets") ?: return@mapNotNull null
                 val asset = (0 until assets.length()).map { assets.getJSONObject(it) }
                     .firstOrNull { it.optString("name").endsWith(".apk") }
                     ?: return@mapNotNull null
                 BastionUpdate(version, asset.getString("browser_download_url"),
                     asset.optString("digest").takeIf { it.startsWith("sha256:") },
-                    release.optString("html_url"))
+                    release.optString("html_url"), branch)
             }.maxByOrNull { it.versionCode }
         } finally { conn.disconnect() }
     }
