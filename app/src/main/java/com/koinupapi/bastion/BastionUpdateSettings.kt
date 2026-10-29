@@ -51,9 +51,9 @@ fun BastionUpdateSettings() {
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("Bastion updates", style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold)
-            Text("Installed development build $version",
+            Text("Installed build $version",
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Signed APK updates are published to public GitHub development releases. Android will ask you to confirm installation.",
+            Text("Signed APK updates are published to GitHub Releases. Android will ask you to confirm installation.",
                 style = MaterialTheme.typography.bodyMedium)
             Text("Update channel", style = MaterialTheme.typography.titleMedium)
             Box {
