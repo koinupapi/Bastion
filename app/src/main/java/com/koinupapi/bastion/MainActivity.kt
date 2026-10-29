@@ -1328,8 +1328,15 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     var loading by remember(instance.id) { mutableStateOf(false) }
     var refresh by remember(instance.id) { mutableIntStateOf(0) }
     var managingRequest by remember(instance.id) { mutableStateOf<SeerrRecentRequest?>(null) }
-    val pageSize = 20
-    LaunchedEffect(instance, destination, page, filter, mediaType, sortOrder, sortDirection, refresh) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val pagePreferences = remember(context) {
+        context.getSharedPreferences("bastion_seerr_local", android.content.Context.MODE_PRIVATE)
+    }
+    var pageSize by remember(instance.id) {
+        mutableIntStateOf(pagePreferences.getInt("requests_page_size_${instance.id}", 25)
+            .takeIf { it in listOf(25, 50, 100) } ?: 25)
+    }
+    LaunchedEffect(instance, destination, page, pageSize, filter, mediaType, sortOrder, sortDirection, refresh) {
         if (destination != 1) return@LaunchedEffect
         loading = true
         result = SeerrClient.requestPage(instance, pageSize, page * pageSize, filter,
@@ -1408,6 +1415,29 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
                 Icon(if (sortDirection == "desc") Icons.Default.ArrowDownward
                     else Icons.Default.ArrowUpward, contentDescription =
                     if (sortDirection == "desc") "Sort descending" else "Sort ascending")
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("Requests per page", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(8.dp))
+            var sizeExpanded by remember { mutableStateOf(false) }
+            Box {
+                OutlinedButton(onClick = { sizeExpanded = true }) {
+                    Text("$" + "{pageSize}")
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                }
+                DropdownMenu(expanded = sizeExpanded, onDismissRequest = { sizeExpanded = false }) {
+                    listOf(25, 50, 100).forEach { amount ->
+                        DropdownMenuItem(text = { Text("$" + "{amount}") }, onClick = {
+                            pageSize = amount
+                            page = 0
+                            pagePreferences.edit().putInt("requests_page_size_${instance.id}", amount).apply()
+                            sizeExpanded = false
+                        })
+                    }
+                }
             }
         }
         val requestFilters = listOf("All", "Pending", "Approved")
