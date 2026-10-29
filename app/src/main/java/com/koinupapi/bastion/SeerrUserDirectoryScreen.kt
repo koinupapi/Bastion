@@ -16,9 +16,10 @@ import kotlinx.coroutines.launch
 @Composable
 fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
     var selectedUser by remember(instance.id) { mutableStateOf<Int?>(null) }
+    var directoryRevision by remember(instance.id) { mutableIntStateOf(0) }
     BackHandler(selectedUser != null) { selectedUser = null }
     if (selectedUser != null) {
-        SeerrAdminUserDetailsScreen(instance, selectedUser!!, onBack = { selectedUser = null })
+        SeerrAdminUserDetailsScreen(instance, selectedUser!!, onBack = { selectedUser = null }, onDeleted = {\n            selectedUser = null\n            directoryRevision++\n        })
         return
     }
     val scope = rememberCoroutineScope()
@@ -36,7 +37,7 @@ fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
     var directory by remember(instance.id) { mutableStateOf<SeerrUserDirectory?>(null) }
     var error by remember(instance.id) { mutableStateOf<String?>(null) }
     var loading by remember(instance.id) { mutableStateOf(true) }
-    LaunchedEffect(instance, page, refresh) {
+    LaunchedEffect(instance, page, refresh, directoryRevision) {
         loading = true
         SeerrClient.userDirectory(instance, 25, page * 25)
             .onSuccess { directory = it; error = null }
