@@ -35,10 +35,11 @@ jobs:
           if [ "$REF_NAME" = "main" ]; then
             echo "BASTION_VERSION_NAME=0.1.0" >> "$GITHUB_ENV"
           else
-            # The first development run after the existing #203 baseline is dev.1.
-            DEV_NUMBER=$((RUN_NUMBER - 203))
-            if [ "$DEV_NUMBER" -lt 1 ]; then DEV_NUMBER=1; fi
-            echo "BASTION_VERSION_NAME=0.2.0-dev.${DEV_NUMBER}" >> "$GITHUB_ENV"
+            # Each milestone declares the last global run before its first dev build.
+            source .github/bastion-version.env
+            DEV_NUMBER=$((RUN_NUMBER - BASTION_MILESTONE_BASE_RUN))
+            test "$DEV_NUMBER" -ge 1 || { echo "Milestone baseline must precede this run"; exit 1; }
+            echo "BASTION_VERSION_NAME=${BASTION_MILESTONE}-dev.${DEV_NUMBER}" >> "$GITHUB_ENV"
           fi
       - name: Build signed release APK
         env:
