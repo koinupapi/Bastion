@@ -93,6 +93,13 @@ fun SeerrRequestManagementSheet(
                     fontWeight = FontWeight.Medium)
                 Text(request.requestStatus, style = MaterialTheme.typography.bodyMedium)
             }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Media acquisition", style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium)
+                Text(request.mediaStatus ?: "Not yet tracked",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             if (canManage == null) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (canManage == true) {
                 HorizontalDivider()
