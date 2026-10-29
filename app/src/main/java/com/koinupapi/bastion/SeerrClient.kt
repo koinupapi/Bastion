@@ -164,6 +164,31 @@ object SeerrClient {
         )
     }
 
+    /** Create a local Seerr user and set their initial password. No password is persisted. */
+    suspend fun createLocalUser(config: ServiceConfig, email: String,
+        username: String, password: String): Result<Int> = runCatching {
+        require(email.contains("@") && email.substringAfter("@").contains(".")) { "Enter a valid email address" }
+        require(username.isNotBlank()) { "Enter a username" }
+        require(password.length >= 8) { "Password must be at least 8 characters" }
+        val created = api(config, "/api/v1/user", JSONObject()
+            .put("email", email.trim())
+            .put("username", username.trim())
+            .put("permissions", 2))
+        val id = created.optInt("id", 0)
+        require(id > 0) { "Seerr did not return a user ID; check the Seerr user list" }
+        try {
+            api(config, "/api/v1/user/$id/settings/password", JSONObject()
+                .put("currentPassword", JSONObject.NULL)
+                .put("newPassword", password))
+        } catch (error: Exception) {
+            throw IllegalStateException(
+                "User was created (ID $id), but setting their password failed. " +
+                "Set the password in Seerr before sharing the account. " +
+                (error.message ?: ""), error)
+        }
+        id
+    }
+
     suspend fun changeRequestStatus(config: ServiceConfig, requestId: Int,
         approve: Boolean): Result<Unit> = runCatching {
         require(requestId > 0) { "Invalid request" }
