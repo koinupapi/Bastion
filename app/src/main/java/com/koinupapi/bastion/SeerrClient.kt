@@ -539,7 +539,7 @@ object SeerrClient {
                 ?: author?.optString("username")?.takeIf { it.isNotBlank() }
                 ?: "Unknown user",
             createdAt = issue.optString("createdAt").take(10),
-            message = messages.firstOrNull().orEmpty(),
+            message = entries.firstOrNull()?.message.orEmpty(),
             comments = entries.map { it.message },
             commentEntries = entries
         )
