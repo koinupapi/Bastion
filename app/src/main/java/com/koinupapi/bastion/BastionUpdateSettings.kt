@@ -20,7 +20,7 @@ fun BastionUpdateSettings() {
     val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("bastion_updates", android.content.Context.MODE_PRIVATE) }
     var branch by remember { mutableStateOf(prefs.getString("branch", "main") ?: "main") }
-    var branches by remember { mutableStateOf(listOf("main")) }
+    var branches by remember { mutableStateOf(listOf("main", branch).distinct()) }
     var expanded by remember { mutableStateOf(false) }
     var update by remember { mutableStateOf<BastionUpdate?>(null) }
     var checking by remember { mutableStateOf(false) }
@@ -36,14 +36,14 @@ fun BastionUpdateSettings() {
             message = null
             try {
                 update = BastionUpdater.check(context, branch)
-                message = if (update == null) "No newer installable build found for " + branch + ". Installed build: " + version + ". "
+                message = if (update == null) "No newer installable build found for " + branch + ". Installed build: " + version + "."
                     else "Build ${update?.versionCode} is available from " + branch + "."
             } catch (e: Exception) { message = e.message ?: "Unable to check GitHub releases." }
             finally { checking = false }
         }
     }
     LaunchedEffect(Unit) {
-        try { branches = (listOf("main") + BastionUpdater.availableBranches()).distinct() }
+        try { branches = (listOf("main", branch) + BastionUpdater.availableBranches()).distinct() }
         catch (e: Exception) { message = e.message }
     }
     LaunchedEffect(branch) { update = null; message = "Tap Check for updates to check " + branch + "." }
