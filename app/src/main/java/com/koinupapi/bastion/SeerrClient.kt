@@ -373,7 +373,7 @@ object SeerrClient {
         val created = api(config, "/api/v1/user", JSONObject()
             .put("email", email.trim())
             .put("username", username.trim())
-            .put("permissions", 2))
+            .put("permissions", 32))
         val id = created.optInt("id", 0)
         require(id > 0) { "Seerr did not return a user ID; check the Seerr user list" }
         try {
