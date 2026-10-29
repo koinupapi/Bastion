@@ -20,6 +20,7 @@ fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
         SeerrAdminUserDetailsScreen(instance, selectedUser!!, onBack = { selectedUser = null })
         return
     }
+    var showCreate by remember(instance.id) { mutableStateOf(false) }
     var page by remember(instance.id) { mutableIntStateOf(0) }
     var refresh by remember(instance.id) { mutableIntStateOf(0) }
     var directory by remember(instance.id) { mutableStateOf<SeerrUserDirectory?>(null) }
@@ -39,6 +40,10 @@ fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
                 Icon(Icons.Default.Refresh, contentDescription = "Refresh users")
             }
         }
+        OutlinedButton(onClick = { showCreate = !showCreate }) {
+            Text(if (showCreate) "Close new user form" else "Create local user")
+        }
+        if (showCreate) SeerrCreateLocalUserSettings(instance)
         Text("Accounts managed by this Seerr server", style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
