@@ -18,6 +18,10 @@ import kotlinx.coroutines.launch
 fun BastionUpdateSettings() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val prefs = remember { context.getSharedPreferences("bastion_updates", android.content.Context.MODE_PRIVATE) }
+    var branch by remember { mutableStateOf(prefs.getString("branch", "main") ?: "main") }
+    var branches by remember { mutableStateOf(listOf("main")) }
+    var expanded by remember { mutableStateOf(false) }
     var update by remember { mutableStateOf<BastionUpdate?>(null) }
     var checking by remember { mutableStateOf(false) }
     var downloading by remember { mutableStateOf(false) }
@@ -30,14 +34,18 @@ fun BastionUpdateSettings() {
             checking = true
             message = null
             try {
-                update = BastionUpdater.check(context)
+                update = BastionUpdater.check(context, branch)
                 message = if (update == null) "You're running the latest development build."
                     else "Development build ${update?.versionCode} is available."
             } catch (e: Exception) { message = e.message ?: "Unable to check GitHub releases." }
             finally { checking = false }
         }
     }
-    LaunchedEffect(Unit) { check() }
+    LaunchedEffect(Unit) {
+        try { branches = (listOf("main") + BastionUpdater.availableBranches()).distinct() }
+        catch (e: Exception) { message = e.message }
+    }
+    LaunchedEffect(branch) { update = null; check() }
     Card(shape = RoundedCornerShape(28.dp)) {
         Column(Modifier.fillMaxWidth().padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
