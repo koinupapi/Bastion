@@ -19,6 +19,22 @@ data class BastionUpdate(val versionCode: Int, val url: String, val digest: Stri
 object BastionUpdater {
     private const val RELEASES = "https://api.github.com/repos/koinupapi/Bastion/releases?per_page=100"
 
+    private fun githubError(conn: HttpURLConnection): String {
+        val code = conn.responseCode
+        if (code == 403 || code == 429) {
+            val remaining = conn.getHeaderField("X-RateLimit-Remaining")
+            val reset = conn.getHeaderField("X-RateLimit-Reset")?.toLongOrNull()
+            if (remaining == "0" && reset != null) {
+                val whenReset = java.text.DateFormat.getDateTimeInstance(
+                    java.text.DateFormat.SHORT, java.text.DateFormat.SHORT
+                ).format(java.util.Date(reset * 1000))
+                return "GitHub API rate limit reached. Try again after " + whenReset + "."
+            }
+            return "GitHub rejected the request (HTTP " + code + "). Please try later."
+        }
+        return "GitHub returned HTTP " + code
+    }
+
     suspend fun check(context: Context, branch: String = "main"): BastionUpdate? = withContext(Dispatchers.IO) {
         val installed = if (Build.VERSION.SDK_INT >= 33)
             context.packageManager.getPackageInfo(context.packageName,
@@ -30,7 +46,7 @@ object BastionUpdater {
             conn.readTimeout = 12000
             conn.setRequestProperty("Accept", "application/vnd.github+json")
             conn.setRequestProperty("User-Agent", "Bastion-Android")
-            if (conn.responseCode !in 200..299) error("GitHub returned HTTP ${conn.responseCode}")
+            if (conn.responseCode !in 200..299) error(githubError(conn))
             val releases = JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
             (0 until releases.length()).mapNotNull { index ->
                 val release = releases.getJSONObject(index)
@@ -62,7 +78,7 @@ object BastionUpdater {
             conn.readTimeout = 12000
             conn.setRequestProperty("Accept", "application/vnd.github+json")
             conn.setRequestProperty("User-Agent", "Bastion-Android")
-            if (conn.responseCode !in 200..299) error("GitHub returned HTTP " + conn.responseCode)
+            if (conn.responseCode !in 200..299) error(githubError(conn))
             val releases = JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
             val matched = (0 until releases.length()).mapNotNull { i ->
                 val release = releases.getJSONObject(i)
@@ -84,7 +100,7 @@ object BastionUpdater {
             conn.readTimeout = 12000
             conn.setRequestProperty("Accept", "application/vnd.github+json")
             conn.setRequestProperty("User-Agent", "Bastion-Android")
-            if (conn.responseCode !in 200..299) error("GitHub returned HTTP " + conn.responseCode)
+            if (conn.responseCode !in 200..299) error(githubError(conn))
             val items = JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
             (0 until items.length()).mapNotNull { i ->
                 items.getJSONObject(i).optString("name").takeIf { it.startsWith("feature/") }
