@@ -55,6 +55,29 @@ fun BastionUpdateSettings() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Signed APK updates are published to public GitHub development releases. Android will ask you to confirm installation.",
                 style = MaterialTheme.typography.bodyMedium)
+            Text("Update channel", style = MaterialTheme.typography.titleMedium)
+            Box {
+                OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (branch == "main") "Stable (main)" else "Test: " + branch)
+                }
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    branches.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(if (option == "main") "Stable (main)" else option) },
+                            onClick = {
+                                expanded = false
+                                branch = option
+                                prefs.edit().putString("branch", option).apply()
+                            }
+                        )
+                    }
+                }
+            }
+            if (branch != "main") Text(
+                "Experimental branch. Android cannot install an older version code over a newer build.",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
             message?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (checking || downloading) LinearProgressIndicator(Modifier.fillMaxWidth())
             OutlinedButton(onClick = { check() }, enabled = !checking && !downloading,
