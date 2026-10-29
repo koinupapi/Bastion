@@ -1430,7 +1430,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
 @Composable
 private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
     isTv: Boolean = false, seasons: List<SeerrTvSeason> = emptyList(),
-    onDismiss: () -> Unit, onSubmitted: () -> Unit) {
+    onDismiss: () -> Unit, onConfirmed: () -> Unit, onSubmitted: () -> Unit) {
     var partialEnabled by remember(instance.id) { mutableStateOf<Boolean?>(null) }
     var policyError by remember(instance.id) { mutableStateOf<String?>(null) }
     var options by remember(instance.id) { mutableStateOf<Result<List<SeerrRequestServer>>?>(null) }
@@ -1607,7 +1607,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                                 it.number > 0 && it.status !in listOf(2, 3, 4, 5)
                             }.map { it.number } else selectedSeasons.toList())
                         submitting = false
-                        response.onSuccess { submitted = true }
+                        response.onSuccess { submitted = true; onConfirmed() }
                             .onFailure { error = it.message ?: "Request failed" }
                     }
                 }) {
@@ -1693,7 +1693,8 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
         SeerrMovieRequestSheet(instance, request.tmdbId,
             isTv = request.isTv, seasons = cache[cacheKey]?.tvSeasons.orEmpty(),
             onDismiss = { showRequestSheet = false },
-            onSubmitted = { requestSubmitted = true; showRequestSheet = false })
+            onConfirmed = { requestSubmitted = true },
+            onSubmitted = { showRequestSheet = false })
     }
     if (showIssueSheet) {
         SeerrReportIssueSheet(instance, request.title,
