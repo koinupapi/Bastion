@@ -490,12 +490,38 @@ object SeerrClient {
         Unit
     }
 
+    suspend fun editIssueComment(config: ServiceConfig, commentId: Int, message: String): Result<Unit> = runCatching {
+        require(commentId > 0)
+        require(message.isNotBlank()) { "Comment cannot be empty" }
+        api(config, "/api/v1/issueComment/$commentId",
+            JSONObject().put("message", message.trim()), method = "PUT")
+        Unit
+    }
+
+    suspend fun deleteIssueComment(config: ServiceConfig, commentId: Int): Result<Unit> = runCatching {
+        require(commentId > 0)
+        api(config, "/api/v1/issueComment/$commentId", method = "DELETE")
+        Unit
+    }
+
     private fun parseIssue(issue: JSONObject): SeerrIssue {
         val media = issue.optJSONObject("media")
         val author = issue.optJSONObject("createdBy")
         val comments = issue.optJSONArray("comments") ?: JSONArray()
-        val messages = (0 until comments.length()).mapNotNull { i ->
-            comments.optJSONObject(i)?.optString("message")?.takeIf { it.isNotBlank() }
+        val entries = (0 until comments.length()).mapNotNull { i ->
+            val item = comments.optJSONObject(i) ?: return@mapNotNull null
+            val message = item.optString("message")
+            if (message.isBlank()) return@mapNotNull null
+            val user = item.optJSONObject("user")
+            SeerrIssueComment(
+                id = item.optInt("id"),
+                userId = user?.optInt("id") ?: 0,
+                author = user?.optString("displayName")?.takeIf { it.isNotBlank() }
+                    ?: user?.optString("username")?.takeIf { it.isNotBlank() }
+                    ?: "Unknown user",
+                message = message,
+                createdAt = item.optString("createdAt")
+            )
         }
         return SeerrIssue(
             id = issue.optInt("id"),
@@ -514,7 +540,8 @@ object SeerrClient {
                 ?: "Unknown user",
             createdAt = issue.optString("createdAt").take(10),
             message = messages.firstOrNull().orEmpty(),
-            comments = messages
+            comments = entries.map { it.message },
+            commentEntries = entries
         )
     }
 
@@ -858,10 +885,15 @@ data class SeerrMediaDetails(
 
 data class SeerrDiscoverResult(val items: List<SeerrRelatedTitle> = emptyList(), val error: String? = null)
 
+data class SeerrIssueComment(
+    val id: Int, val userId: Int, val author: String,
+    val message: String, val createdAt: String
+)
 data class SeerrIssue(
     val id: Int, val creatorId: Int = 0, val type: String, val resolved: Boolean, val tmdbId: Int,
     val author: String, val createdAt: String, val message: String,
-    val comments: List<String>
+    val comments: List<String>,
+    val commentEntries: List<SeerrIssueComment> = emptyList()
 )
 data class SeerrIssueUser(val id: Int, val permissions: Int)
 data class SeerrIssueResult(
