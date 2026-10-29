@@ -1,6 +1,8 @@
 package com.koinupapi.bastion
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -37,19 +39,53 @@ fun SeerrRequestManagementSheet(
     ModalBottomSheet(onDismissRequest = { if (!busy) onDismiss() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(if (canManage == true) "Manage request" else "Request details", style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold)
-            Text(request.title, style = MaterialTheme.typography.titleLarge)
-            Text("Request #${request.requestId} • ${request.requestStatus}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (request.isTv && request.seasons.isNotEmpty())
-                Text("Seasons: ${request.seasons.joinToString(", ")}")
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Default.MovieFilter, contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp))
+                Text(if (canManage == true) "Manage request" else "Request details",
+                    style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            }
+            Surface(shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer) {
+                Column(Modifier.fillMaxWidth().padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(request.title, style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Surface(shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.primaryContainer) {
+                            Text(request.requestStatus,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                        Surface(shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.surfaceVariant) {
+                            Text(if (request.isTv) "TV series" else "Movie",
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                    Text("Request #${request.requestId}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    if (request.isTv && request.seasons.isNotEmpty()) {
+                        HorizontalDivider()
+                        Text("Requested seasons", style = MaterialTheme.typography.labelLarge)
+                        Text(request.seasons.joinToString("  •  "),
+                            style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
             if (canManage == null) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (canManage == false) Text("Request management actions are unavailable for this account.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (canManage == false) {
+                Text("You can view this request's details here.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             if (request.requestStatus == "Pending" && canManage == true) {
                 HorizontalDivider()
                 Text("Approval destination", style = MaterialTheme.typography.titleMedium,
@@ -58,10 +94,23 @@ fun SeerrRequestManagementSheet(
                     null -> LinearProgressIndicator(Modifier.fillMaxWidth())
                     else -> details.fold(
                         onSuccess = { destination ->
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Server: " + (destination.server ?: "Not specified by request"))
-                                Text("Quality profile: " + (destination.profile ?: "Not specified by request"))
-                                Text("Root folder: " + (destination.rootFolder ?: "Not specified by request"))
+                            Surface(shape = RoundedCornerShape(24.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                              Column(Modifier.fillMaxWidth().padding(18.dp),
+                                  verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text("SERVER", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary)
+                                Text(destination.server ?: "Not specified by request", style = MaterialTheme.typography.bodyLarge)
+                                HorizontalDivider()
+                                Text("QUALITY PROFILE", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary)
+                                Text(destination.profile ?: "Not specified by request", style = MaterialTheme.typography.bodyLarge)
+                                HorizontalDivider()
+                                Text("ROOT FOLDER", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary)
+                                Text(destination.rootFolder ?: "Not specified by request", style = MaterialTheme.typography.bodyLarge)
+                              }
+                            }
                                 if (!destination.hasServer || !destination.hasProfile || !destination.hasRoot) {
                                     Text("Some settings are missing from the request. Check Seerr before approving.",
                                         style = MaterialTheme.typography.bodySmall,
@@ -133,7 +182,7 @@ fun SeerrRequestManagementSheet(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { confirmDelete = false }, enabled = !busy,
                         modifier = Modifier.weight(1f)) { Text("Cancel") }
-                    Button(onClick = {
+                    Button(colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error), onClick = {
                         busy = true
                         error = null
                         scope.launch {
