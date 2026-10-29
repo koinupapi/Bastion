@@ -24,6 +24,8 @@ fun BastionUpdateSettings() {
     var expanded by remember { mutableStateOf(false) }
     var update by remember { mutableStateOf<BastionUpdate?>(null) }
     var checking by remember { mutableStateOf(false) }
+    var refreshingChannels by remember { mutableStateOf(false) }
+    var channelMessage by remember { mutableStateOf<String?>(null) }
     var downloading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val version = remember {
@@ -42,9 +44,24 @@ fun BastionUpdateSettings() {
             finally { checking = false }
         }
     }
-    LaunchedEffect(Unit) {
-        try { branches = (listOf("main", branch) + BastionUpdater.availableBranches()).distinct() }
-        catch (e: Exception) { message = e.message }
+    // Triggered on entry and by the explicit Refresh channels action.
+    // Preserve known channels and the selected channel on network failure.
+    var channelRefreshRequest by remember { mutableIntStateOf(0) }
+    LaunchedEffect(channelRefreshRequest) {
+        refreshingChannels = true
+        channelMessage = null
+        try {
+            val fetched = BastionUpdater.availableBranches()
+            branches = (listOf("main", branch) + fetched).distinct()
+            if (channelRefreshRequest > 0) {
+                channelMessage = "Channels refreshed: ${branches.size} available."
+            }
+        } catch (e: Exception) {
+            channelMessage = "Could not refresh channels: " +
+                (e.message ?: "Network error. Check your connection and try again.")
+        } finally {
+            refreshingChannels = false
+        }
     }
     LaunchedEffect(branch) { update = null; message = "Tap Check for updates to check " + branch + "." }
     Card(shape = RoundedCornerShape(28.dp)) {
@@ -56,7 +73,24 @@ fun BastionUpdateSettings() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Signed APK updates are published to GitHub Releases. Android will ask you to confirm installation.",
                 style = MaterialTheme.typography.bodyMedium)
-            Text("Update channel", style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Update channel", modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium)
+                TextButton(onClick = { channelRefreshRequest++ },
+                    enabled = !refreshingChannels && !downloading) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Refresh channels")
+                }
+            }
+            if (refreshingChannels) LinearProgressIndicator(Modifier.fillMaxWidth())
+            channelMessage?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall,
+                    color = if (it.startsWith("Could not"))
+                        MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Box {
                 OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (branch == "main") "Stable (main)" else "Test: " + branch)
