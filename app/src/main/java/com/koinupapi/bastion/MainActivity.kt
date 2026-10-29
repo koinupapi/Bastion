@@ -1425,12 +1425,12 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
             var sizeExpanded by remember { mutableStateOf(false) }
             Box {
                 OutlinedButton(onClick = { sizeExpanded = true }) {
-                    Text("$" + "{pageSize}")
+                    Text(pageSize.toString())
                     Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                 }
                 DropdownMenu(expanded = sizeExpanded, onDismissRequest = { sizeExpanded = false }) {
                     listOf(25, 50, 100).forEach { amount ->
-                        DropdownMenuItem(text = { Text("$" + "{amount}") }, onClick = {
+                        DropdownMenuItem(text = { Text(amount.toString()) }, onClick = {
                             pageSize = amount
                             page = 0
                             pagePreferences.edit().putInt("requests_page_size_${instance.id}", amount).apply()
