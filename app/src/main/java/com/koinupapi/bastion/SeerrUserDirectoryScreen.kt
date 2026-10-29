@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 
 /** Seerr server users; no account modifications are performed on this screen. */
 @Composable
@@ -20,7 +21,16 @@ fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
         SeerrAdminUserDetailsScreen(instance, selectedUser!!, onBack = { selectedUser = null })
         return
     }
+    val scope = rememberCoroutineScope()
     var showCreate by remember(instance.id) { mutableStateOf(false) }
+    var showPlex by remember(instance.id) { mutableStateOf(false) }
+    var plexLoading by remember(instance.id) { mutableStateOf(false) }
+    var plexCandidates by remember(instance.id) { mutableStateOf<List<SeerrPlexCandidate>>(emptyList()) }
+    var plexSelected by remember(instance.id) { mutableStateOf<Set<String>>(emptySet()) }
+    var plexError by remember(instance.id) { mutableStateOf<String?>(null) }
+    var plexConfirmation by remember(instance.id) { mutableStateOf(false) }
+    var plexImporting by remember(instance.id) { mutableStateOf(false) }
+    var plexMessage by remember(instance.id) { mutableStateOf<String?>(null) }
     var page by remember(instance.id) { mutableIntStateOf(0) }
     var refresh by remember(instance.id) { mutableIntStateOf(0) }
     var directory by remember(instance.id) { mutableStateOf<SeerrUserDirectory?>(null) }
@@ -44,6 +54,42 @@ fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
             Text(if (showCreate) "Close new user form" else "Create local user")
         }
         if (showCreate) SeerrCreateLocalUserSettings(instance)
+        OutlinedButton(onClick = {
+            showPlex = !showPlex
+            if (showPlex) {
+                plexLoading = true
+                plexError = null
+                scope.launch {
+                    SeerrClient.plexImportCandidates(instance)
+                        .onSuccess { plexCandidates = it; plexSelected = emptySet() }
+                        .onFailure { plexError = it.message ?: "Could not load Plex users" }
+                    plexLoading = false
+                }
+            }
+        }) { Text(if (showPlex) "Close Plex import" else "Import Plex users") }
+        if (showPlex) {
+            Text("Choose Plex accounts to import into Seerr.", style = MaterialTheme.typography.bodyMedium)
+            if (plexLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            plexError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            if (!plexLoading && plexError == null && plexCandidates.isEmpty()) Text("No Plex users available to import.")
+            plexCandidates.forEach { candidate ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Checkbox(checked = candidate.id in plexSelected, enabled = !plexImporting,
+                        onCheckedChange = { checked ->
+                            plexSelected = if (checked) plexSelected + candidate.id else plexSelected - candidate.id
+                        })
+                    Column {
+                        Text(candidate.name.ifBlank { "Plex user" })
+                        if (candidate.email.isNotBlank()) Text(candidate.email, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            Button(onClick = { plexConfirmation = true },
+                enabled = plexSelected.isNotEmpty() && !plexLoading && !plexImporting) {
+                Text("Review import (${plexSelected.size})")
+            }
+            plexMessage?.let { Text(it) }
+        }
         Text("Accounts managed by this Seerr server", style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -70,4 +116,27 @@ fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
             }
         }
     }
+    if (plexConfirmation) AlertDialog(
+        onDismissRequest = { if (!plexImporting) plexConfirmation = false },
+        title = { Text("Import Plex users?") },
+        text = { Text("Import ${plexSelected.size} selected Plex account(s) into Seerr? Existing accounts are managed by Seerr.") },
+        confirmButton = {
+            TextButton(enabled = !plexImporting, onClick = {
+                plexImporting = true
+                val ids = plexSelected.toList()
+                scope.launch {
+                    SeerrClient.importPlexUsers(instance, ids)
+                        .onSuccess {
+                            plexMessage = "Seerr imported $it account(s)."
+                            plexSelected = emptySet()
+                            refresh++
+                        }
+                        .onFailure { plexError = it.message ?: "Plex import failed" }
+                    plexImporting = false
+                    plexConfirmation = false
+                }
+            }) { Text("Import") }
+        },
+        dismissButton = { TextButton(enabled = !plexImporting, onClick = { plexConfirmation = false }) { Text("Cancel") } }
+    )
 }
