@@ -3,6 +3,9 @@ package com.koinupapi.bastion
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import coil.compose.AsyncImage
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -32,7 +35,7 @@ fun SeerrRequestManagementSheet(
     LaunchedEffect(instance, request.requestId, request.isTv) {
         approvalDetails = null
         canManage = SeerrClient.canManageRequests(instance).getOrDefault(false)
-        if (request.requestStatus == "Pending" && canManage == true) {
+        if (canManage == true) {
             approvalDetails = SeerrClient.requestApprovalDetails(instance, request.requestId, request.isTv)
         }
     }
@@ -41,90 +44,98 @@ fun SeerrRequestManagementSheet(
         shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(Icons.Default.MovieFilter, contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp))
-                Text(if (canManage == true) "Manage request" else "Request details",
-                    style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            }
-            Surface(shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.secondaryContainer) {
-                Column(Modifier.fillMaxWidth().padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(request.title, style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold)
+            Text(if (canManage == true) "Manage request" else "Request details",
+                style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (!request.posterUrl.isNullOrBlank()) {
+                    AsyncImage(model = request.posterUrl, contentDescription = "${request.title} poster",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.width(112.dp).height(168.dp)
+                            .clip(RoundedCornerShape(20.dp)))
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(request.title, style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold)
+                    Text("${if (request.isTv) "TV series" else "Movie"} · Request #${request.requestId}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Surface(shape = RoundedCornerShape(50),
                             color = MaterialTheme.colorScheme.primaryContainer) {
-                            Text(request.requestStatus,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                                style = MaterialTheme.typography.labelLarge,
+                            Text(request.requestStatus, modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                                style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
-                        Surface(shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.surfaceVariant) {
-                            Text(if (request.isTv) "TV series" else "Movie",
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                                style = MaterialTheme.typography.labelLarge)
-                        }
                     }
-                    Text("Request #${request.requestId}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer)
                     if (request.isTv && request.seasons.isNotEmpty()) {
-                        HorizontalDivider()
-                        Text("Requested seasons", style = MaterialTheme.typography.labelLarge)
-                        Text(request.seasons.joinToString("  •  "),
-                            style = MaterialTheme.typography.bodyLarge)
+                        Text(request.seasons.joinToString(", ") { "Season $it" },
+                            style = MaterialTheme.typography.labelMedium)
+                    }
+                    request.requestedBy?.takeIf { it.isNotBlank() }?.let {
+                        Text("Requested by $it", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
-            if (canManage == null) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (canManage == false) {
-                Text("You can view this request's details here.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            HorizontalDivider()
+            Text("REQUEST INFORMATION", style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (request.isTv && request.seasons.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Requested seasons", style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium)
+                    Text(request.seasons.joinToString(", ") { "Season $it" },
+                        style = MaterialTheme.typography.bodyMedium)
+                }
             }
-            if (request.requestStatus == "Pending" && canManage == true) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Request status", style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium)
+                Text(request.requestStatus, style = MaterialTheme.typography.bodyMedium)
+            }
+            if (canManage == null) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (canManage == true) {
                 HorizontalDivider()
-                Text("Approval destination", style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold)
+                Text("DESTINATION", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 when (val details = approvalDetails) {
                     null -> LinearProgressIndicator(Modifier.fillMaxWidth())
                     else -> details.fold(
                         onSuccess = { destination ->
-                            Surface(shape = RoundedCornerShape(24.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                              Column(Modifier.fillMaxWidth().padding(18.dp),
-                                  verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text("SERVER", style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary)
-                                Text(destination.server ?: "Not specified by request", style = MaterialTheme.typography.bodyLarge)
-                                HorizontalDivider()
-                                Text("QUALITY PROFILE", style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary)
-                                Text(destination.profile ?: "Not specified by request", style = MaterialTheme.typography.bodyLarge)
-                                HorizontalDivider()
-                                Text("ROOT FOLDER", style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary)
-                                Text(destination.rootFolder ?: "Not specified by request", style = MaterialTheme.typography.bodyLarge)
-                              }
-                            }
-                                if (!destination.hasServer || !destination.hasProfile || !destination.hasRoot) {
-                                    Text("Some settings are missing from the request. Check Seerr before approving.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error)
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Instance", style = MaterialTheme.typography.bodyMedium)
+                                    Text(destination.server ?: "Not specified",
+                                        style = MaterialTheme.typography.bodyMedium)
                                 }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Quality profile", style = MaterialTheme.typography.bodyMedium)
+                                    Text(destination.profile ?: "Not specified",
+                                        style = MaterialTheme.typography.bodyMedium)
+                                }
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("Root folder", style = MaterialTheme.typography.bodyMedium)
+                                    Text(destination.rootFolder ?: "Not specified",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (request.requestStatus == "Pending" &&
+                                    (!destination.hasServer || !destination.hasProfile || !destination.hasRoot)) {
+                                    Text("Some settings are missing. Check Seerr before approving.",
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
                         },
-                        onFailure = { failure ->
-                            Text("Unable to load approval settings: " +
-                                (failure.message ?: "Unknown error") +
-                                ". Check Seerr before approving.",
-                                color = MaterialTheme.colorScheme.error)
+                        onFailure = {
+                            Text("Destination details unavailable: ${it.message ?: "Unknown error"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     )
                 }
+            }
+            if (request.requestStatus == "Pending" && canManage == true) {
                 Button(onClick = {
                     busy = true
                     error = null
