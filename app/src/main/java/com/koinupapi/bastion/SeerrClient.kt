@@ -291,6 +291,12 @@ object SeerrClient {
         Unit
     }
 
+    suspend fun deleteAdminUser(config: ServiceConfig, userId: Int): Result<Unit> = runCatching {
+        require(userId > 1) { "Owner account cannot be deleted" }
+        api(config, "/api/v1/user/$userId", method = "DELETE")
+        Unit
+    }
+
     /** Create a local Seerr user and set their initial password. No password is persisted. */
     /** Persist a single user's permission bitmask using Seerr's dedicated endpoint. */
     suspend fun updateAdminUserPermissions(config: ServiceConfig, userId: Int, permissions: Int): Result<Unit> =
