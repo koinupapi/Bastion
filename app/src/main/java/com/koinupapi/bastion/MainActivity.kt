@@ -1445,7 +1445,13 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
         options = SeerrClient.requestOptions(instance, isTv)
         if (isTv) SeerrClient.partialRequestsEnabled(instance)
             .onSuccess { partialEnabled = it }
-            .onFailure { policyError = it.message ?: "Could not read Seerr request settings" }
+            .onFailure {
+                // Standard users cannot read the admin-only settings endpoint.
+                // Let Seerr validate season selection on submission.
+                policyError = if (it.message?.contains("HTTP 403") == true)
+                    "Your account cannot read administrator request settings. Select seasons to continue."
+                else "Request policy unavailable. Select seasons to continue."
+            }
     }
     val servers = options?.getOrNull().orEmpty()
     val server = servers.getOrNull(serverIndex)
@@ -1510,8 +1516,8 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                         color = MaterialTheme.colorScheme.error)
             }
             if (isTv) {
-                if (policyError != null) Text("Seerr request policy unavailable: $policyError",
-                    color = MaterialTheme.colorScheme.error)
+                if (policyError != null) Text(policyError!!,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (partialEnabled == false) Text("Seerr requires requesting all unrequested seasons.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Select seasons", style = MaterialTheme.typography.titleMedium,
@@ -1550,7 +1556,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
             Button(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                 shape = RoundedCornerShape(24.dp),
                 enabled = server != null && profileId >= 0 && rootPath.isNotBlank() && !submitting &&
-                    (!isTv || (partialEnabled != null && seasons.any { it.number > 0 && it.status !in listOf(2, 3, 4, 5) } &&
+                    (!isTv || (seasons.any { it.number > 0 && it.status !in listOf(2, 3, 4, 5) } &&
                         (partialEnabled == false || selectedSeasons.isNotEmpty()))),
                 onClick = {
                     val chosen = server ?: return@Button
