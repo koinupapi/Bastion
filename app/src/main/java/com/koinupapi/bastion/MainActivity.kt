@@ -179,7 +179,12 @@ private fun BastionApp() {
         BackHandler {
             when {
                 openSeerrRequest != null -> popSeerrMedia()
-                selectedMediaId != null -> selectedMediaId = null
+                selectedMediaId != null -> {
+                    selectedMediaId = null
+                    tab = 0
+                    settingsHistory.clear()
+                    settingsPage = "Settings"
+                }
                 tab == 2 && settingsPage != "Settings" -> goBackSettings()
                 tab != 0 && returnToDashboard -> {
                     tab = 0
@@ -237,6 +242,10 @@ private fun BastionApp() {
                                 entries.forEachIndexed { index, service ->
                                     val shape = connectedServiceShape(index, entries.size)
                                     Surface(onClick = {
+                                        if (selectedMediaId != service.id) {
+                                            seerrMediaStack.clear()
+                                            seerrTab = 0
+                                        }
                                         selectedMediaId = service.id
                                         scope.launch { drawerState.close() }
                                     }, shape = shape,
@@ -276,6 +285,7 @@ private fun BastionApp() {
                         icon = { Icon(Icons.Default.Settings, contentDescription = null) },
                         onClick = {
                             selectedMediaId = null
+                            seerrMediaStack.clear()
                             tab = 2
                             settingsHistory.clear()
                             settingsPage = "Services"
@@ -310,14 +320,13 @@ private fun BastionApp() {
                         modifier = Modifier.fillMaxWidth().padding(horizontal = if (selectedMediaId != null) 16.dp else 0.dp)) {
                         IconButton(onClick = {
                             when {
-                                serviceScreen -> selectedMediaId = null
                                 nestedSettings -> goBackSettings()
                                 else -> scope.launch { drawerState.open() }
                             }
                         }) {
-                            Icon(if (nestedSettings || serviceScreen) Icons.Default.ArrowBack
+                            Icon(if (nestedSettings) Icons.Default.ArrowBack
                                 else Icons.Default.Menu,
-                                contentDescription = if (nestedSettings || serviceScreen) "Navigate back"
+                                contentDescription = if (nestedSettings) "Navigate back"
                                     else "Open services")
                         }
                         Column(Modifier.weight(1f)) {
