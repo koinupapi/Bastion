@@ -12,7 +12,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
-        versionName = "0.1.0"
+        versionName = System.getenv("BASTION_VERSION_NAME") ?: "0.2.0-dev.1"
     }
     signingConfigs {
         create("bastion") {
