@@ -17,7 +17,7 @@ import java.security.MessageDigest
 data class BastionUpdate(val versionCode: Int, val url: String, val digest: String?, val page: String, val branch: String = "main")
 
 object BastionUpdater {
-    private const val RELEASES = "https://api.github.com/repos/koinupapi/Bastion/releases?per_page=20"
+    private const val RELEASES = "https://api.github.com/repos/koinupapi/Bastion/releases?per_page=100"
 
     suspend fun check(context: Context, branch: String = "main"): BastionUpdate? = withContext(Dispatchers.IO) {
         val installed = if (Build.VERSION.SDK_INT >= 33)
@@ -52,6 +52,28 @@ object BastionUpdater {
                     asset.optString("digest").takeIf { it.startsWith("sha256:") },
                     release.optString("html_url"), branch)
             }.maxByOrNull { it.versionCode }
+        } finally { conn.disconnect() }
+    }
+
+    suspend fun releaseDiagnostics(branch: String): String = withContext(Dispatchers.IO) {
+        val conn = URL(RELEASES).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 8000
+            conn.readTimeout = 12000
+            conn.setRequestProperty("Accept", "application/vnd.github+json")
+            conn.setRequestProperty("User-Agent", "Bastion-Android")
+            if (conn.responseCode !in 200..299) error("GitHub returned HTTP " + conn.responseCode)
+            val releases = JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
+            val matched = (0 until releases.length()).mapNotNull { i ->
+                val release = releases.getJSONObject(i)
+                val tag = release.optString("tag_name")
+                val releaseBranch = if (tag.startsWith("dev-")) "main" else release.optString("body")
+                    .lineSequence().firstOrNull { it.startsWith("Branch: ") }
+                    ?.removePrefix("Branch: ")?.trim()
+                if (releaseBranch == branch) tag else null
+            }
+            if (matched.isEmpty()) "No releases for " + branch + " in latest " + releases.length() + " releases."
+            else "Latest release for " + branch + ": " + matched.first() + "."
         } finally { conn.disconnect() }
     }
 
