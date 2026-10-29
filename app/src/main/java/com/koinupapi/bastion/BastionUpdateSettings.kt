@@ -35,8 +35,8 @@ fun BastionUpdateSettings() {
             message = null
             try {
                 update = BastionUpdater.check(context, branch)
-                message = if (update == null) "You're running the latest development build."
-                    else "Development build ${update?.versionCode} is available."
+                message = if (update == null) "No newer installable build found for " + branch + ". Your installed build is " + version + "."
+                    else "Build ${update?.versionCode} is available from " + branch + "."
             } catch (e: Exception) { message = e.message ?: "Unable to check GitHub releases." }
             finally { checking = false }
         }
