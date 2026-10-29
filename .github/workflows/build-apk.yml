@@ -2,7 +2,9 @@ name: Build Bastion APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'feature/**'
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,12 +44,25 @@ jobs:
         with:
           name: Bastion-signed-apk
           path: app/build/outputs/apk/release/app-release.apk
-      - name: Publish development APK release
+      - name: Publish signed channel release
         env:
           GH_TOKEN: ${{ github.token }}
+          REF_NAME: ${{ github.ref_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
-          cp app/build/outputs/apk/release/app-release.apk Bastion-dev-${{ github.run_number }}.apk
-          gh release create "dev-${{ github.run_number }}" "Bastion-dev-${{ github.run_number }}.apk" \
-            --prerelease --target "${{ github.sha }}" \
-            --title "Bastion development build ${{ github.run_number }}" \
-            --notes "Signed development APK from successful GitHub Actions build ${{ github.run_number }}. Commit: ${{ github.sha }}."
+          if [ "$REF_NAME" = "main" ]; then
+            CHANNEL="stable"
+          else
+            CHANNEL="feature"
+          fi
+          TAG="build-${RUN_NUMBER}"
+          APK="Bastion-${CHANNEL}-${RUN_NUMBER}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$APK"
+          gh release create "$TAG" "$APK" \
+            --prerelease --target "$COMMIT_SHA" \
+            --title "Bastion ${CHANNEL} build ${RUN_NUMBER}" \
+            --notes "Channel: ${CHANNEL}
+Branch: ${REF_NAME}
+Build: ${RUN_NUMBER}
+Commit: ${COMMIT_SHA}"
