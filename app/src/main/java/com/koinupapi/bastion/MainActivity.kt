@@ -180,10 +180,16 @@ private fun BastionApp() {
             when {
                 openSeerrRequest != null -> popSeerrMedia()
                 selectedMediaId != null -> {
-                    selectedMediaId = null
-                    tab = 0
-                    settingsHistory.clear()
-                    settingsPage = "Settings"
+                    // Back from a Seerr service tab returns to its home (Discover),
+                    // not the global Bastion dashboard. Nested Settings back is
+                    // handled by SeerrSettingsScreen while a subpage is open.
+                    if (seerrTab != 0) seerrTab = 0
+                    else {
+                        selectedMediaId = null
+                        tab = 0
+                        settingsHistory.clear()
+                        settingsPage = "Settings"
+                    }
                 }
                 tab == 2 && settingsPage != "Settings" -> goBackSettings()
                 tab != 0 && returnToDashboard -> {
