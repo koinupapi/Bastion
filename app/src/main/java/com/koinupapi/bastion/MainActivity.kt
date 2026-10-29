@@ -1656,7 +1656,8 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-        if (!request.isTv && displayedStatus == "Available") {
+        if (media?.seerrMediaId != null && media.seerrMediaId > 0 &&
+            displayedStatus in listOf("Available", "Partially available")) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Surface(modifier = Modifier.weight(1f).heightIn(min = 54.dp),
                     shape = RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp,
@@ -1668,7 +1669,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                         Icon(Icons.Default.CheckCircle, contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSecondaryContainer)
                         Spacer(Modifier.width(6.dp))
-                        Text("Available", color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        Text(displayedStatus ?: "Available", color = MaterialTheme.colorScheme.onSecondaryContainer,
                             style = MaterialTheme.typography.labelLarge)
                     }
                 }
