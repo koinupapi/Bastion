@@ -55,6 +55,21 @@ object BastionUpdater {
         } finally { conn.disconnect() }
     }
 
+    suspend fun availableBranches(): List<String> = withContext(Dispatchers.IO) {
+        val conn = URL("https://api.github.com/repos/koinupapi/Bastion/branches?per_page=100").openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 8000
+            conn.readTimeout = 12000
+            conn.setRequestProperty("Accept", "application/vnd.github+json")
+            conn.setRequestProperty("User-Agent", "Bastion-Android")
+            if (conn.responseCode !in 200..299) error("GitHub returned HTTP " + conn.responseCode)
+            val items = JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
+            (0 until items.length()).mapNotNull { i ->
+                items.getJSONObject(i).optString("name").takeIf { it.startsWith("feature/") }
+            }.sorted()
+        } finally { conn.disconnect() }
+    }
+
     suspend fun download(context: Context, update: BastionUpdate): File = withContext(Dispatchers.IO) {
         val directory = File(context.cacheDir, "updates").apply { mkdirs() }
         val target = File(directory, "Bastion-${update.versionCode}.apk")
