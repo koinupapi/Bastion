@@ -252,7 +252,9 @@ object SeerrClient {
      */
     suspend fun updateRequestDestination(config: ServiceConfig, requestId: Int,
         isTv: Boolean, serverId: Int, profileId: Int, rootFolder: String): Result<Unit> = runCatching {
-        require(requestId > 0 && serverId > 0 && profileId > 0 && rootFolder.isNotBlank()) {
+        // Seerr instance/profile IDs may legitimately be zero. The UI validates
+        // selections against the options returned by Seerr; do not reject ID 0.
+        require(requestId > 0 && serverId >= 0 && profileId >= 0 && rootFolder.isNotBlank()) {
             "Choose a valid instance, quality profile and root folder."
         }
         require(canManageRequests(config).getOrThrow()) { "No request-management permission." }
