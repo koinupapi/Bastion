@@ -315,6 +315,17 @@ object SeerrClient {
         Unit
     }
 
+    /** Permission editor restrictions sourced from Seerr's active session and server settings. */
+    suspend fun permissionEditorContext(config: ServiceConfig): Result<SeerrPermissionEditorContext> = runCatching {
+        val actor = api(config, "/api/v1/auth/me")
+        val settings = api(config, "/api/v1/settings/main")
+        SeerrPermissionEditorContext(
+            actingUserId = actor.getInt("id"),
+            movie4kEnabled = settings.optBoolean("movie4kEnabled"),
+            series4kEnabled = settings.optBoolean("series4kEnabled")
+        )
+    }
+
     /** Account inspection; no changes to server state. */
     suspend fun adminUserDetails(config: ServiceConfig, userId: Int): Result<SeerrAdminUserDetails> = runCatching {
         require(userId > 0)
@@ -1056,6 +1067,9 @@ data class SeerrIssue(
     val author: String, val createdAt: String, val message: String,
     val comments: List<String>,
     val commentEntries: List<SeerrIssueComment> = emptyList()
+)
+data class SeerrPermissionEditorContext(
+    val actingUserId: Int, val movie4kEnabled: Boolean, val series4kEnabled: Boolean
 )
 data class SeerrAdminQuota(
     val days: Int, val limit: Int, val used: Int, val remaining: Int, val restricted: Boolean
