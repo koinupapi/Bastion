@@ -30,12 +30,13 @@ fun BastionUpdateSettings() {
         context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode
     }
     fun check() {
+        if (checking || downloading) return
         scope.launch {
             checking = true
             message = null
             try {
                 update = BastionUpdater.check(context, branch)
-                message = if (update == null) "No newer installable build found for " + branch + ". Installed build: " + version + ". " + BastionUpdater.releaseDiagnostics(branch)
+                message = if (update == null) "No newer installable build found for " + branch + ". Installed build: " + version + ". "
                     else "Build ${update?.versionCode} is available from " + branch + "."
             } catch (e: Exception) { message = e.message ?: "Unable to check GitHub releases." }
             finally { checking = false }
@@ -45,7 +46,7 @@ fun BastionUpdateSettings() {
         try { branches = (listOf("main") + BastionUpdater.availableBranches()).distinct() }
         catch (e: Exception) { message = e.message }
     }
-    LaunchedEffect(branch) { update = null; check() }
+    LaunchedEffect(branch) { update = null; message = "Tap Check for updates to check " + branch + "." }
     Card(shape = RoundedCornerShape(28.dp)) {
         Column(Modifier.fillMaxWidth().padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
