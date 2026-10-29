@@ -7,38 +7,48 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-private val seerrPermissionOptions = listOf(
-    "Administrator" to 2,
-    "Manage settings" to 4,
-    "Manage users" to 8,
-    "Manage requests" to 16,
-    "Request media" to 32,
-    "Vote" to 64,
-    "Auto approve" to 128,
-    "Auto approve movies" to 256,
-    "Auto approve TV" to 512,
-    "Request 4K" to 1024,
-    "Request 4K movies" to 2048,
-    "Request 4K TV" to 4096,
-    "Advanced requests" to 8192,
-    "View requests" to 16384,
-    "Auto approve 4K" to 32768,
-    "Auto approve 4K movies" to 65536,
-    "Auto approve 4K TV" to 131072,
-    "Request movies" to 262144,
-    "Request TV" to 524288,
-    "Manage issues" to 1048576,
-    "View issues" to 2097152,
-    "Create issues" to 4194304,
-    "Auto request" to 8388608,
-    "Auto request movies" to 16777216,
-    "Auto request TV" to 33554432,
-    "View recently added" to 67108864,
-    "View watchlists" to 134217728,
-    "Manage blocklist" to 268435456,
-    "View blocklist" to 1073741824
+private data class PermissionEntry(val label: String, val bit: Int, val children: List<PermissionEntry> = emptyList())
+private val seerrPermissionGroups = listOf(
+    PermissionEntry("Admin", 2),
+    PermissionEntry("Manage Users", 8),
+    PermissionEntry("Manage Requests", 16, listOf(PermissionEntry("Advanced Requests", 8192), PermissionEntry("View Requests", 16384), PermissionEntry("View Recently Added", 67108864), PermissionEntry("View Plex Watchlists", 134217728))),
+    PermissionEntry("Request", 32, listOf(PermissionEntry("Request Movies", 262144), PermissionEntry("Request Series", 524288))),
+    PermissionEntry("Auto-Approve", 128, listOf(PermissionEntry("Auto-Approve Movies", 256), PermissionEntry("Auto-Approve Series", 512))),
+    PermissionEntry("Auto-Request", 8388608, listOf(PermissionEntry("Auto-Request Movies", 16777216), PermissionEntry("Auto-Request Series", 33554432))),
+    PermissionEntry("Request 4K", 1024, listOf(PermissionEntry("Request 4K Movies", 2048), PermissionEntry("Request 4K Series", 4096))),
+    PermissionEntry("Auto-Approve 4K", 32768, listOf(PermissionEntry("Auto-Approve 4K Movies", 65536), PermissionEntry("Auto-Approve 4K Series", 131072))),
+    PermissionEntry("Manage Issues", 1048576, listOf(PermissionEntry("Report Issues", 4194304), PermissionEntry("View Issues", 2097152))),
+    PermissionEntry("Manage Blocklist", 268435456, listOf(PermissionEntry("View Blocklisted Media", 1073741824)))
 )
+private fun hasBit(value: Int, bit: Int) = (value and bit) != 0
+private fun permissionRequires(bit: Int, value: Int): Boolean = when (bit) {
+    128, 8388608 -> hasBit(value, 32)
+    256, 512, 16777216, 33554432 -> hasBit(value, 32) || hasBit(value, if (bit == 256 || bit == 16777216) 262144 else 524288)
+    32768 -> hasBit(value, 1024)
+    65536, 131072 -> hasBit(value, 1024) || hasBit(value, if (bit == 65536) 2048 else 4096)
+    else -> true
+}
 
+@Composable
+private fun PermissionCheckbox(entry: PermissionEntry, value: Int, parentBit: Int?, onChange: (Int) -> Unit) {
+    val admin = hasBit(value, 2)
+    val managed = hasBit(value, 16) && entry.bit in listOf(128, 256, 512, 32768, 65536, 131072)
+    val inherited = parentBit != null && hasBit(value, parentBit)
+    val enabledByParent = admin || managed || inherited
+    val requirementMet = permissionRequires(entry.bit, value)
+    val checked = requirementMet && (hasBit(value, entry.bit) || enabledByParent)
+    val locked = enabledByParent || !requirementMet
+    Row(Modifier.fillMaxWidth().padding(start = if (parentBit != null) 28.dp else 0.dp),
+        horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(entry.label, modifier = Modifier.weight(1f), style = if (parentBit == null)
+            MaterialTheme.typography.bodyLarge else MaterialTheme.typography.bodyMedium)
+        Checkbox(checked = checked, enabled = !locked,
+            onCheckedChange = { selected ->
+                onChange(if (selected) value or entry.bit else value and entry.bit.inv())
+            })
+    }
+    entry.children.forEach { child -> PermissionCheckbox(child, value, entry.bit, onChange) }
+}
 
 @Composable
 fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: () -> Unit) {
@@ -84,15 +94,8 @@ fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: ()
                 editPermissions = !editPermissions
             }) { Text(if (editPermissions) "Cancel permission edit" else "Edit permissions") }
             if (editPermissions) {
-                seerrPermissionOptions.forEach { (name, bit) ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(name, modifier = Modifier.weight(1f))
-                        Checkbox(checked = (selectedPermissions and bit) != 0,
-                            onCheckedChange = { checked ->
-                                selectedPermissions = if (checked) selectedPermissions or bit
-                                else selectedPermissions and bit.inv()
-                            })
-                    }
+                seerrPermissionGroups.forEach { entry ->
+                    PermissionCheckbox(entry, selectedPermissions, null) { selectedPermissions = it }
                 }
                 Button(onClick = { confirmation = "permissions" }, enabled = !saving) {
                     Text("Review permission change")
