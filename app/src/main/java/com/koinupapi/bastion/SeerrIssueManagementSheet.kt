@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -30,12 +31,19 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
     var currentUser by remember(instance.id) { mutableStateOf<SeerrIssueUser?>(null) }
     var userLookupComplete by remember(instance.id) { mutableStateOf(false) }
     var confirmDelete by remember(initial.id) { mutableStateOf(false) }
+    var editingComment by remember(initial.id) { mutableStateOf<SeerrIssueComment?>(null) }
+    var editText by remember(initial.id) { mutableStateOf("") }
+    var deletingComment by remember(initial.id) { mutableStateOf<SeerrIssueComment?>(null) }
     val isAdminConnection = !instance.apiKey.startsWith("session:")
     val isAdminUser = (currentUser?.permissions?.and(2) ?: 0) != 0
     val isOwner = currentUser?.id != null && currentUser!!.id > 0 &&
         currentUser!!.id == issue.creatorId
+    val canManage = isAdminConnection || isAdminUser ||
+        ((currentUser?.permissions?.and(1048576) ?: 0) != 0)
+    val canCreate = canManage || ((currentUser?.permissions?.and(4194304) ?: 0) != 0)
+    val canReply = userLookupComplete && canCreate && (canManage || isOwner)
     val canDelete = !busy && !loading && userLookupComplete &&
-        (isAdminConnection || isAdminUser || isOwner)
+        (canManage || (isOwner && issue.commentEntries.size <= 1))
     LaunchedEffect(instance) {
         SeerrClient.currentIssueUser(instance).onSuccess { currentUser = it }
         userLookupComplete = true
@@ -67,24 +75,52 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (issue.comments.isEmpty()) Text("No comments yet.")
-                issue.comments.forEachIndexed { index, message ->
+                issue.commentEntries.forEachIndexed { index, comment ->
+                    val ownComment = currentUser?.id != null && currentUser!!.id > 0 &&
+                        currentUser!!.id == comment.userId
+                    val mayEdit = userLookupComplete && canCreate && ownComment && comment.id > 0
+                    val mayDelete = userLookupComplete && canCreate &&
+                        (ownComment || canManage) && comment.id > 0
                     Surface(shape = RoundedCornerShape(20.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                         Column(Modifier.fillMaxWidth().padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(if (index == 0) "Original report" else "Reply ${index}",
+                            Text(comment.author + if (index == 0) " • Original report" else "",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary)
-                            Text(message, style = MaterialTheme.typography.bodyMedium)
+                            Text(comment.message, style = MaterialTheme.typography.bodyMedium)
+                            if (mayEdit || mayDelete) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (mayEdit) TextButton(enabled = !busy, onClick = {
+                                        editingComment = comment
+                                        editText = comment.message
+                                    }) {
+                                        Icon(Icons.Default.Edit, contentDescription = null)
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Edit")
+                                    }
+                                    if (mayDelete) TextButton(enabled = !busy,
+                                        onClick = { deletingComment = comment }) {
+                                        Icon(Icons.Default.Delete, contentDescription = null)
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Delete")
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
-            OutlinedTextField(value = reply, onValueChange = { reply = it },
+            if (userLookupComplete && !canReply) {
+                Text("You can view this issue, but cannot reply.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall)
+            }
+            if (canReply) OutlinedTextField(value = reply, onValueChange = { reply = it },
                 label = { Text("Write a reply") },
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 4, minLines = 2, enabled = !busy)
-            Button(onClick = {
+            if (canReply) Button(onClick = {
                 busy = true
                 error = null
                 scope.launch {
@@ -104,7 +140,7 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
                 Spacer(Modifier.width(8.dp))
                 Text("Post reply")
             }
-            OutlinedButton(onClick = {
+            if (userLookupComplete && (canManage || isOwner)) OutlinedButton(onClick = {
                 busy = true
                 error = null
                 scope.launch {
@@ -163,6 +199,74 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
             },
             dismissButton = {
                 TextButton(enabled = !busy, onClick = { confirmDelete = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    editingComment?.let { comment ->
+        AlertDialog(
+            onDismissRequest = { if (!busy) editingComment = null },
+            title = { Text("Edit comment") },
+            text = {
+                OutlinedTextField(
+                    value = editText,
+                    onValueChange = { editText = it },
+                    label = { Text("Comment") },
+                    minLines = 2, maxLines = 6,
+                    enabled = !busy
+                )
+            },
+            confirmButton = {
+                TextButton(enabled = !busy && editText.isNotBlank(), onClick = {
+                    busy = true
+                    error = null
+                    scope.launch {
+                        SeerrClient.editIssueComment(instance, comment.id, editText)
+                            .onSuccess {
+                                editingComment = null
+                                onChanged()
+                                SeerrClient.issueDetail(instance, issue.id)
+                                    .onSuccess { issue = it }
+                                    .onFailure { error = it.message }
+                            }
+                            .onFailure { error = it.message ?: "Could not edit comment" }
+                        busy = false
+                    }
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(enabled = !busy, onClick = { editingComment = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    deletingComment?.let { comment ->
+        AlertDialog(
+            onDismissRequest = { if (!busy) deletingComment = null },
+            title = { Text("Delete comment?") },
+            text = { Text("This permanently removes the comment from Seerr.") },
+            confirmButton = {
+                TextButton(enabled = !busy, onClick = {
+                    busy = true
+                    error = null
+                    scope.launch {
+                        SeerrClient.deleteIssueComment(instance, comment.id)
+                            .onSuccess {
+                                deletingComment = null
+                                onChanged()
+                                SeerrClient.issueDetail(instance, issue.id)
+                                    .onSuccess { issue = it }
+                                    .onFailure { error = it.message }
+                            }
+                            .onFailure { error = it.message ?: "Could not delete comment" }
+                        busy = false
+                    }
+                }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(enabled = !busy, onClick = { deletingComment = null }) {
                     Text("Cancel")
                 }
             }
