@@ -1689,6 +1689,31 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                 season.copy(status = 2) else season
         })
     }
+    // Request records, not mediaInfo.seasons alone, determine which seasons can be requested.
+    var knownRequestedSeasons by remember(cacheKey) { mutableStateOf<Set<Int>?>(null) }
+    LaunchedEffect(instance, cacheKey) {
+        if (!request.isTv) return@LaunchedEffect
+        val confirmed = mutableSetOf<Int>()
+        var skip = 0
+        var complete = false
+        while (skip < 1000) {
+            val page = SeerrClient.requestPage(instance, 100, skip, "All")
+            if (page.error != null) break
+            page.requests.filter {
+                it.isTv && it.tmdbId == request.tmdbId &&
+                    it.requestStatus in listOf("Pending", "Approved", "Completed")
+            }.forEach { confirmed.addAll(it.seasons) }
+            skip += page.requests.size
+            if (page.requests.isEmpty() || skip >= page.total) {
+                complete = true
+                break
+            }
+        }
+        if (complete) {
+            knownRequestedSeasons = confirmed
+            protectConfirmedSeasons(confirmed.toList())
+        }
+    }
     var expanded by remember(cacheKey) { mutableStateOf(false) }
     LaunchedEffect(instance, cacheKey) {
         if (cacheKey !in cache) {
@@ -1717,6 +1742,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             isTv = request.isTv, seasons = cache[cacheKey]?.tvSeasons.orEmpty(),
             onDismiss = { showRequestSheet = false },
             onConfirmed = { confirmedSeasons ->
+                knownRequestedSeasons = knownRequestedSeasons.orEmpty() + confirmedSeasons
                 protectConfirmedSeasons(confirmedSeasons)
                 requestSubmitted = true
             },
@@ -1842,7 +1868,10 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             }
         }
         if (request.tmdbId > 0 && (displayedStatus == null || (request.isTv && displayedStatus in listOf("Partially available", "Available", "Processing", "Pending") &&
-            media?.tvSeasons?.any { it.number > 0 && it.status !in listOf(2, 3, 4, 5) } == true)) && !requestSubmitted) {
+            knownRequestedSeasons != null &&
+            media?.tvSeasons?.any { it.number > 0 &&
+                it.number !in knownRequestedSeasons.orEmpty() &&
+                it.status !in listOf(2, 3, 4, 5) } == true)) && !requestSubmitted) {
             Button(onClick = { showRequestSheet = true }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
