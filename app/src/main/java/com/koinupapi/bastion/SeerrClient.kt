@@ -297,7 +297,7 @@ object SeerrClient {
         runCatching {
             require(userId > 0 && permissions >= 0)
             api(config, "/api/v1/user/$userId/settings/permissions",
-                JSONObject().put("permissions", permissions))
+                JSONObject().put("permissions", permissions), method = "POST")
             Unit
         }
 
@@ -311,7 +311,7 @@ object SeerrClient {
         settings.put("movieQuotaDays", movieDays ?: JSONObject.NULL)
         settings.put("tvQuotaLimit", tvLimit ?: JSONObject.NULL)
         settings.put("tvQuotaDays", tvDays ?: JSONObject.NULL)
-        api(config, "/api/v1/user/$userId/settings/main", settings)
+        api(config, "/api/v1/user/$userId/settings/main", settings, method = "POST")
         Unit
     }
 
