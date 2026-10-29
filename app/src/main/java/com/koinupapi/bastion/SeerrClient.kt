@@ -376,6 +376,19 @@ object SeerrClient {
             response.optJSONObject("pageInfo")?.optInt("results", users.size) ?: users.size), users)
     }
 
+    /** Plex account discovery; this endpoint returns a JSON array rather than an object. */
+    suspend fun plexImportCandidates(config: ServiceConfig): Result<List<SeerrPlexCandidate>> = runCatching {
+        val result = api(config, "/api/v1/settings/plex/users")
+        val users = result.optJSONArray("results") ?: JSONArray()
+        (0 until users.length()).mapNotNull { index ->
+            users.optJSONObject(index)?.let { item ->
+                SeerrPlexCandidate(item.optString("id"),
+                    item.optString("title").ifBlank { item.optString("username") },
+                    item.optString("email"))
+            }
+        }.filter { it.id.isNotBlank() }
+    }
+
     suspend fun createLocalUser(config: ServiceConfig, email: String,
         username: String, password: String): Result<Int> = runCatching {
         require(email.contains("@") && email.substringAfter("@").contains(".")) { "Enter a valid email address" }
@@ -1081,6 +1094,7 @@ data class SeerrAdminUserDetails(
     val movieQuotaLimit: Int?, val movieQuotaDays: Int?,
     val tvQuotaLimit: Int?, val tvQuotaDays: Int?
 )
+data class SeerrPlexCandidate(val id: String, val name: String, val email: String)
 data class SeerrAdminUser(
     val id: Int, val displayName: String, val email: String,
     val username: String, val userType: Int, val permissions: Int
