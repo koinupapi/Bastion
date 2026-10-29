@@ -255,6 +255,17 @@ object SeerrClient {
         id
     }
 
+    /** Seerr permission bits: ADMIN=2, MANAGE_REQUESTS=16.
+     * Fail closed if the authenticated user's permissions cannot be read. */
+    suspend fun canManageRequests(config: ServiceConfig): Result<Boolean> = runCatching {
+        val user = api(config, "/api/v1/auth/me")
+        require(user.has("permissions") && !user.isNull("permissions")) {
+            "Seerr did not provide user permissions"
+        }
+        val permissions = user.getInt("permissions")
+        (permissions and 2) != 0 || (permissions and 16) != 0
+    }
+
     suspend fun changeRequestStatus(config: ServiceConfig, requestId: Int,
         approve: Boolean): Result<Unit> = runCatching {
         require(requestId > 0) { "Invalid request" }
