@@ -30,14 +30,21 @@ private fun permissionRequires(bit: Int, value: Int): Boolean = when (bit) {
 }
 
 @Composable
-private fun PermissionCheckbox(entry: PermissionEntry, value: Int, parentBit: Int?, onChange: (Int) -> Unit) {
+private fun PermissionCheckbox(entry: PermissionEntry, value: Int, parentBit: Int?, context: SeerrPermissionEditorContext, targetId: Int, onChange: (Int) -> Unit) {
     val admin = hasBit(value, 2)
     val managed = hasBit(value, 16) && entry.bit in listOf(128, 256, 512, 32768, 65536, 131072)
     val inherited = parentBit != null && hasBit(value, parentBit)
     val enabledByParent = admin || managed || inherited
     val requirementMet = permissionRequires(entry.bit, value)
     val checked = requirementMet && (hasBit(value, entry.bit) || enabledByParent)
-    val locked = enabledByParent || !requirementMet
+    val fourKAllowed = when (entry.bit) {
+        1024, 32768 -> context.movie4kEnabled && context.series4kEnabled
+        2048, 65536 -> context.movie4kEnabled
+        4096, 131072 -> context.series4kEnabled
+        else -> true
+    }
+    val locked = enabledByParent || !requirementMet || !fourKAllowed ||
+        targetId == 1 || (entry.bit == 2 && context.actingUserId != 1)
     Row(Modifier.fillMaxWidth().padding(start = if (parentBit != null) 28.dp else 0.dp),
         horizontalArrangement = Arrangement.SpaceBetween) {
         Text(entry.label, modifier = Modifier.weight(1f), style = if (parentBit == null)
@@ -47,7 +54,7 @@ private fun PermissionCheckbox(entry: PermissionEntry, value: Int, parentBit: In
                 onChange(if (selected) value or entry.bit else value and entry.bit.inv())
             })
     }
-    entry.children.forEach { child -> PermissionCheckbox(child, value, entry.bit, onChange) }
+    entry.children.forEach { child -> PermissionCheckbox(child, value, entry.bit, context, targetId, onChange) }
 }
 
 @Composable
@@ -56,6 +63,8 @@ fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: ()
     var error by remember(instance.id, userId) { mutableStateOf<String?>(null) }
     var loading by remember(instance.id, userId) { mutableStateOf(true) }
     var refresh by remember(instance.id, userId) { mutableIntStateOf(0) }
+    var permissionContext by remember(instance.id, userId) { mutableStateOf<SeerrPermissionEditorContext?>(null) }
+    var contextError by remember(instance.id, userId) { mutableStateOf<String?>(null) }
     var editPermissions by remember(instance.id, userId) { mutableStateOf(false) }
     var selectedPermissions by remember(instance.id, userId) { mutableIntStateOf(0) }
     var editQuotas by remember(instance.id, userId) { mutableStateOf(false) }
@@ -69,6 +78,9 @@ fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: ()
         SeerrClient.adminUserDetails(instance, userId)
             .onSuccess { user = it; error = null }
             .onFailure { error = it.message ?: "Could not load user"; user = null }
+        SeerrClient.permissionEditorContext(instance)
+            .onSuccess { permissionContext = it; contextError = null }
+            .onFailure { permissionContext = null; contextError = it.message ?: "Cannot verify permission restrictions" }
         loading = false
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -94,10 +106,13 @@ fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: ()
                 editPermissions = !editPermissions
             }) { Text(if (editPermissions) "Cancel permission edit" else "Edit permissions") }
             if (editPermissions) {
-                seerrPermissionGroups.forEach { entry ->
-                    PermissionCheckbox(entry, selectedPermissions, null) { selectedPermissions = it }
+                contextError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                permissionContext?.let { context ->
+                    seerrPermissionGroups.forEach { entry ->
+                        PermissionCheckbox(entry, selectedPermissions, null, context, details.id) { selectedPermissions = it }
+                    }
                 }
-                Button(onClick = { confirmation = "permissions" }, enabled = !saving) {
+                Button(onClick = { confirmation = "permissions" }, enabled = !saving && permissionContext != null && details.id != 1) {
                     Text("Review permission change")
                 }
             }
