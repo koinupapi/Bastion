@@ -125,7 +125,7 @@ private fun BastionApp() {
         var selectedMediaId by remember { mutableStateOf<String?>(null) }
         var seerrTab by remember(selectedMediaId) { mutableIntStateOf(0) }
         val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
-        val seerrMediaCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrMediaDetails>() }
+        val seerrMediaCache = remember { mutableStateMapOf<String, SeerrMediaDetails>() }
         val seerrScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.lazy.LazyListState>() }
         val seerrCarouselScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.ScrollState>() }
         val seerrDiscoverCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrDiscoverResult>() }
@@ -1680,7 +1680,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
     var showRequestSheet by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
     var requestSubmitted by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
     var showIssueSheet by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
-    val cacheKey = "${request.tmdbId}-${request.isTv}"
+    val cacheKey = "${instance.id}-${request.tmdbId}-${request.isTv}"
     fun protectConfirmedSeasons(numbers: List<Int>) {
         val current = cache[cacheKey] ?: return
         val protected = numbers.toSet()
