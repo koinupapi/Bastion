@@ -81,14 +81,33 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
                     val mayEdit = userLookupComplete && canCreate && ownComment && comment.id > 0
                     val mayDelete = userLookupComplete && canCreate &&
                         (ownComment || canManage) && comment.id > 0
+                    // Only verified user IDs determine ownership. API-key connections
+                    // may not resolve to a specific user, so keep those bubbles neutral.
+                    val isMine = ownComment && comment.userId > 0
+                    Row(Modifier.fillMaxWidth(),
+                        horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start) {
                     Surface(shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                        Column(Modifier.fillMaxWidth().padding(14.dp),
+                        modifier = Modifier.fillMaxWidth(0.88f),
+                        color = if (isMine) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerHigh) {
+                        Column(Modifier.padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(comment.author + if (index == 0) " • Original report" else "",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary)
-                            Text(comment.message, style = MaterialTheme.typography.bodyMedium)
+                            Text(buildString {
+                                append(comment.author)
+                                if (index == 0) append(" • Original report")
+                                if (isMine) append(" • You")
+                            }, style = MaterialTheme.typography.labelMedium,
+                                color = if (isMine) MaterialTheme.colorScheme.onPrimaryContainer
+                                    else MaterialTheme.colorScheme.primary)
+                            Text(comment.message, style = MaterialTheme.typography.bodyMedium,
+                                color = if (isMine) MaterialTheme.colorScheme.onPrimaryContainer
+                                    else MaterialTheme.colorScheme.onSurface)
+                            if (comment.createdAt.isNotBlank()) {
+                                Text(comment.createdAt.replace("T", " ").take(16),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isMine) MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                             if (mayEdit || mayDelete) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (mayEdit) TextButton(enabled = !busy, onClick = {
@@ -108,6 +127,7 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
                                 }
                             }
                         }
+                    }
                     }
                 }
             }
