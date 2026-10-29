@@ -28,9 +28,11 @@ fun BastionUpdateSettings() {
     var channelMessage by remember { mutableStateOf<String?>(null) }
     var downloading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    val version = remember {
-        context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode
+    val packageInfo = remember {
+        context.packageManager.getPackageInfo(context.packageName, 0)
     }
+    val version = packageInfo.longVersionCode
+    val versionName = packageInfo.versionName ?: "Unknown"
     fun check() {
         if (checking || downloading) return
         scope.launch {
@@ -69,7 +71,8 @@ fun BastionUpdateSettings() {
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("Bastion updates", style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold)
-            Text("Installed build $version",
+            Text("Version $versionName", style = MaterialTheme.typography.titleMedium)
+            Text("Build number $version",
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Signed APK updates are published to GitHub Releases. Android will ask you to confirm installation.",
                 style = MaterialTheme.typography.bodyMedium)
