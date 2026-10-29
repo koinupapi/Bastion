@@ -53,7 +53,10 @@ fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
         OutlinedButton(onClick = { showCreate = !showCreate }) {
             Text(if (showCreate) "Close new user form" else "Create local user")
         }
-        if (showCreate) SeerrCreateLocalUserSettings(instance)
+        if (showCreate) SeerrCreateLocalUserSettings(instance, onUserCreated = {
+            page = 0
+            refresh++
+        })
         OutlinedButton(onClick = {
             showPlex = !showPlex
             if (showPlex) {
