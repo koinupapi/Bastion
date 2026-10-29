@@ -406,22 +406,15 @@ object SeerrClient {
         }
         val defaultPermissions = defaults.getInt("defaultPermissions")
         require(defaultPermissions >= 0) { "Invalid default permissions from Seerr" }
+        // Seerr accepts an explicit password at creation time. Omitting it
+        // requires the email notification agent to be enabled.
         val created = api(config, "/api/v1/user", JSONObject()
             .put("email", email.trim())
             .put("username", username.trim())
+            .put("password", password)
             .put("permissions", defaultPermissions))
         val id = created.optInt("id", 0)
         require(id > 0) { "Seerr did not return a user ID; check the Seerr user list" }
-        try {
-            api(config, "/api/v1/user/$id/settings/password", JSONObject()
-                .put("currentPassword", JSONObject.NULL)
-                .put("newPassword", password))
-        } catch (error: Exception) {
-            throw IllegalStateException(
-                "User was created (ID $id), but setting their password failed. " +
-                "Set the password in Seerr before sharing the account. " +
-                (error.message ?: ""), error)
-        }
         id
     }
 
