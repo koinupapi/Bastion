@@ -214,7 +214,9 @@ object SeerrClient {
             ?: if (serverId == null) options.singleOrNull() else null
         val resolvedProfileId = profileId ?: server?.defaultProfile?.takeIf { it > 0 }
         val profile = server?.profiles?.firstOrNull { it.id == resolvedProfileId }
-        val defaultRoot = server?.roots?.firstOrNull { it.id == server.defaultRoot }
+        val defaultRoot = server?.let { configured ->
+            configured.roots.firstOrNull { it.id == configured.defaultRoot }
+        }
         val root = server?.roots?.firstOrNull {
             it.name == rootFolder || it.id.toString() == rootFolder
         } ?: if (rootFolder == null) defaultRoot else null
