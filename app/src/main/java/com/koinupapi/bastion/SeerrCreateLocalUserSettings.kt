@@ -37,7 +37,7 @@ fun SeerrCreateLocalUserSettings(instance: ServiceConfig) {
                 label = { Text("Initial password (8+ characters)") },
                 visualTransformation = PasswordVisualTransformation(),
                 singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !busy)
-            Text("Permissions: Request media (no administrator privileges).",
+            Text("Permissions: Uses this Seerr server\u0027s configured default permissions.",
                 style = MaterialTheme.typography.bodySmall)
             Button(
                 onClick = {
