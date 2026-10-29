@@ -1049,6 +1049,21 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     val sections = remember { listOf("Trending", "Popular Movies", "Popular TV Shows",
         "Upcoming Movies", "Upcoming TV Shows") }
     var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
+    var searching by remember(instance.id) { mutableStateOf(false) }
+    var query by remember(instance.id) { mutableStateOf("") }
+    var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
+    var searchLoading by remember(instance.id) { mutableStateOf(false) }
+    LaunchedEffect(instance, searching, query) {
+        if (!searching || query.trim().length < 2) {
+            searchResult = null
+            searchLoading = false
+        } else {
+            searchLoading = true
+            kotlinx.coroutines.delay(350)
+            searchResult = SeerrClient.discover(instance, "Search", query)
+            searchLoading = false
+        }
+    }
     LaunchedEffect(instance) {
         kotlinx.coroutines.coroutineScope {
             sections.filter { it !in results }.forEach { section ->
@@ -1060,8 +1075,77 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Text("Discover", modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("Discover", modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold)
+            IconButton(onClick = {
+                searching = !searching
+                if (!searching) query = ""
+            }) {
+                Icon(if (searching) Icons.Default.Close else Icons.Default.Search,
+                    contentDescription = if (searching) "Close search" else "Search movies and TV")
+            }
+        }
+        AnimatedVisibility(visible = searching, enter = fadeIn(), exit = fadeOut()) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(value = query, onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    shape = RoundedCornerShape(28.dp),
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = if (query.isNotEmpty()) {
+                        { IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                        } }
+                    } else null,
+                    placeholder = { Text("Search movies and TV shows") })
+                if (query.trim().length < 2) {
+                    Text("Enter at least two characters to search Seerr.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else if (searchLoading) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                } else if (searchResult?.error != null) {
+                    Text(searchResult?.error.orEmpty(), color = MaterialTheme.colorScheme.error)
+                } else if (searchResult != null && searchResult?.items.isNullOrEmpty()) {
+                    Text("No matching movies or TV shows.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    searchResult?.items?.take(20)?.forEach { title ->
+                        Row(Modifier.fillMaxWidth().clickable {
+                            onMediaClick(SeerrRecentRequest(title = title.title, status = "",
+                                posterUrl = title.posterUrl, year = title.year,
+                                requestedBy = null, isTv = title.isTv, tmdbId = title.tmdbId))
+                        }.padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Surface(shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.size(width = 58.dp, height = 86.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                if (title.posterUrl != null)
+                                    AsyncImage(model = title.posterUrl,
+                                        contentDescription = title.title,
+                                        contentScale = ContentScale.Crop)
+                                else Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Movie, contentDescription = null)
+                                }
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Text(title.title, style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold)
+                                Text(listOf(if (title.isTv) "TV series" else "Movie",
+                                    title.year).filter { it.isNotBlank() }.joinToString(" • "),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodySmall)
+                            }
+                            Icon(Icons.Default.ChevronRight, contentDescription = null)
+                        }
+                    }
+                }
+            }
+        }
+        if (!searching) {
         Text("Find something worth watching", modifier = Modifier.padding(horizontal = 16.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium)
@@ -1157,6 +1241,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     }
                 }
             }
+        }
         }
     }
 }
