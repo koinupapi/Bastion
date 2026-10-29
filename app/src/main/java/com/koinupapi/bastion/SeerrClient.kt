@@ -398,7 +398,7 @@ object SeerrClient {
         require(plexIds.isNotEmpty()) { "Select at least one Plex user" }
         val result = api(config, "/api/v1/user/import-from-plex",
             JSONObject().put("plexIds", JSONArray(plexIds)))
-        result.getJSONArray("results").length()
+        result.getJSONArray("createdUsers").length()
     }
 
     suspend fun createLocalUser(config: ServiceConfig, email: String,
