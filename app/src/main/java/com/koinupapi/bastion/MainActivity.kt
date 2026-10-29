@@ -1707,7 +1707,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                     val confirmed = previous?.tvSeasons?.firstOrNull { it.number == season.number }
                     if (confirmed?.status in listOf(2, 3, 4, 5) &&
                         season.status !in listOf(2, 3, 4, 5))
-                        season.copy(status = confirmed.status) else season
+                        season.copy(status = confirmed!!.status) else season
                 })
             }
         }
