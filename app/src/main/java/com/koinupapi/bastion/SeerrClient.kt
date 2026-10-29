@@ -802,7 +802,7 @@ object SeerrClient {
                         }.orEmpty()
                         SeerrRecentRequest(title, status, posterUrl, year, requestedBy,
                             overview, releaseDate.takeIf { it.isNotBlank() }, type == "tv", seasons, id,
-                            request.optInt("id"), requestStatus)
+                            request.optInt("id"), requestStatus, mediaStatus)
                     }
                     return@withContext SeerrRecentResult(config.name, total.coerceAtLeast(requests.size), requests, null)
                 } catch (e: Exception) {
@@ -819,7 +819,8 @@ data class SeerrRecentRequest(
     val overview: String? = null, val releaseDate: String? = null,
     val isTv: Boolean = false, val seasons: List<Int> = emptyList(),
     val tmdbId: Int = 0,
-    val requestId: Int = 0, val requestStatus: String = ""
+    val requestId: Int = 0, val requestStatus: String = "",
+    val mediaStatus: String? = null
 )
 data class SeerrRecentResult(
     val instance: String, val total: Int, val requests: List<SeerrRecentRequest>, val error: String?
