@@ -39,7 +39,7 @@ fun SeerrRequestManagementSheet(
         shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("Manage request", style = MaterialTheme.typography.headlineSmall,
+            Text(if (canManage == true) "Manage request" else "Request details", style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold)
             Text(request.title, style = MaterialTheme.typography.titleLarge)
             Text("Request #${request.requestId} • ${request.requestStatus}",
