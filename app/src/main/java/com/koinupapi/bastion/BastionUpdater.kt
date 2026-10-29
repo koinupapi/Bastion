@@ -18,6 +18,7 @@ data class BastionUpdate(val versionCode: Int, val url: String, val digest: Stri
 
 object BastionUpdater {
     private const val RELEASES = "https://api.github.com/repos/koinupapi/Bastion/releases?per_page=100"
+    private const val DEV_RELEASES = "https://api.github.com/repos/koinupapi/bastion-dev-builds/releases?per_page=100"
 
     private fun githubError(conn: HttpURLConnection): String {
         val code = conn.responseCode
@@ -40,7 +41,7 @@ object BastionUpdater {
             context.packageManager.getPackageInfo(context.packageName,
                 android.content.pm.PackageManager.PackageInfoFlags.of(0)).longVersionCode
         else @Suppress("DEPRECATION") context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode
-        val conn = URL(RELEASES).openConnection() as HttpURLConnection
+        val conn = URL(if (branch == "main") RELEASES else DEV_RELEASES).openConnection() as HttpURLConnection
         try {
             conn.connectTimeout = 8000
             conn.readTimeout = 12000
@@ -55,6 +56,7 @@ object BastionUpdater {
                     ?.groupValues?.get(1)?.toIntOrNull() ?: return@mapNotNull null
                 if (version <= installed) return@mapNotNull null
                 val tag = release.optString("tag_name")
+                if (branch != "main" && !tag.startsWith("build-")) return@mapNotNull null
                 if (tag.startsWith("build-")) {
                     val releaseBranch = release.optString("body").lineSequence()
                         .firstOrNull { it.startsWith("Branch: ") }?.removePrefix("Branch: ")?.trim()
@@ -72,7 +74,7 @@ object BastionUpdater {
     }
 
     suspend fun releaseDiagnostics(branch: String): String = withContext(Dispatchers.IO) {
-        val conn = URL(RELEASES).openConnection() as HttpURLConnection
+        val conn = URL(if (branch == "main") RELEASES else DEV_RELEASES).openConnection() as HttpURLConnection
         try {
             conn.connectTimeout = 8000
             conn.readTimeout = 12000
