@@ -23,12 +23,14 @@ fun SeerrRequestManagementSheet(
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var canManage by remember(instance.id) { mutableStateOf<Boolean?>(null) }
     var approvalDetails by remember(instance.id, request.requestId) {
         mutableStateOf<Result<SeerrApprovalDetails>?>(null)
     }
     LaunchedEffect(instance, request.requestId, request.isTv) {
         approvalDetails = null
-        if (request.requestStatus == "Pending") {
+        canManage = SeerrClient.canManageRequests(instance).getOrDefault(false)
+        if (request.requestStatus == "Pending" && canManage == true) {
             approvalDetails = SeerrClient.requestApprovalDetails(instance, request.requestId, request.isTv)
         }
     }
@@ -45,7 +47,10 @@ fun SeerrRequestManagementSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (request.isTv && request.seasons.isNotEmpty())
                 Text("Seasons: ${request.seasons.joinToString(", ")}")
-            if (request.requestStatus == "Pending") {
+            if (canManage == null) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (canManage == false) Text("Request management actions are unavailable for this account.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (request.requestStatus == "Pending" && canManage == true) {
                 HorizontalDivider()
                 Text("Approval destination", style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold)
@@ -99,7 +104,7 @@ fun SeerrRequestManagementSheet(
                     Text("Decline request")
                 }
             }
-            if (request.requestStatus == "Failed") {
+            if (request.requestStatus == "Failed" && canManage == true) {
                 Button(onClick = {
                     busy = true
                     error = null
@@ -115,14 +120,14 @@ fun SeerrRequestManagementSheet(
                     Text("Retry request")
                 }
             }
-            if (!confirmDelete) {
+            if (canManage == true && !confirmDelete) {
                 TextButton(onClick = { confirmDelete = true }, enabled = !busy,
                     modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.DeleteOutline, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("Remove request", color = MaterialTheme.colorScheme.error)
                 }
-            } else {
+            } else if (canManage == true) {
                 Text("Remove this request from Seerr? This does not remove files from your media library.",
                     color = MaterialTheme.colorScheme.error)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
