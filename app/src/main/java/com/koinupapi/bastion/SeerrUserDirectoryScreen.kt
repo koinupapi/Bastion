@@ -1,6 +1,7 @@
 package com.koinupapi.bastion
 
 import androidx.compose.foundation.layout.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -13,6 +14,12 @@ import androidx.compose.ui.unit.dp
 /** Seerr server users; no account modifications are performed on this screen. */
 @Composable
 fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
+    var selectedUser by remember(instance.id) { mutableStateOf<Int?>(null) }
+    BackHandler(selectedUser != null) { selectedUser = null }
+    if (selectedUser != null) {
+        SeerrAdminUserDetailsScreen(instance, selectedUser!!, onBack = { selectedUser = null })
+        return
+    }
     var page by remember(instance.id) { mutableIntStateOf(0) }
     var refresh by remember(instance.id) { mutableIntStateOf(0) }
     var directory by remember(instance.id) { mutableStateOf<SeerrUserDirectory?>(null) }
@@ -39,7 +46,7 @@ fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
         directory?.let { data ->
             Text("${data.total} users", style = MaterialTheme.typography.titleMedium)
             data.users.forEach { user ->
-                ElevatedCard(Modifier.fillMaxWidth()) {
+                ElevatedCard(onClick = { selectedUser = user.id }, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(user.displayName.ifBlank { user.username.ifBlank { "User #${user.id}" } },
                             style = MaterialTheme.typography.titleMedium)
