@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 @Composable
-fun SeerrCreateLocalUserSettings(instance: ServiceConfig) {
+fun SeerrCreateLocalUserSettings(instance: ServiceConfig, onUserCreated: (Int) -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var email by remember(instance.id) { mutableStateOf("") }
     var username by remember(instance.id) { mutableStateOf("") }
@@ -48,6 +48,7 @@ fun SeerrCreateLocalUserSettings(instance: ServiceConfig) {
                             .onSuccess {
                                 message = "User created successfully (ID $it)."
                                 succeeded = true
+                                onUserCreated(it)
                                 email = ""
                                 username = ""
                                 password = ""
