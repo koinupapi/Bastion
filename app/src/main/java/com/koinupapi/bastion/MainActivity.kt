@@ -1325,6 +1325,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     var sortOrder by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("added") }
     var sortDirection by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("desc") }
     var result by remember(instance.id) { mutableStateOf<SeerrRecentResult?>(null) }
+    var counts by remember(instance.id) { mutableStateOf<SeerrRequestCounts?>(null) }
     var loading by remember(instance.id) { mutableStateOf(false) }
     var refresh by remember(instance.id) { mutableIntStateOf(0) }
     var managingRequest by remember(instance.id) { mutableStateOf<SeerrRecentRequest?>(null) }
@@ -1342,6 +1343,9 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
         result = SeerrClient.requestPage(instance, pageSize, page * pageSize, filter,
             mediaType, sortOrder, sortDirection)
         loading = false
+    }
+    LaunchedEffect(instance, destination, refresh) {
+        if (destination == 1) counts = SeerrClient.requestCounts(instance).getOrNull()
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (destination == 0) {
@@ -1440,6 +1444,14 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
                 }
             }
         }
+        counts?.let { summary ->
+            Text("Total ${summary.total}  ·  Pending ${summary.pending}  ·  Approved ${summary.approved}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Processing ${summary.processing}  ·  Available ${summary.available}  ·  Completed ${summary.completed}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         val requestFilters = listOf("All", "Pending", "Approved")
         val filterInteractions = remember { List(3) { MutableInteractionSource() } }
         val filterPressed = filterInteractions.map { it.collectIsPressedAsState().value }
@@ -1473,6 +1485,25 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
                             Spacer(Modifier.width(5.dp))
                         }
                         Text(option, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Additional statuses", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            var extraExpanded by remember { mutableStateOf(false) }
+            Box {
+                OutlinedButton(onClick = { extraExpanded = true }) {
+                    Text(if (filter in listOf("All", "Pending", "Approved")) "Choose status" else filter)
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                }
+                DropdownMenu(expanded = extraExpanded, onDismissRequest = { extraExpanded = false }) {
+                    listOf("Available", "Processing", "Unavailable", "Failed", "Deleted", "Completed").forEach { status ->
+                        DropdownMenuItem(text = { Text(status) }, onClick = {
+                            filter = status; page = 0; extraExpanded = false
+                        })
                     }
                 }
             }
