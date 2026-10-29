@@ -142,6 +142,10 @@ private fun BastionApp() {
         var localUrl by remember { mutableStateOf("") }
         var remoteUrl by remember { mutableStateOf("") }
         var apiKey by remember { mutableStateOf("") }
+        var seerrAuthMethod by remember { mutableStateOf("API key") }
+        var loginEmail by remember { mutableStateOf("") }
+        var loginPassword by remember { mutableStateOf("") }
+        var loggingIn by remember { mutableStateOf(false) }
         var connectionMode by remember { mutableStateOf("Automatic") }
         var testResult by remember { mutableStateOf("") }
         var isTesting by remember { mutableStateOf(false) }
@@ -154,6 +158,9 @@ private fun BastionApp() {
             localUrl = config?.localUrl.orEmpty()
             remoteUrl = config?.remoteUrl.orEmpty()
             apiKey = config?.apiKey.orEmpty()
+            seerrAuthMethod = if (apiKey.startsWith("session:")) "Local user" else "API key"
+            loginEmail = ""
+            loginPassword = ""
             connectionMode = config?.mode ?: "Automatic"
             testResult = ""
         }
@@ -616,10 +623,55 @@ private fun BastionApp() {
                                                         label = { Text("Remote URL (HTTPS)") },
                                                         placeholder = { Text("https://seerr.example.com") },
                                                         modifier = Modifier.fillMaxWidth(), singleLine = true)
-                                                    OutlinedTextField(value = apiKey, onValueChange = { apiKey = it },
-                                                        label = { Text("Seerr API key") },
-                                                        visualTransformation = PasswordVisualTransformation(),
-                                                        modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                                    Text("Authentication", style = MaterialTheme.typography.titleMedium)
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                        listOf("API key", "Local user").forEach { method ->
+                                                            FilterChip(selected = seerrAuthMethod == method,
+                                                                onClick = {
+                                                                    if (seerrAuthMethod != method) {
+                                                                        seerrAuthMethod = method
+                                                                        apiKey = ""
+                                                                        testResult = ""
+                                                                    }
+                                                                }, label = { Text(method) })
+                                                        }
+                                                    }
+                                                    if (seerrAuthMethod == "API key") {
+                                                        OutlinedTextField(value = apiKey, onValueChange = { apiKey = it },
+                                                            label = { Text("Seerr API key") },
+                                                            visualTransformation = PasswordVisualTransformation(),
+                                                            modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                                    } else {
+                                                        Text("Sign in with a local Seerr account. Only the encrypted session is saved.",
+                                                            style = MaterialTheme.typography.bodySmall)
+                                                        OutlinedTextField(value = loginEmail, onValueChange = { loginEmail = it },
+                                                            label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                                        OutlinedTextField(value = loginPassword, onValueChange = { loginPassword = it },
+                                                            label = { Text("Password") },
+                                                            visualTransformation = PasswordVisualTransformation(),
+                                                            modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                                        OutlinedButton(enabled = !loggingIn && loginEmail.isNotBlank() &&
+                                                            loginPassword.isNotBlank() && (localUrl.isNotBlank() || remoteUrl.isNotBlank()),
+                                                            onClick = {
+                                                                loggingIn = true
+                                                                testResult = "Signing in…"
+                                                                scope.launch {
+                                                                    SeerrClient.loginLocal(localUrl.trim(), remoteUrl.trim(),
+                                                                        connectionMode, loginEmail, loginPassword)
+                                                                        .onSuccess {
+                                                                            apiKey = it.first
+                                                                            testResult = "Signed in via " + it.second + ". Save the connection."
+                                                                        }.onFailure {
+                                                                            apiKey = ""
+                                                                            testResult = it.message ?: "Sign-in failed"
+                                                                        }
+                                                                    loginPassword = ""
+                                                                    loggingIn = false
+                                                                }
+                                                            }, modifier = Modifier.fillMaxWidth()) {
+                                                            Text(if (loggingIn) "Signing in…" else "Sign in to Seerr")
+                                                        }
+                                                    }
                                                     Text("Connection preference", style = MaterialTheme.typography.titleMedium)
                                                     listOf("Automatic", "Local only", "Remote only").forEach { mode ->
                                                         Row(verticalAlignment = Alignment.CenterVertically,
@@ -638,7 +690,7 @@ private fun BastionApp() {
                                                         (remoteUrl.isBlank() || remoteUrl.startsWith("https://")) &&
                                                         (connectionMode != "Local only" || localUrl.isNotBlank()) &&
                                                         (connectionMode != "Remote only" || remoteUrl.isNotBlank())
-                                                    OutlinedButton(enabled = valid && !isTesting,
+                                                    OutlinedButton(enabled = valid && !isTesting && seerrAuthMethod == "API key",
                                                         onClick = {
                                                             isTesting = true
                                                             testResult = "Connecting…"
