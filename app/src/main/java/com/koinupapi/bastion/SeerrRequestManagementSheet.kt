@@ -23,6 +23,15 @@ fun SeerrRequestManagementSheet(
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var approvalDetails by remember(instance.id, request.requestId) {
+        mutableStateOf<Result<SeerrApprovalDetails>?>(null)
+    }
+    LaunchedEffect(instance, request.requestId, request.isTv) {
+        approvalDetails = null
+        if (request.requestStatus == "Pending") {
+            approvalDetails = SeerrClient.requestApprovalDetails(instance, request.requestId, request.isTv)
+        }
+    }
     ModalBottomSheet(onDismissRequest = { if (!busy) onDismiss() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) {
@@ -37,6 +46,32 @@ fun SeerrRequestManagementSheet(
             if (request.isTv && request.seasons.isNotEmpty())
                 Text("Seasons: ${request.seasons.joinToString(", ")}")
             if (request.requestStatus == "Pending") {
+                HorizontalDivider()
+                Text("Approval destination", style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold)
+                when (val details = approvalDetails) {
+                    null -> LinearProgressIndicator(Modifier.fillMaxWidth())
+                    else -> details.fold(
+                        onSuccess = { destination ->
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Server: " + (destination.server ?: "Not specified by request"))
+                                Text("Quality profile: " + (destination.profile ?: "Not specified by request"))
+                                Text("Root folder: " + (destination.rootFolder ?: "Not specified by request"))
+                                if (!destination.hasServer || !destination.hasProfile || !destination.hasRoot) {
+                                    Text("Some settings are missing from the request. Check Seerr before approving.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        },
+                        onFailure = { failure ->
+                            Text("Unable to load approval settings: " +
+                                (failure.message ?: "Unknown error") +
+                                ". Check Seerr before approving.",
+                                color = MaterialTheme.colorScheme.error)
+                        }
+                    )
+                }
                 Button(onClick = {
                     busy = true
                     error = null
@@ -46,7 +81,7 @@ fun SeerrRequestManagementSheet(
                             .onFailure { error = it.message ?: "Approval failed" }
                         busy = false
                     }
-                }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                }, enabled = !busy && approvalDetails?.isSuccess == true, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("Approve request")
