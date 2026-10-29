@@ -504,6 +504,14 @@ private fun BastionApp() {
                                             openSettingsPage("Add service")
                                         }
                                     }
+                                    if (savedInstances.any { it.type == "Seerr" }) {
+                                        item {
+                                            SettingsEntry("Create Seerr user", "Add a local account to Seerr",
+                                                Icons.Default.PersonAdd) {
+                                                openSettingsPage("Create Seerr user")
+                                            }
+                                        }
+                                    }
                                     item { SectionTitle("Your services") }
                                     if (savedInstances.isEmpty()) {
                                         item {
@@ -537,6 +545,16 @@ private fun BastionApp() {
                                                     }
                                                 }
                                             }
+                                        }
+                                    }
+                                }
+                                "Create Seerr user" -> {
+                                    val seerrInstances = savedInstances.filter { it.type == "Seerr" }
+                                    if (seerrInstances.isEmpty()) {
+                                        item { Text("Configure a Seerr service first.") }
+                                    } else {
+                                        seerrInstances.forEach { seerr ->
+                                            item { SeerrCreateLocalUserSettings(seerr) }
                                         }
                                     }
                                 }
