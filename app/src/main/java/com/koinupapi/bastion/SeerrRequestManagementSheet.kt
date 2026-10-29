@@ -29,6 +29,23 @@ fun SeerrRequestManagementSheet(
     var error by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
     var canManage by remember(instance.id) { mutableStateOf<Boolean?>(null) }
+    var servers by remember(instance.id, request.requestId) { mutableStateOf<List<SeerrRequestServer>>(emptyList()) }
+    var destinationLoading by remember(instance.id, request.requestId) { mutableStateOf(false) }
+    var destinationError by remember(instance.id, request.requestId) { mutableStateOf<String?>(null) }
+    var selectedServer by remember(instance.id, request.requestId) { mutableIntStateOf(0) }
+    var selectedProfile by remember(instance.id, request.requestId) { mutableIntStateOf(0) }
+    var selectedRoot by remember(instance.id, request.requestId) { mutableStateOf("") }
+    var originalServer by remember(instance.id, request.requestId) { mutableIntStateOf(0) }
+    var originalProfile by remember(instance.id, request.requestId) { mutableIntStateOf(0) }
+    var originalRoot by remember(instance.id, request.requestId) { mutableStateOf("") }
+    var savedMessage by remember(instance.id, request.requestId) { mutableStateOf<String?>(null) }
+    val activeServer = servers.firstOrNull { it.id == selectedServer }
+    val destinationChanged = selectedServer != originalServer ||
+        selectedProfile != originalProfile || selectedRoot != originalRoot
+    val serverValid = activeServer != null
+    val profileValid = activeServer?.profiles?.any { it.id == selectedProfile } == true
+    val rootValid = activeServer?.roots?.any { it.name == selectedRoot } == true
+    val validDestination = serverValid && profileValid && rootValid
     var approvalDetails by remember(instance.id, request.requestId) {
         mutableStateOf<Result<SeerrApprovalDetails>?>(null)
     }
@@ -37,6 +54,34 @@ fun SeerrRequestManagementSheet(
         canManage = SeerrClient.canManageRequests(instance).getOrDefault(false)
         if (canManage == true) {
             approvalDetails = SeerrClient.requestApprovalDetails(instance, request.requestId, request.isTv)
+            if (request.requestStatus == "Pending") {
+                destinationLoading = true
+                val choices = SeerrClient.requestOptions(instance, request.isTv)
+                val existing = SeerrClient.editableRequestDestination(instance, request.requestId)
+                if (choices.isSuccess && existing.isSuccess) {
+                    servers = choices.getOrThrow()
+                    val original = existing.getOrThrow()
+                    originalServer = original.serverId
+                    originalProfile = original.profileId
+                    originalRoot = original.rootFolder
+                    val configured = servers.firstOrNull { it.id == original.serverId }
+                        ?: servers.singleOrNull()
+                    selectedServer = configured?.id ?: original.serverId
+                    selectedProfile = original.profileId.takeIf { id ->
+                        configured?.profiles?.any { it.id == id } == true
+                    } ?: configured?.defaultProfile?.takeIf { id ->
+                        configured.profiles.any { it.id == id }
+                    } ?: configured?.profiles?.firstOrNull()?.id ?: 0
+                    selectedRoot = original.rootFolder.takeIf { root ->
+                        configured?.roots?.any { it.name == root } == true
+                    } ?: configured?.roots?.firstOrNull { it.id == configured.defaultRoot }?.name
+                        ?: configured?.roots?.firstOrNull()?.name.orEmpty()
+                } else {
+                    destinationError = choices.exceptionOrNull()?.message
+                        ?: existing.exceptionOrNull()?.message ?: "Cannot load destination options."
+                }
+                destinationLoading = false
+            }
         }
     }
     ModalBottomSheet(onDismissRequest = { if (!busy) onDismiss() },
@@ -151,6 +196,80 @@ fun SeerrRequestManagementSheet(
                 }
             }
             if (request.requestStatus == "Pending" && canManage == true) {
+                HorizontalDivider()
+                Text("EDIT DESTINATION", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (destinationLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                destinationError?.let {
+                    Text("Destination editing unavailable: $it", color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                if (!destinationLoading && destinationError == null) {
+                    RequestDestinationSelector("Sonarr/Radarr instance",
+                        servers.map { it.id.toString() to it.name },
+                        selectedServer.toString(), !busy) { value ->
+                        selectedServer = value.toInt()
+                        val server = servers.first { it.id == selectedServer }
+                        selectedProfile = server.defaultProfile.takeIf { id ->
+                            server.profiles.any { it.id == id }
+                        } ?: server.profiles.firstOrNull()?.id ?: 0
+                        selectedRoot = server.roots.firstOrNull { it.id == server.defaultRoot }?.name
+                            ?: server.roots.firstOrNull()?.name.orEmpty()
+                        savedMessage = null
+                    }
+                    RequestDestinationSelector("Quality profile",
+                        activeServer?.profiles?.map { it.id.toString() to it.name }.orEmpty(),
+                        selectedProfile.toString(), !busy) {
+                        selectedProfile = it.toInt()
+                        savedMessage = null
+                    }
+                    RequestDestinationSelector("Root folder",
+                        activeServer?.roots?.map { it.name to it.name }.orEmpty(),
+                        selectedRoot, !busy) {
+                        selectedRoot = it
+                        savedMessage = null
+                    }
+                    if (!validDestination) {
+                        val missing = buildList {
+                            if (!serverValid) add("instance")
+                            if (!profileValid) add("quality profile")
+                            if (!rootValid) add("root folder")
+                        }
+                        Text("Invalid selection: ${missing.joinToString(", ")}. Choose an option from each dropdown.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error)
+                    }
+                    if (!destinationChanged && validDestination) Text(
+                        "No destination changes to save.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    savedMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+                    OutlinedButton(onClick = {
+                        busy = true
+                        error = null
+                        savedMessage = null
+                        scope.launch {
+                            SeerrClient.updateRequestDestination(instance, request.requestId,
+                                request.isTv, selectedServer, selectedProfile, selectedRoot)
+                                .onSuccess {
+                                    originalServer = selectedServer
+                                    originalProfile = selectedProfile
+                                    originalRoot = selectedRoot
+                                    approvalDetails = SeerrClient.requestApprovalDetails(
+                                        instance, request.requestId, request.isTv)
+                                    savedMessage = "Destination saved and verified. You can now approve."
+                                    onChanged()
+                                }
+                                .onFailure { error = it.message ?: "Could not save destination" }
+                            busy = false
+                        }
+                    }, enabled = !busy && validDestination && destinationChanged,
+                        modifier = Modifier.fillMaxWidth()) {
+                        Text("Save destination changes")
+                    }
+                }
+            }
+            if (request.requestStatus == "Pending" && canManage == true) {
                 Button(onClick = {
                     busy = true
                     error = null
@@ -160,7 +279,9 @@ fun SeerrRequestManagementSheet(
                             .onFailure { error = it.message ?: "Approval failed" }
                         busy = false
                     }
-                }, enabled = !busy && approvalDetails?.isSuccess == true, modifier = Modifier.fillMaxWidth()) {
+                }, enabled = !busy && approvalDetails?.isSuccess == true && !destinationLoading &&
+                    destinationError == null && !destinationChanged && validDestination,
+                    modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("Approve request")
@@ -221,6 +342,32 @@ fun SeerrRequestManagementSheet(
             }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        }
+    }
+}
+
+@Composable
+private fun RequestDestinationSelector(label: String, options: List<Pair<String, String>>,
+    selected: String, enabled: Boolean, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val display = options.firstOrNull { it.first == selected }?.second ?: "Select…"
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        Box {
+            OutlinedButton(onClick = { expanded = true },
+                enabled = enabled && options.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+                Text(display, maxLines = 2)
+                Spacer(Modifier.weight(1f))
+                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { (id, name) ->
+                    DropdownMenuItem(text = { Text(name) }, onClick = {
+                        expanded = false
+                        onSelect(id)
+                    })
+                }
+            }
         }
     }
 }

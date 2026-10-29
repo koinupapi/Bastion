@@ -232,6 +232,65 @@ object SeerrClient {
         )
     }
 
+    /** Load editable destination from the actual request; never rely on list defaults. */
+    suspend fun editableRequestDestination(config: ServiceConfig, requestId: Int):
+        Result<SeerrEditableDestination> = runCatching {
+        require(requestId > 0) { "Invalid request" }
+        val request = api(config, "/api/v1/request/$requestId")
+        require(request.optInt("status") == 1) { "Only pending requests can be edited." }
+        SeerrEditableDestination(
+            serverId = request.optInt("serverId", 0),
+            profileId = request.optInt("profileId", 0),
+            rootFolder = request.optString("rootFolder"),
+            is4k = request.optBoolean("is4k", false)
+        )
+    }
+
+    /** Update an existing pending request in-place and read it back before reporting success.
+     * TV updates MUST include original seasons; otherwise Seerr rejects or alters the request.
+     * No automatic approval or duplicate request creation is performed here.
+     */
+    suspend fun updateRequestDestination(config: ServiceConfig, requestId: Int,
+        isTv: Boolean, serverId: Int, profileId: Int, rootFolder: String): Result<Unit> = runCatching {
+        // Seerr instance/profile IDs may legitimately be zero. The UI validates
+        // selections against the options returned by Seerr; do not reject ID 0.
+        require(requestId > 0 && serverId >= 0 && profileId >= 0 && rootFolder.isNotBlank()) {
+            "Choose a valid instance, quality profile and root folder."
+        }
+        require(canManageRequests(config).getOrThrow()) { "No request-management permission." }
+        val current = api(config, "/api/v1/request/$requestId")
+        require(current.optInt("status") == 1) { "Request is no longer pending. Refresh the request." }
+        val body = JSONObject()
+            .put("mediaType", if (isTv) "tv" else "movie")
+            .put("serverId", serverId)
+            .put("profileId", profileId)
+            .put("rootFolder", rootFolder)
+            .put("is4k", current.optBoolean("is4k", false))
+        if (current.has("tags") && !current.isNull("tags")) body.put("tags", current.get("tags"))
+        if (isTv) {
+            val original = current.optJSONArray("seasons") ?: error("TV request has no seasons; cannot safely edit.")
+            val seasons = JSONArray()
+            for (i in 0 until original.length()) {
+                val season = original.optJSONObject(i)
+                val number = season?.optInt("seasonNumber", -1) ?: original.optInt(i, -1)
+                require(number >= 0) { "Invalid TV season data; edit in Seerr instead." }
+                seasons.put(number)
+            }
+            require(seasons.length() > 0) { "TV request has no seasons; cannot safely edit." }
+            body.put("seasons", seasons)
+            if (current.has("languageProfileId") && !current.isNull("languageProfileId"))
+                body.put("languageProfileId", current.get("languageProfileId"))
+        }
+        api(config, "/api/v1/request/$requestId", body, "PUT")
+        val verified = api(config, "/api/v1/request/$requestId")
+        require(verified.optInt("serverId") == serverId &&
+            verified.optInt("profileId") == profileId &&
+            verified.optString("rootFolder") == rootFolder) {
+            "Seerr accepted the edit, but destination verification failed. Check the request before approving."
+        }
+        Unit
+    }
+
     /** Create a local Seerr user and set their initial password. No password is persisted. */
     suspend fun createLocalUser(config: ServiceConfig, email: String,
         username: String, password: String): Result<Int> = runCatching {
@@ -912,4 +971,9 @@ data class SeerrRequestServer(
 data class SeerrApprovalDetails(
     val server: String?, val profile: String?, val rootFolder: String?,
     val hasServer: Boolean, val hasProfile: Boolean, val hasRoot: Boolean
+)
+
+/** Selected destination on an existing request, not server defaults. */
+data class SeerrEditableDestination(
+    val serverId: Int, val profileId: Int, val rootFolder: String, val is4k: Boolean
 )
