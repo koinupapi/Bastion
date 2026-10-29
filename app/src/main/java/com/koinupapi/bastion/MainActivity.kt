@@ -180,10 +180,16 @@ private fun BastionApp() {
             when {
                 openSeerrRequest != null -> popSeerrMedia()
                 selectedMediaId != null -> {
-                    selectedMediaId = null
-                    tab = 0
-                    settingsHistory.clear()
-                    settingsPage = "Settings"
+                    // Back from a Seerr service tab returns to its home (Discover),
+                    // not the global Bastion dashboard. Nested Settings back is
+                    // handled by SeerrSettingsScreen while a subpage is open.
+                    if (seerrTab != 0) seerrTab = 0
+                    else {
+                        selectedMediaId = null
+                        tab = 0
+                        settingsHistory.clear()
+                        settingsPage = "Settings"
+                    }
                 }
                 tab == 2 && settingsPage != "Settings" -> goBackSettings()
                 tab != 0 && returnToDashboard -> {
@@ -1352,36 +1358,8 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
             SeerrDiscoverScreen(instance, discoverResults, onRequestClick)
         } else if (destination == 2) {
             SeerrIssuesScreen(instance)
-        } else if (destination != 1) {
-            val heading = when (destination) {
-                0 -> "Discover"
-                2 -> "Issues"
-                else -> "Seerr settings"
-            }
-            Text(heading, style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold)
-            Text(when (destination) {
-                0 -> "Discover browsing is next. This screen will show live movies and TV shows from your Seerr instance."
-                2 -> "Issue management is next. This screen will show reported media problems from your Seerr instance."
-                else -> "Service administration is next. General settings, user management, user defaults, and integrations will live here."
-            }, style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Surface(shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(when (destination) {
-                        0 -> Icons.Default.Explore
-                        2 -> Icons.Default.ReportProblem
-                        else -> Icons.Default.Settings
-                    }, contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary)
-                    Text("Coming soon", style = MaterialTheme.typography.titleMedium)
-                    Text("No demo data or unverified API controls are shown.",
-                        style = MaterialTheme.typography.bodySmall)
-                }
-            }
+        } else if (destination == 3) {
+            SeerrSettingsScreen(instance)
         } else {
         Text("Requests", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Browse and manage Seerr requests", style = MaterialTheme.typography.bodySmall,

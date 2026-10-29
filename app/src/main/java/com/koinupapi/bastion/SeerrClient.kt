@@ -138,7 +138,7 @@ object SeerrClient {
                             throw IllegalStateException("HTTP $status $detail")
                         }
                         val body = connection.inputStream.bufferedReader().use { it.readText() }
-                        return@withContext if (body.isBlank()) JSONObject() else JSONObject(body)
+                        return@withContext when { body.isBlank() -> JSONObject(); body.trimStart().startsWith("[") -> JSONObject().put("results", JSONArray(body)); else -> JSONObject(body) }
                     } finally { connection.disconnect() }
                 } catch (error: Exception) {
                     failure = "$label: ${error.message ?: error.javaClass.simpleName}"
@@ -291,28 +291,136 @@ object SeerrClient {
         Unit
     }
 
+    suspend fun deleteAdminUser(config: ServiceConfig, userId: Int): Result<Unit> = runCatching {
+        require(userId > 1) { "Owner account cannot be deleted" }
+        api(config, "/api/v1/user/$userId", method = "DELETE")
+        Unit
+    }
+
     /** Create a local Seerr user and set their initial password. No password is persisted. */
+    /** Persist a single user's permission bitmask using Seerr's dedicated endpoint. */
+    suspend fun updateAdminUserPermissions(config: ServiceConfig, userId: Int, permissions: Int): Result<Unit> =
+        runCatching {
+            require(userId > 0 && permissions >= 0)
+            api(config, "/api/v1/user/$userId/settings/permissions",
+                JSONObject().put("permissions", permissions), method = "POST")
+            Unit
+        }
+
+    /** Update only quota fields, preserving all other general user settings. */
+    suspend fun updateAdminUserQuotas(config: ServiceConfig, userId: Int,
+        movieLimit: Int?, movieDays: Int?, tvLimit: Int?, tvDays: Int?): Result<Unit> = runCatching {
+        require(userId > 0)
+        require(listOf(movieLimit, movieDays, tvLimit, tvDays).all { it == null || it >= 0 })
+        val settings = api(config, "/api/v1/user/$userId/settings/main")
+        settings.put("movieQuotaLimit", movieLimit ?: JSONObject.NULL)
+        settings.put("movieQuotaDays", movieDays ?: JSONObject.NULL)
+        settings.put("tvQuotaLimit", tvLimit ?: JSONObject.NULL)
+        settings.put("tvQuotaDays", tvDays ?: JSONObject.NULL)
+        api(config, "/api/v1/user/$userId/settings/main", settings, method = "POST")
+        Unit
+    }
+
+    /** Permission editor restrictions sourced from Seerr's active session and server settings. */
+    suspend fun permissionEditorContext(config: ServiceConfig): Result<SeerrPermissionEditorContext> = runCatching {
+        val actor = api(config, "/api/v1/auth/me")
+        val settings = api(config, "/api/v1/settings/main")
+        SeerrPermissionEditorContext(
+            actingUserId = actor.getInt("id"),
+            movie4kEnabled = settings.optBoolean("movie4kEnabled"),
+            series4kEnabled = settings.optBoolean("series4kEnabled")
+        )
+    }
+
+    /** Account inspection; no changes to server state. */
+    suspend fun adminUserDetails(config: ServiceConfig, userId: Int): Result<SeerrAdminUserDetails> = runCatching {
+        require(userId > 0)
+        val user = api(config, "/api/v1/user/$userId")
+        val permissions = api(config, "/api/v1/user/$userId/settings/permissions")
+        val quota = api(config, "/api/v1/user/$userId/quota")
+        val settings = api(config, "/api/v1/user/$userId/settings/main")
+        fun quotaInfo(key: String): SeerrAdminQuota {
+            val item = quota.optJSONObject(key) ?: JSONObject()
+            return SeerrAdminQuota(
+                days = item.optInt("days"), limit = item.optInt("limit"),
+                used = item.optInt("used"), remaining = item.optInt("remaining"),
+                restricted = item.optBoolean("restricted"))
+        }
+        SeerrAdminUserDetails(
+            id = user.optInt("id", userId),
+            displayName = user.optString("displayName"),
+            username = user.optString("username"),
+            email = user.optString("email"),
+            userType = user.optInt("userType"),
+            permissions = permissions.optInt("permissions", user.optInt("permissions")),
+            movieQuota = quotaInfo("movie"),
+            tvQuota = quotaInfo("tv"),
+            movieQuotaLimit = if (settings.isNull("movieQuotaLimit")) null else settings.optInt("movieQuotaLimit"),
+            movieQuotaDays = if (settings.isNull("movieQuotaDays")) null else settings.optInt("movieQuotaDays"),
+            tvQuotaLimit = if (settings.isNull("tvQuotaLimit")) null else settings.optInt("tvQuotaLimit"),
+            tvQuotaDays = if (settings.isNull("tvQuotaDays")) null else settings.optInt("tvQuotaDays")
+        )
+    }
+
+    /** Read-only user directory; Seerr controls access via the authenticated account. */
+    suspend fun userDirectory(config: ServiceConfig, take: Int = 25, skip: Int = 0): Result<SeerrUserDirectory> = runCatching {
+        val response = api(config, "/api/v1/user?take=${take.coerceIn(1, 100)}&skip=${skip.coerceAtLeast(0)}&sort=displayname")
+        val items = response.optJSONArray("results") ?: org.json.JSONArray()
+        val users = (0 until items.length()).mapNotNull { index ->
+            items.optJSONObject(index)?.let { item ->
+                SeerrAdminUser(
+                    id = item.optInt("id"),
+                    displayName = item.optString("displayName").ifBlank { item.optString("username") },
+                    email = item.optString("email"),
+                    username = item.optString("username"),
+                    userType = item.optInt("userType"),
+                    permissions = item.optInt("permissions")
+                )
+            }
+        }
+        SeerrUserDirectory(response.optInt("pageInfoTotalResults",
+            response.optJSONObject("pageInfo")?.optInt("results", users.size) ?: users.size), users)
+    }
+
+    /** Plex account discovery; this endpoint returns a JSON array rather than an object. */
+    suspend fun plexImportCandidates(config: ServiceConfig): Result<List<SeerrPlexCandidate>> = runCatching {
+        val users = api(config, "/api/v1/settings/plex/users").getJSONArray("results")
+        (0 until users.length()).mapNotNull { index ->
+            users.optJSONObject(index)?.let { item ->
+                SeerrPlexCandidate(item.optString("id"),
+                    item.optString("title").ifBlank { item.optString("username").ifBlank { item.optString("email") } },
+                    item.optString("email"))
+            }
+        }.filter { it.id.isNotBlank() }
+    }
+
+    suspend fun importPlexUsers(config: ServiceConfig, plexIds: List<String>): Result<Int> = runCatching {
+        require(plexIds.isNotEmpty()) { "Select at least one Plex user" }
+        val result = api(config, "/api/v1/user/import-from-plex",
+            JSONObject().put("plexIds", JSONArray(plexIds)))
+        result.getJSONArray("createdUsers").length()
+    }
+
     suspend fun createLocalUser(config: ServiceConfig, email: String,
         username: String, password: String): Result<Int> = runCatching {
         require(email.contains("@") && email.substringAfter("@").contains(".")) { "Enter a valid email address" }
         require(username.isNotBlank()) { "Enter a username" }
         require(password.length >= 8) { "Password must be at least 8 characters" }
+        val defaults = api(config, "/api/v1/settings/main")
+        require(defaults.has("defaultPermissions") && !defaults.isNull("defaultPermissions")) {
+            "Seerr did not return its default user permissions"
+        }
+        val defaultPermissions = defaults.getInt("defaultPermissions")
+        require(defaultPermissions >= 0) { "Invalid default permissions from Seerr" }
+        // Seerr accepts an explicit password at creation time. Omitting it
+        // requires the email notification agent to be enabled.
         val created = api(config, "/api/v1/user", JSONObject()
             .put("email", email.trim())
             .put("username", username.trim())
-            .put("permissions", 2))
+            .put("password", password)
+            .put("permissions", defaultPermissions))
         val id = created.optInt("id", 0)
         require(id > 0) { "Seerr did not return a user ID; check the Seerr user list" }
-        try {
-            api(config, "/api/v1/user/$id/settings/password", JSONObject()
-                .put("currentPassword", JSONObject.NULL)
-                .put("newPassword", password))
-        } catch (error: Exception) {
-            throw IllegalStateException(
-                "User was created (ID $id), but setting their password failed. " +
-                "Set the password in Seerr before sharing the account. " +
-                (error.message ?: ""), error)
-        }
         id
     }
 
@@ -978,6 +1086,26 @@ data class SeerrIssue(
     val comments: List<String>,
     val commentEntries: List<SeerrIssueComment> = emptyList()
 )
+data class SeerrPermissionEditorContext(
+    val actingUserId: Int, val movie4kEnabled: Boolean, val series4kEnabled: Boolean
+)
+data class SeerrAdminQuota(
+    val days: Int, val limit: Int, val used: Int, val remaining: Int, val restricted: Boolean
+)
+data class SeerrAdminUserDetails(
+    val id: Int, val displayName: String, val username: String, val email: String,
+    val userType: Int, val permissions: Int,
+    val movieQuota: SeerrAdminQuota, val tvQuota: SeerrAdminQuota,
+    val movieQuotaLimit: Int?, val movieQuotaDays: Int?,
+    val tvQuotaLimit: Int?, val tvQuotaDays: Int?
+)
+data class SeerrPlexCandidate(val id: String, val name: String, val email: String)
+data class SeerrAdminUser(
+    val id: Int, val displayName: String, val email: String,
+    val username: String, val userType: Int, val permissions: Int
+)
+data class SeerrUserDirectory(val total: Int, val users: List<SeerrAdminUser>)
+
 data class SeerrIssueUser(val id: Int, val permissions: Int)
 data class SeerrIssueResult(
     val issues: List<SeerrIssue> = emptyList(), val total: Int = 0,
