@@ -42,9 +42,10 @@ fun SeerrRequestManagementSheet(
     val activeServer = servers.firstOrNull { it.id == selectedServer }
     val destinationChanged = selectedServer != originalServer ||
         selectedProfile != originalProfile || selectedRoot != originalRoot
-    val validDestination = activeServer != null &&
-        activeServer.profiles.any { it.id == selectedProfile } &&
-        activeServer.roots.any { it.name == selectedRoot }
+    val serverValid = activeServer != null
+    val profileValid = activeServer?.profiles?.any { it.id == selectedProfile } == true
+    val rootValid = activeServer?.roots?.any { it.name == selectedRoot } == true
+    val validDestination = serverValid && profileValid && rootValid
     var approvalDetails by remember(instance.id, request.requestId) {
         mutableStateOf<Result<SeerrApprovalDetails>?>(null)
     }
@@ -63,9 +64,18 @@ fun SeerrRequestManagementSheet(
                     originalServer = original.serverId
                     originalProfile = original.profileId
                     originalRoot = original.rootFolder
-                    selectedServer = original.serverId
-                    selectedProfile = original.profileId
-                    selectedRoot = original.rootFolder
+                    val configured = servers.firstOrNull { it.id == original.serverId }
+                        ?: servers.singleOrNull()
+                    selectedServer = configured?.id ?: original.serverId
+                    selectedProfile = original.profileId.takeIf { id ->
+                        configured?.profiles?.any { it.id == id } == true
+                    } ?: configured?.defaultProfile?.takeIf { id ->
+                        configured.profiles.any { it.id == id }
+                    } ?: configured?.profiles?.firstOrNull()?.id ?: 0
+                    selectedRoot = original.rootFolder.takeIf { root ->
+                        configured?.roots?.any { it.name == root } == true
+                    } ?: configured?.roots?.firstOrNull { it.id == configured.defaultRoot }?.name
+                        ?: configured?.roots?.firstOrNull()?.name.orEmpty()
                 } else {
                     destinationError = choices.exceptionOrNull()?.message
                         ?: existing.exceptionOrNull()?.message ?: "Cannot load destination options."
@@ -219,10 +229,20 @@ fun SeerrRequestManagementSheet(
                         selectedRoot = it
                         savedMessage = null
                     }
-                    if (!validDestination) Text(
-                        "Choose a valid instance, quality profile and root folder before saving.",
+                    if (!validDestination) {
+                        val missing = buildList {
+                            if (!serverValid) add("instance")
+                            if (!profileValid) add("quality profile")
+                            if (!rootValid) add("root folder")
+                        }
+                        Text("Invalid selection: ${missing.joinToString(", ")}. Choose an option from each dropdown.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error)
+                    }
+                    if (!destinationChanged && validDestination) Text(
+                        "No destination changes to save.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                     savedMessage?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
                     OutlinedButton(onClick = {
                         busy = true
