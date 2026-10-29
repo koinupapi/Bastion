@@ -374,9 +374,33 @@ object SeerrClient {
             }
         } }
 
+    /** Read recent requests without fetching each title's details. Used only to
+     * reconcile an ambiguous POST; it never submits or retries a request. */
+    private suspend fun recentRequestIds(config: ServiceConfig, tmdbId: Int, isTv: Boolean): Set<Int> {
+        val result = mutableSetOf<Int>()
+        var skip = 0
+        repeat(5) {
+            val response = api(config, "/api/v1/request?take=100&skip=$skip&sort=added")
+            val entries = response.optJSONArray("results") ?: JSONArray()
+            for (index in 0 until entries.length()) {
+                val request = entries.optJSONObject(index) ?: continue
+                val media = request.optJSONObject("media") ?: continue
+                if (media.optInt("tmdbId") == tmdbId &&
+                    media.optString("mediaType") == if (isTv) "tv" else "movie") {
+                    request.optInt("id").takeIf { it > 0 }?.let { result.add(it) }
+                }
+            }
+            if (entries.length() < 100) return result
+            skip += entries.length()
+        }
+        return result
+    }
+
     suspend fun submitRequest(config: ServiceConfig, tmdbId: Int, isTv: Boolean,
         serverId: Int, profileId: Int, rootPath: String, seasons: List<Int>): Result<Unit> =
         runCatching {
+            // Best effort: distinguish a newly created request from an older one.
+            val previousIds = runCatching { recentRequestIds(config, tmdbId, isTv) }.getOrNull()
             val payload = JSONObject()
                 .put("mediaType", if (isTv) "tv" else "movie")
                 .put("mediaId", tmdbId)
@@ -384,7 +408,27 @@ object SeerrClient {
                 .put("profileId", profileId)
                 .put("rootFolder", rootPath)
             if (isTv) payload.put("seasons", JSONArray(seasons))
-            api(config, "/api/v1/request", payload)
+            try {
+                api(config, "/api/v1/request", payload)
+            } catch (error: IllegalStateException) {
+                if (error.message?.contains("may have been received") == true) {
+                    val currentIds = runCatching {
+                        recentRequestIds(config, tmdbId, isTv)
+                    }.getOrNull()
+                    if (currentIds != null && previousIds != null &&
+                        (currentIds - previousIds).isNotEmpty()) {
+                        throw IllegalStateException(
+                            "Seerr created the request, but the response timed out. " +
+                                "Check its status in Requests; it may still fail during processing.", error)
+                    }
+                    if (currentIds != null && currentIds.isNotEmpty()) {
+                        throw IllegalStateException(
+                            "Seerr has a request for this title, but the submission result is uncertain. " +
+                                "Check Requests before trying again.", error)
+                    }
+                }
+                throw error
+            }
             Unit
         }
 
