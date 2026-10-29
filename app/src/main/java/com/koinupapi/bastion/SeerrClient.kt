@@ -142,6 +142,51 @@ object SeerrClient {
             throw IllegalStateException(failure)
         }
 
+    suspend fun changeRequestStatus(config: ServiceConfig, requestId: Int,
+        approve: Boolean): Result<Unit> = runCatching {
+        require(requestId > 0) { "Invalid request" }
+        api(config, "/api/v1/request/$requestId/${if (approve) "approve" else "decline"}", JSONObject())
+        Unit
+    }
+
+    suspend fun removeRequest(config: ServiceConfig, requestId: Int): Result<Unit> =
+        withContext(Dispatchers.IO) { runCatching {
+            require(requestId > 0) { "Invalid request" }
+            val addresses = when (config.mode) {
+                "Local only" -> listOf("Local" to config.localUrl)
+                "Remote only" -> listOf("Remote" to config.remoteUrl)
+                else -> listOf("Local" to config.localUrl, "Remote" to config.remoteUrl)
+            }.filter { it.second.isNotBlank() }
+            var failure = "No connection configured"
+            var removed = false
+            for ((label, address) in addresses) {
+                try {
+                    val url = URL(address.trimEnd('/') + "/api/v1/request/$requestId")
+                    require(url.protocol == "https" || (label == "Local" && url.protocol == "http"))
+                    val connection = url.openConnection() as HttpURLConnection
+                    try {
+                        connection.requestMethod = "DELETE"
+                        connection.connectTimeout = 2500
+                        connection.readTimeout = 7000
+                        connection.instanceFollowRedirects = false
+                        connection.setRequestProperty("X-Api-Key", config.apiKey)
+                        val status = connection.responseCode
+                        if (status !in 200..299) {
+                            val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }
+                                ?.take(250).orEmpty()
+                            throw IllegalStateException("HTTP $status $detail")
+                        }
+                        removed = true
+                    } finally { connection.disconnect() }
+                    break
+                } catch (e: Exception) {
+                    failure = "$label: ${e.message ?: e.javaClass.simpleName}"
+                    if (failure.contains("HTTP 401") || failure.contains("HTTP 403")) break
+                }
+            }
+            if (!removed) throw IllegalStateException(failure)
+        } }
+
     suspend fun partialRequestsEnabled(config: ServiceConfig): Result<Boolean> =
         runCatching { api(config, "/api/v1/settings/main").optBoolean("partialRequestsEnabled", false) }
 
@@ -556,7 +601,8 @@ object SeerrClient {
                             }.distinct().sorted()
                         }.orEmpty()
                         SeerrRecentRequest(title, status, posterUrl, year, requestedBy,
-                            overview, releaseDate.takeIf { it.isNotBlank() }, type == "tv", seasons, id)
+                            overview, releaseDate.takeIf { it.isNotBlank() }, type == "tv", seasons, id,
+                            request.optInt("id"), requestStatus)
                     }
                     return@withContext SeerrRecentResult(config.name, total.coerceAtLeast(requests.size), requests, null)
                 } catch (e: Exception) {
@@ -572,7 +618,8 @@ data class SeerrRecentRequest(
     val year: String?, val requestedBy: String?,
     val overview: String? = null, val releaseDate: String? = null,
     val isTv: Boolean = false, val seasons: List<Int> = emptyList(),
-    val tmdbId: Int = 0
+    val tmdbId: Int = 0,
+    val requestId: Int = 0, val requestStatus: String = ""
 )
 data class SeerrRecentResult(
     val instance: String, val total: Int, val requests: List<SeerrRecentRequest>, val error: String?
