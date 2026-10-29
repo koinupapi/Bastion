@@ -85,7 +85,7 @@ object BastionUpdater {
             val matched = (0 until releases.length()).mapNotNull { i ->
                 val release = releases.getJSONObject(i)
                 val tag = release.optString("tag_name")
-                val releaseBranch = if (tag.startsWith("dev-")) "main" else release.optString("body")
+                val releaseBranch = if (tag.startsWith("dev-") && branch == "main") "main" else release.optString("body")
                     .lineSequence().firstOrNull { it.startsWith("Branch: ") }
                     ?.removePrefix("Branch: ")?.trim()
                 if (releaseBranch == branch) tag else null
@@ -105,7 +105,7 @@ object BastionUpdater {
             if (conn.responseCode !in 200..299) error(githubError(conn))
             val items = JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
             (0 until items.length()).mapNotNull { i ->
-                items.getJSONObject(i).optString("name").takeIf { it.startsWith("feature/") }
+                items.getJSONObject(i).optString("name").takeIf { it == "develop" || it.startsWith("feature/") }
             }.sorted()
         } finally { conn.disconnect() }
     }
