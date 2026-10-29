@@ -814,10 +814,27 @@ object SeerrClient {
             SeerrMediaDetails(error = errors.joinToString("; ").ifBlank { "No connection configured" })
         }
 
+    /** Server-wide counts, independent of the currently selected list filter. */
+    suspend fun requestCounts(config: ServiceConfig): Result<SeerrRequestCounts> = runCatching {
+        val data = api(config, "/api/v1/request/count")
+        SeerrRequestCounts(
+            total = data.optInt("total"),
+            pending = data.optInt("pending"),
+            approved = data.optInt("approved"),
+            processing = data.optInt("processing"),
+            available = data.optInt("available"),
+            completed = data.optInt("completed"),
+            declined = data.optInt("declined"),
+            movies = data.optInt("movie"),
+            tv = data.optInt("tv")
+        )
+    }
+
     suspend fun recentRequests(config: ServiceConfig): SeerrRecentResult =
         requestPage(config, 3, 0, "All")
 
-    suspend fun requestPage(config: ServiceConfig, take: Int, skip: Int, filter: String): SeerrRecentResult =
+    suspend fun requestPage(config: ServiceConfig, take: Int, skip: Int, filter: String,
+        mediaType: String = "all", sort: String = "added", sortDirection: String = "desc"): SeerrRecentResult =
         withContext(Dispatchers.IO) {
             val addresses = when (config.mode) {
                 "Local only" -> listOf("Local" to config.localUrl)
@@ -846,12 +863,14 @@ object SeerrClient {
                             return JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
                         } finally { connection.disconnect() }
                     }
-                    val queryFilter = when (filter) {
-                        "Pending" -> "&filter=pending"
-                        "Approved" -> "&filter=approved"
-                        else -> ""
-                    }
-                    val data = get("/api/v1/request?take=$take&skip=$skip&sort=added$queryFilter")
+                    val allowedFilters = setOf("all", "approved", "available", "pending",
+                        "processing", "unavailable", "failed", "deleted", "completed")
+                    val status = filter.lowercase().takeIf { it in allowedFilters } ?: "all"
+                    val type = mediaType.takeIf { it in setOf("all", "movie", "tv") } ?: "all"
+                    val order = sort.takeIf { it in setOf("added", "modified") } ?: "added"
+                    val direction = sortDirection.takeIf { it in setOf("asc", "desc") } ?: "desc"
+                    val data = get("/api/v1/request?take=$take&skip=$skip&filter=$status" +
+                        "&mediaType=$type&sort=$order&sortDirection=$direction")
                     val total = data.optInt("pageInfoTotalResults", -1).let {
                         if (it >= 0) it else data.optJSONObject("pageInfo")?.optInt("results", 0) ?: 0
                     }
@@ -922,6 +941,11 @@ data class SeerrRecentRequest(
     val requestId: Int = 0, val requestStatus: String = "",
     val mediaStatus: String? = null
 )
+data class SeerrRequestCounts(
+    val total: Int, val pending: Int, val approved: Int, val processing: Int,
+    val available: Int, val completed: Int, val declined: Int, val movies: Int, val tv: Int
+)
+
 data class SeerrRecentResult(
     val instance: String, val total: Int, val requests: List<SeerrRecentRequest>, val error: String?
 )

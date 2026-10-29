@@ -1321,16 +1321,31 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     onRequestClick: (SeerrRecentRequest) -> Unit) {
     var page by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
     var filter by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
+    var mediaType by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("all") }
+    var sortOrder by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("added") }
+    var sortDirection by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("desc") }
     var result by remember(instance.id) { mutableStateOf<SeerrRecentResult?>(null) }
+    var counts by remember(instance.id) { mutableStateOf<SeerrRequestCounts?>(null) }
     var loading by remember(instance.id) { mutableStateOf(false) }
     var refresh by remember(instance.id) { mutableIntStateOf(0) }
     var managingRequest by remember(instance.id) { mutableStateOf<SeerrRecentRequest?>(null) }
-    val pageSize = 20
-    LaunchedEffect(instance, destination, page, filter, refresh) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val pagePreferences = remember(context) {
+        context.getSharedPreferences("bastion_seerr_local", android.content.Context.MODE_PRIVATE)
+    }
+    var pageSize by remember(instance.id) {
+        mutableIntStateOf(pagePreferences.getInt("requests_page_size_${instance.id}", 25)
+            .takeIf { it in listOf(25, 50, 100) } ?: 25)
+    }
+    LaunchedEffect(instance, destination, page, pageSize, filter, mediaType, sortOrder, sortDirection, refresh) {
         if (destination != 1) return@LaunchedEffect
         loading = true
-        result = SeerrClient.requestPage(instance, pageSize, page * pageSize, filter)
+        result = SeerrClient.requestPage(instance, pageSize, page * pageSize, filter,
+            mediaType, sortOrder, sortDirection)
         loading = false
+    }
+    LaunchedEffect(instance, destination, refresh) {
+        if (destination == 1) counts = SeerrClient.requestCounts(instance).getOrNull()
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (destination == 0) {
@@ -1371,6 +1386,72 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
         Text("Requests", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Browse and manage Seerr requests", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            var typeExpanded by remember { mutableStateOf(false) }
+            Box(Modifier.weight(1f)) {
+                OutlinedButton(onClick = { typeExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(when (mediaType) { "movie" -> "Movies"; "tv" -> "TV"; else -> "All media" })
+                }
+                DropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
+                    listOf("all" to "All media", "movie" to "Movies", "tv" to "TV").forEach { (value, label) ->
+                        DropdownMenuItem(text = { Text(label) }, onClick = {
+                            mediaType = value; page = 0; typeExpanded = false
+                        })
+                    }
+                }
+            }
+            var sortExpanded by remember { mutableStateOf(false) }
+            Box(Modifier.weight(1f)) {
+                OutlinedButton(onClick = { sortExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (sortOrder == "added") "Date added" else "Last modified")
+                }
+                DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
+                    listOf("added" to "Date added", "modified" to "Last modified").forEach { (value, label) ->
+                        DropdownMenuItem(text = { Text(label) }, onClick = {
+                            sortOrder = value; page = 0; sortExpanded = false
+                        })
+                    }
+                }
+            }
+            IconButton(onClick = {
+                sortDirection = if (sortDirection == "desc") "asc" else "desc"; page = 0
+            }) {
+                Icon(if (sortDirection == "desc") Icons.Default.ArrowDownward
+                    else Icons.Default.ArrowUpward, contentDescription =
+                    if (sortDirection == "desc") "Sort descending" else "Sort ascending")
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("Requests per page", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(8.dp))
+            var sizeExpanded by remember { mutableStateOf(false) }
+            Box {
+                OutlinedButton(onClick = { sizeExpanded = true }) {
+                    Text(pageSize.toString())
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                }
+                DropdownMenu(expanded = sizeExpanded, onDismissRequest = { sizeExpanded = false }) {
+                    listOf(25, 50, 100).forEach { amount ->
+                        DropdownMenuItem(text = { Text(amount.toString()) }, onClick = {
+                            pageSize = amount
+                            page = 0
+                            pagePreferences.edit().putInt("requests_page_size_${instance.id}", amount).apply()
+                            sizeExpanded = false
+                        })
+                    }
+                }
+            }
+        }
+        counts?.let { summary ->
+            Text("Total ${summary.total}  ·  Pending ${summary.pending}  ·  Approved ${summary.approved}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Processing ${summary.processing}  ·  Available ${summary.available}  ·  Completed ${summary.completed}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         val requestFilters = listOf("All", "Pending", "Approved")
         val filterInteractions = remember { List(3) { MutableInteractionSource() } }
         val filterPressed = filterInteractions.map { it.collectIsPressedAsState().value }
@@ -1404,6 +1485,25 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
                             Spacer(Modifier.width(5.dp))
                         }
                         Text(option, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Additional statuses", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            var extraExpanded by remember { mutableStateOf(false) }
+            Box {
+                OutlinedButton(onClick = { extraExpanded = true }) {
+                    Text(if (filter in listOf("All", "Pending", "Approved")) "Choose status" else filter)
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                }
+                DropdownMenu(expanded = extraExpanded, onDismissRequest = { extraExpanded = false }) {
+                    listOf("Available", "Processing", "Unavailable", "Failed", "Deleted", "Completed").forEach { status ->
+                        DropdownMenuItem(text = { Text(status) }, onClick = {
+                            filter = status; page = 0; extraExpanded = false
+                        })
                     }
                 }
             }
