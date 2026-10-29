@@ -292,6 +292,26 @@ object SeerrClient {
     }
 
     /** Create a local Seerr user and set their initial password. No password is persisted. */
+    /** Read-only user directory; Seerr controls access via the authenticated account. */
+    suspend fun userDirectory(config: ServiceConfig, take: Int = 25, skip: Int = 0): Result<SeerrUserDirectory> = runCatching {
+        val response = api(config, "/api/v1/user?take=${take.coerceIn(1, 100)}&skip=${skip.coerceAtLeast(0)}&sort=displayname")
+        val items = response.optJSONArray("results") ?: org.json.JSONArray()
+        val users = (0 until items.length()).mapNotNull { index ->
+            items.optJSONObject(index)?.let { item ->
+                SeerrAdminUser(
+                    id = item.optInt("id"),
+                    displayName = item.optString("displayName").ifBlank { item.optString("username") },
+                    email = item.optString("email"),
+                    username = item.optString("username"),
+                    userType = item.optInt("userType"),
+                    permissions = item.optInt("permissions")
+                )
+            }
+        }
+        SeerrUserDirectory(response.optInt("pageInfoTotalResults",
+            response.optJSONObject("pageInfo")?.optInt("results", users.size) ?: users.size), users)
+    }
+
     suspend fun createLocalUser(config: ServiceConfig, email: String,
         username: String, password: String): Result<Int> = runCatching {
         require(email.contains("@") && email.substringAfter("@").contains(".")) { "Enter a valid email address" }
@@ -978,6 +998,12 @@ data class SeerrIssue(
     val comments: List<String>,
     val commentEntries: List<SeerrIssueComment> = emptyList()
 )
+data class SeerrAdminUser(
+    val id: Int, val displayName: String, val email: String,
+    val username: String, val userType: Int, val permissions: Int
+)
+data class SeerrUserDirectory(val total: Int, val users: List<SeerrAdminUser>)
+
 data class SeerrIssueUser(val id: Int, val permissions: Int)
 data class SeerrIssueResult(
     val issues: List<SeerrIssue> = emptyList(), val total: Int = 0,
