@@ -1160,6 +1160,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     var result by remember(instance.id) { mutableStateOf<SeerrRecentResult?>(null) }
     var loading by remember(instance.id) { mutableStateOf(false) }
     var refresh by remember(instance.id) { mutableIntStateOf(0) }
+    var managingRequest by remember(instance.id) { mutableStateOf<SeerrRecentRequest?>(null) }
     val pageSize = 20
     LaunchedEffect(instance, destination, page, filter, refresh) {
         if (destination != 1) return@LaunchedEffect
@@ -1204,7 +1205,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
             }
         } else {
         Text("Requests", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Browse requests • Read-only", style = MaterialTheme.typography.bodySmall,
+        Text("Browse and manage Seerr requests", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         val requestFilters = listOf("All", "Pending", "Approved")
         val filterInteractions = remember { List(3) { MutableInteractionSource() } }
@@ -1326,9 +1327,12 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Icon(Icons.Default.ChevronRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            IconButton(onClick = { managingRequest = request },
+                                enabled = request.requestId > 0) {
+                                Icon(Icons.Default.MoreVert,
+                                    contentDescription = "Manage request for ${request.title}",
+                                    tint = MaterialTheme.colorScheme.primary)
+                            }
                         }
                     }
                 }
@@ -1344,6 +1348,11 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
             }
         }
         }
+    }
+    managingRequest?.let { request ->
+        SeerrRequestManagementSheet(instance, request,
+            onDismiss = { managingRequest = null },
+            onChanged = { refresh++ })
     }
 }
 
