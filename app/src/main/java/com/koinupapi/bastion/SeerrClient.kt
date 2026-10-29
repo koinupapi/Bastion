@@ -247,6 +247,12 @@ object SeerrClient {
         Unit
     }
 
+    suspend fun retryRequest(config: ServiceConfig, requestId: Int): Result<Unit> = runCatching {
+        require(requestId > 0) { "Invalid request" }
+        api(config, "/api/v1/request/$requestId/retry", JSONObject())
+        Unit
+    }
+
     suspend fun removeRequest(config: ServiceConfig, requestId: Int): Result<Unit> =
         withContext(Dispatchers.IO) { runCatching {
             require(requestId > 0) { "Invalid request" }
@@ -705,9 +711,11 @@ object SeerrClient {
                             1 -> "Pending"
                             2 -> "Approved"
                             3 -> "Declined"
-                            else -> "Requested"
+                            4 -> "Failed"
+                            5 -> "Completed"
+                            else -> "Unknown"
                         }
-                        val status = if (requestStatus == "Declined") requestStatus
+                        val status = if (requestStatus == "Declined" || requestStatus == "Failed" || requestStatus == "Pending") requestStatus
                             else mediaStatus ?: requestStatus
                         val releaseDate = detail?.optString(
                             if (type == "tv") "firstAirDate" else "releaseDate").orEmpty()
