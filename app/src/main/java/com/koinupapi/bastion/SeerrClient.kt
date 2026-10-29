@@ -338,10 +338,10 @@ object SeerrClient {
             permissions = permissions.optInt("permissions", user.optInt("permissions")),
             movieQuota = quotaInfo("movie"),
             tvQuota = quotaInfo("tv"),
-            movieQuotaLimit = settings.optInt("movieQuotaLimit"),
-            movieQuotaDays = settings.optInt("movieQuotaDays"),
-            tvQuotaLimit = settings.optInt("tvQuotaLimit"),
-            tvQuotaDays = settings.optInt("tvQuotaDays")
+            movieQuotaLimit = if (settings.isNull("movieQuotaLimit")) null else settings.optInt("movieQuotaLimit"),
+            movieQuotaDays = if (settings.isNull("movieQuotaDays")) null else settings.optInt("movieQuotaDays"),
+            tvQuotaLimit = if (settings.isNull("tvQuotaLimit")) null else settings.optInt("tvQuotaLimit"),
+            tvQuotaDays = if (settings.isNull("tvQuotaDays")) null else settings.optInt("tvQuotaDays")
         )
     }
 
@@ -1058,8 +1058,8 @@ data class SeerrAdminUserDetails(
     val id: Int, val displayName: String, val username: String, val email: String,
     val userType: Int, val permissions: Int,
     val movieQuota: SeerrAdminQuota, val tvQuota: SeerrAdminQuota,
-    val movieQuotaLimit: Int, val movieQuotaDays: Int,
-    val tvQuotaLimit: Int, val tvQuotaDays: Int
+    val movieQuotaLimit: Int?, val movieQuotaDays: Int?,
+    val tvQuotaLimit: Int?, val tvQuotaDays: Int?
 )
 data class SeerrAdminUser(
     val id: Int, val displayName: String, val email: String,
