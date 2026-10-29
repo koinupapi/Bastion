@@ -548,7 +548,7 @@ object SeerrClient {
             SeerrIssueResult(error = failures.joinToString("; ").ifBlank { "No connection configured" })
         }
 
-    suspend fun discover(config: ServiceConfig, category: String): SeerrDiscoverResult =
+    suspend fun discover(config: ServiceConfig, category: String, query: String = ""): SeerrDiscoverResult =
         withContext(Dispatchers.IO) {
             val paths = mapOf(
                 "Trending" to "/api/v1/discover/trending",
@@ -556,7 +556,7 @@ object SeerrClient {
                 "Popular TV Shows" to "/api/v1/discover/tv",
                 "Upcoming Movies" to "/api/v1/discover/movies/upcoming",
                 "Upcoming TV Shows" to "/api/v1/discover/tv/upcoming")
-            val path = paths[category] ?: return@withContext SeerrDiscoverResult(error = "Unknown category")
+            val path = if (category == "Search") "/api/v1/search?query=" + java.net.URLEncoder.encode(query.trim(), "UTF-8") else paths[category] ?: return@withContext SeerrDiscoverResult(error = "Unknown category")
             val addresses = when (config.mode) {
                 "Local only" -> listOf("Local" to config.localUrl)
                 "Remote only" -> listOf("Remote" to config.remoteUrl)
@@ -565,7 +565,7 @@ object SeerrClient {
             val failures = mutableListOf<String>()
             for ((label, address) in addresses) {
                 try {
-                    val url = URL(address.trimEnd('/') + path + "?page=1")
+                    val url = URL(address.trimEnd('/') + path + if (category == "Search") "&page=1" else "?page=1")
                     require(url.protocol == "https" || (label == "Local" && url.protocol == "http"))
                     val connection = url.openConnection() as HttpURLConnection
                     try {
@@ -589,7 +589,7 @@ object SeerrClient {
                                 "tv" -> true
                                 "movie" -> false
                                 else -> category.contains("TV") ||
-                                    (category == "Trending" && item.has("firstAirDate") && !item.has("releaseDate"))
+                                    ((category == "Trending" || category == "Search") && item.has("firstAirDate") && !item.has("releaseDate"))
                             }
                             val title = item.optString(if (isTv) "name" else "title")
                             if (id <= 0 || title.isBlank()) return@mapNotNull null
