@@ -14,12 +14,28 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
-data class BastionUpdate(val versionCode: Int, val url: String, val digest: String?, val page: String)
+data class BastionUpdate(val versionCode: Int, val url: String, val digest: String?, val page: String, val branch: String = "main")
 
 object BastionUpdater {
-    private const val RELEASES = "https://api.github.com/repos/koinupapi/Bastion/releases?per_page=20"
+    private const val RELEASES = "https://api.github.com/repos/koinupapi/Bastion/releases?per_page=100"
 
-    suspend fun check(context: Context): BastionUpdate? = withContext(Dispatchers.IO) {
+    private fun githubError(conn: HttpURLConnection): String {
+        val code = conn.responseCode
+        if (code == 403 || code == 429) {
+            val remaining = conn.getHeaderField("X-RateLimit-Remaining")
+            val reset = conn.getHeaderField("X-RateLimit-Reset")?.toLongOrNull()
+            if (remaining == "0" && reset != null) {
+                val whenReset = java.text.DateFormat.getDateTimeInstance(
+                    java.text.DateFormat.SHORT, java.text.DateFormat.SHORT
+                ).format(java.util.Date(reset * 1000))
+                return "GitHub API rate limit reached. Try again after " + whenReset + "."
+            }
+            return "GitHub rejected the request (HTTP " + code + "). Please try later."
+        }
+        return "GitHub returned HTTP " + code
+    }
+
+    suspend fun check(context: Context, branch: String = "main"): BastionUpdate? = withContext(Dispatchers.IO) {
         val installed = if (Build.VERSION.SDK_INT >= 33)
             context.packageManager.getPackageInfo(context.packageName,
                 android.content.pm.PackageManager.PackageInfoFlags.of(0)).longVersionCode
@@ -30,22 +46,65 @@ object BastionUpdater {
             conn.readTimeout = 12000
             conn.setRequestProperty("Accept", "application/vnd.github+json")
             conn.setRequestProperty("User-Agent", "Bastion-Android")
-            if (conn.responseCode !in 200..299) error("GitHub returned HTTP ${conn.responseCode}")
+            if (conn.responseCode !in 200..299) error(githubError(conn))
             val releases = JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
             (0 until releases.length()).mapNotNull { index ->
                 val release = releases.getJSONObject(index)
                 if (release.optBoolean("draft")) return@mapNotNull null
-                val version = Regex("^dev-(\\d+)$").matchEntire(release.optString("tag_name"))
+                val version = Regex("^(?:dev|build)-(\\d+)$").matchEntire(release.optString("tag_name"))
                     ?.groupValues?.get(1)?.toIntOrNull() ?: return@mapNotNull null
                 if (version <= installed) return@mapNotNull null
+                val tag = release.optString("tag_name")
+                if (tag.startsWith("build-")) {
+                    val releaseBranch = release.optString("body").lineSequence()
+                        .firstOrNull { it.startsWith("Branch: ") }?.removePrefix("Branch: ")?.trim()
+                    if (releaseBranch != branch) return@mapNotNull null
+                } else if (branch != "main") return@mapNotNull null
                 val assets = release.optJSONArray("assets") ?: return@mapNotNull null
                 val asset = (0 until assets.length()).map { assets.getJSONObject(it) }
                     .firstOrNull { it.optString("name").endsWith(".apk") }
                     ?: return@mapNotNull null
                 BastionUpdate(version, asset.getString("browser_download_url"),
                     asset.optString("digest").takeIf { it.startsWith("sha256:") },
-                    release.optString("html_url"))
+                    release.optString("html_url"), branch)
             }.maxByOrNull { it.versionCode }
+        } finally { conn.disconnect() }
+    }
+
+    suspend fun releaseDiagnostics(branch: String): String = withContext(Dispatchers.IO) {
+        val conn = URL(RELEASES).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 8000
+            conn.readTimeout = 12000
+            conn.setRequestProperty("Accept", "application/vnd.github+json")
+            conn.setRequestProperty("User-Agent", "Bastion-Android")
+            if (conn.responseCode !in 200..299) error(githubError(conn))
+            val releases = JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
+            val matched = (0 until releases.length()).mapNotNull { i ->
+                val release = releases.getJSONObject(i)
+                val tag = release.optString("tag_name")
+                val releaseBranch = if (tag.startsWith("dev-")) "main" else release.optString("body")
+                    .lineSequence().firstOrNull { it.startsWith("Branch: ") }
+                    ?.removePrefix("Branch: ")?.trim()
+                if (releaseBranch == branch) tag else null
+            }
+            if (matched.isEmpty()) "No releases for " + branch + " in latest " + releases.length() + " releases."
+            else "Latest release for " + branch + ": " + matched.first() + "."
+        } finally { conn.disconnect() }
+    }
+
+    suspend fun availableBranches(): List<String> = withContext(Dispatchers.IO) {
+        val conn = URL("https://api.github.com/repos/koinupapi/Bastion/branches?per_page=100").openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 8000
+            conn.readTimeout = 12000
+            conn.setRequestProperty("Accept", "application/vnd.github+json")
+            conn.setRequestProperty("User-Agent", "Bastion-Android")
+            if (conn.responseCode !in 200..299) error(githubError(conn))
+            val items = JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
+            (0 until items.length()).mapNotNull { i ->
+                items.getJSONObject(i).optString("name").takeIf { it.startsWith("feature/") }
+            }.sorted()
         } finally { conn.disconnect() }
     }
 

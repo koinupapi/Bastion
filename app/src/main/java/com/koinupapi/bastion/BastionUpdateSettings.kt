@@ -18,6 +18,10 @@ import kotlinx.coroutines.launch
 fun BastionUpdateSettings() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val prefs = remember { context.getSharedPreferences("bastion_updates", android.content.Context.MODE_PRIVATE) }
+    var branch by remember { mutableStateOf(prefs.getString("branch", "main") ?: "main") }
+    var branches by remember { mutableStateOf(listOf("main", branch).distinct()) }
+    var expanded by remember { mutableStateOf(false) }
     var update by remember { mutableStateOf<BastionUpdate?>(null) }
     var checking by remember { mutableStateOf(false) }
     var downloading by remember { mutableStateOf(false) }
@@ -26,27 +30,55 @@ fun BastionUpdateSettings() {
         context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode
     }
     fun check() {
+        if (checking || downloading) return
         scope.launch {
             checking = true
             message = null
             try {
-                update = BastionUpdater.check(context)
-                message = if (update == null) "You're running the latest development build."
-                    else "Development build ${update?.versionCode} is available."
+                update = BastionUpdater.check(context, branch)
+                message = if (update == null) "No newer installable build found for " + branch + ". Installed build: " + version + "."
+                    else "Build ${update?.versionCode} is available from " + branch + "."
             } catch (e: Exception) { message = e.message ?: "Unable to check GitHub releases." }
             finally { checking = false }
         }
     }
-    LaunchedEffect(Unit) { check() }
+    LaunchedEffect(Unit) {
+        try { branches = (listOf("main", branch) + BastionUpdater.availableBranches()).distinct() }
+        catch (e: Exception) { message = e.message }
+    }
+    LaunchedEffect(branch) { update = null; message = "Tap Check for updates to check " + branch + "." }
     Card(shape = RoundedCornerShape(28.dp)) {
         Column(Modifier.fillMaxWidth().padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("Bastion updates", style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold)
-            Text("Installed development build $version",
+            Text("Installed build $version",
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Signed APK updates are published to public GitHub development releases. Android will ask you to confirm installation.",
+            Text("Signed APK updates are published to GitHub Releases. Android will ask you to confirm installation.",
                 style = MaterialTheme.typography.bodyMedium)
+            Text("Update channel", style = MaterialTheme.typography.titleMedium)
+            Box {
+                OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (branch == "main") "Stable (main)" else "Test: " + branch)
+                }
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    branches.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(if (option == "main") "Stable (main)" else option) },
+                            onClick = {
+                                expanded = false
+                                branch = option
+                                prefs.edit().putString("branch", option).apply()
+                            }
+                        )
+                    }
+                }
+            }
+            if (branch != "main") Text(
+                "Experimental branch. Android cannot install an older version code over a newer build.",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
             message?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (checking || downloading) LinearProgressIndicator(Modifier.fillMaxWidth())
             OutlinedButton(onClick = { check() }, enabled = !checking && !downloading,
