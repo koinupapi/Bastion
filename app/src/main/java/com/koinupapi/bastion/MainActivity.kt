@@ -1430,7 +1430,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
 @Composable
 private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
     isTv: Boolean = false, seasons: List<SeerrTvSeason> = emptyList(),
-    onDismiss: () -> Unit, onConfirmed: () -> Unit, onSubmitted: () -> Unit) {
+    onDismiss: () -> Unit, onConfirmed: (List<Int>) -> Unit, onSubmitted: () -> Unit) {
     var partialEnabled by remember(instance.id) { mutableStateOf<Boolean?>(null) }
     var policyError by remember(instance.id) { mutableStateOf<String?>(null) }
     var options by remember(instance.id) { mutableStateOf<Result<List<SeerrRequestServer>>?>(null) }
@@ -1607,7 +1607,14 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                                 it.number > 0 && it.status !in listOf(2, 3, 4, 5)
                             }.map { it.number } else selectedSeasons.toList())
                         submitting = false
-                        response.onSuccess { submitted = true; onConfirmed() }
+                        response.onSuccess {
+                            val confirmedSeasons = if (isTv && partialEnabled == false)
+                                seasons.filter { it.number > 0 && it.status !in listOf(2, 3, 4, 5) }
+                                    .map { it.number }
+                            else selectedSeasons.toList()
+                            submitted = true
+                            onConfirmed(confirmedSeasons)
+                        }
                             .onFailure { error = it.message ?: "Request failed" }
                     }
                 }) {
@@ -1674,6 +1681,14 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
     var requestSubmitted by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
     var showIssueSheet by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
     val cacheKey = "${request.tmdbId}-${request.isTv}"
+    fun protectConfirmedSeasons(numbers: List<Int>) {
+        val current = cache[cacheKey] ?: return
+        val protected = numbers.toSet()
+        cache[cacheKey] = current.copy(tvSeasons = current.tvSeasons.map { season ->
+            if (season.number in protected && season.status !in listOf(2, 3, 4, 5))
+                season.copy(status = 2) else season
+        })
+    }
     var expanded by remember(cacheKey) { mutableStateOf(false) }
     LaunchedEffect(instance, cacheKey) {
         if (cacheKey !in cache) {
@@ -1686,14 +1701,25 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
     LaunchedEffect(instance, cacheKey, requestSubmitted) {
         if (requestSubmitted) {
             val refreshed = SeerrClient.mediaDetails(instance, request)
-            if (refreshed.error == null) cache[cacheKey] = refreshed
+            if (refreshed.error == null) {
+                val previous = cache[cacheKey]
+                cache[cacheKey] = refreshed.copy(tvSeasons = refreshed.tvSeasons.map { season ->
+                    val confirmed = previous?.tvSeasons?.firstOrNull { it.number == season.number }
+                    if (confirmed?.status in listOf(2, 3, 4, 5) &&
+                        season.status !in listOf(2, 3, 4, 5))
+                        season.copy(status = confirmed.status) else season
+                })
+            }
         }
     }
     if (showRequestSheet) {
         SeerrMovieRequestSheet(instance, request.tmdbId,
             isTv = request.isTv, seasons = cache[cacheKey]?.tvSeasons.orEmpty(),
             onDismiss = { showRequestSheet = false },
-            onConfirmed = { requestSubmitted = true },
+            onConfirmed = { confirmedSeasons ->
+                protectConfirmedSeasons(confirmedSeasons)
+                requestSubmitted = true
+            },
             onSubmitted = { showRequestSheet = false })
     }
     if (showIssueSheet) {
