@@ -100,7 +100,7 @@ object SeerrClient {
             }
             "Connection failed — " + failures.joinToString("; ")
         }
-    private suspend fun api(config: ServiceConfig, path: String, payload: JSONObject? = null): JSONObject =
+    private suspend fun api(config: ServiceConfig, path: String, payload: JSONObject? = null, method: String = "GET"): JSONObject =
         withContext(Dispatchers.IO) {
             val addresses = when (config.mode) {
                 "Local only" -> listOf("Local" to config.localUrl)
@@ -123,11 +123,13 @@ object SeerrClient {
                             connection.setRequestProperty("X-Api-Key", config.apiKey)
                         }
                         connection.setRequestProperty("Accept", "application/json")
-                        if (payload != null) {
-                            connection.requestMethod = "POST"
-                            connection.doOutput = true
-                            connection.setRequestProperty("Content-Type", "application/json")
-                            connection.outputStream.bufferedWriter().use { it.write(payload.toString()) }
+                        if (payload != null || method != "GET") {
+                            connection.requestMethod = if (payload != null && method == "GET") "POST" else method
+                            if (payload != null) {
+                                connection.doOutput = true
+                                connection.setRequestProperty("Content-Type", "application/json")
+                                connection.outputStream.bufferedWriter().use { it.write(payload.toString()) }
+                            }
                         }
                         val status = connection.responseCode
                         if (status !in 200..299) {
@@ -140,7 +142,7 @@ object SeerrClient {
                     } finally { connection.disconnect() }
                 } catch (error: Exception) {
                     failure = "$label: ${error.message ?: error.javaClass.simpleName}"
-                    if (payload != null) {
+                    if (payload != null || method != "GET") {
                         if (error is java.net.SocketTimeoutException) {
                             throw IllegalStateException("Seerr did not respond in time. Your request may have been received. Check Seerr requests before trying again.", error)
                         }
@@ -477,6 +479,17 @@ object SeerrClient {
             Unit
         }
 
+    suspend fun currentIssueUser(config: ServiceConfig): Result<SeerrIssueUser> = runCatching {
+        val user = api(config, "/api/v1/auth/me")
+        SeerrIssueUser(user.optInt("id"), user.optInt("permissions"))
+    }
+
+    suspend fun deleteIssue(config: ServiceConfig, id: Int): Result<Unit> = runCatching {
+        require(id > 0)
+        api(config, "/api/v1/issue/$id", method = "DELETE")
+        Unit
+    }
+
     private fun parseIssue(issue: JSONObject): SeerrIssue {
         val media = issue.optJSONObject("media")
         val author = issue.optJSONObject("createdBy")
@@ -486,6 +499,7 @@ object SeerrClient {
         }
         return SeerrIssue(
             id = issue.optInt("id"),
+            creatorId = author?.optInt("id") ?: 0,
             type = when (issue.optInt("issueType")) {
                 1 -> "Video"
                 2 -> "Audio"
@@ -845,10 +859,11 @@ data class SeerrMediaDetails(
 data class SeerrDiscoverResult(val items: List<SeerrRelatedTitle> = emptyList(), val error: String? = null)
 
 data class SeerrIssue(
-    val id: Int, val type: String, val resolved: Boolean, val tmdbId: Int,
+    val id: Int, val creatorId: Int = 0, val type: String, val resolved: Boolean, val tmdbId: Int,
     val author: String, val createdAt: String, val message: String,
     val comments: List<String>
 )
+data class SeerrIssueUser(val id: Int, val permissions: Int)
 data class SeerrIssueResult(
     val issues: List<SeerrIssue> = emptyList(), val total: Int = 0,
     val error: String? = null
