@@ -292,6 +292,29 @@ object SeerrClient {
     }
 
     /** Create a local Seerr user and set their initial password. No password is persisted. */
+    /** Persist a single user's permission bitmask using Seerr's dedicated endpoint. */
+    suspend fun updateAdminUserPermissions(config: ServiceConfig, userId: Int, permissions: Int): Result<Unit> =
+        runCatching {
+            require(userId > 0 && permissions >= 0)
+            api(config, "/api/v1/user/$userId/settings/permissions",
+                JSONObject().put("permissions", permissions))
+            Unit
+        }
+
+    /** Update only quota fields, preserving all other general user settings. */
+    suspend fun updateAdminUserQuotas(config: ServiceConfig, userId: Int,
+        movieLimit: Int?, movieDays: Int?, tvLimit: Int?, tvDays: Int?): Result<Unit> = runCatching {
+        require(userId > 0)
+        require(listOf(movieLimit, movieDays, tvLimit, tvDays).all { it == null || it >= 0 })
+        val settings = api(config, "/api/v1/user/$userId/settings/main")
+        settings.put("movieQuotaLimit", movieLimit ?: JSONObject.NULL)
+        settings.put("movieQuotaDays", movieDays ?: JSONObject.NULL)
+        settings.put("tvQuotaLimit", tvLimit ?: JSONObject.NULL)
+        settings.put("tvQuotaDays", tvDays ?: JSONObject.NULL)
+        api(config, "/api/v1/user/$userId/settings/main", settings)
+        Unit
+    }
+
     /** Account inspection; no changes to server state. */
     suspend fun adminUserDetails(config: ServiceConfig, userId: Int): Result<SeerrAdminUserDetails> = runCatching {
         require(userId > 0)
