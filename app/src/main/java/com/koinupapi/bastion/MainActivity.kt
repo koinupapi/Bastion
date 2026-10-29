@@ -1438,6 +1438,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
     var profileId by remember { mutableIntStateOf(-1) }
     var rootPath by remember { mutableStateOf("") }
     var submitting by remember { mutableStateOf(false) }
+    var submitted by remember(instance.id, tmdbId, isTv) { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val selectedSeasons = remember(tmdbId) { mutableStateListOf<Int>() }
     val scope = rememberCoroutineScope()
@@ -1462,7 +1463,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
             it.id == server.defaultRoot
         }?.name ?: server?.roots?.firstOrNull()?.name.orEmpty()
     }
-    ModalBottomSheet(onDismissRequest = onDismiss,
+    ModalBottomSheet(onDismissRequest = { if (!submitting) { if (submitted) onSubmitted() else onDismiss() } },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) {
         Column(Modifier.fillMaxWidth()
@@ -1470,6 +1471,41 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
             .padding(horizontal = 24.dp)
             .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            AnimatedVisibility(visible = submitted, enter = fadeIn(), exit = fadeOut()) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                    val checkScale by animateFloatAsState(
+                        targetValue = if (submitted) 1f else 0.6f,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                        label = "Request success check")
+                    Surface(shape = RoundedCornerShape(36.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(112.dp).graphicsLayer {
+                            scaleX = checkScale
+                            scaleY = checkScale
+                        }) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(68.dp))
+                        }
+                    }
+                    Text("Request submitted!", style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    Text(if (isTv) "Your TV series request was sent to Seerr."
+                        else "Your movie request was sent to Seerr.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center)
+                    Button(onClick = onSubmitted, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                        shape = RoundedCornerShape(24.dp)) {
+                        Text("Done")
+                    }
+                }
+            }
+            AnimatedVisibility(visible = !submitted, enter = fadeIn(), exit = fadeOut()) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Surface(shape = RoundedCornerShape(20.dp),
@@ -1571,7 +1607,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                                 it.number > 0 && it.status !in listOf(2, 3, 4, 5)
                             }.map { it.number } else selectedSeasons.toList())
                         submitting = false
-                        response.onSuccess { onSubmitted() }
+                        response.onSuccess { submitted = true }
                             .onFailure { error = it.message ?: "Request failed" }
                     }
                 }) {
@@ -1581,6 +1617,8 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                     Icon(Icons.Default.Add, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("Submit request")
+                }
+            }
                 }
             }
         }
@@ -1776,8 +1814,6 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                 Text(if (request.isTv && displayedStatus != null) "Request More" else if (request.isTv) "Request" else "Request movie")
             }
         }
-        if (requestSubmitted) Text("Request submitted successfully",
-            color = MaterialTheme.colorScheme.primary)
         if (media == null) LinearProgressIndicator(Modifier.fillMaxWidth())
         media?.error?.let { Text("Additional details unavailable: $it",
             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
