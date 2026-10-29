@@ -370,10 +370,16 @@ object SeerrClient {
         require(email.contains("@") && email.substringAfter("@").contains(".")) { "Enter a valid email address" }
         require(username.isNotBlank()) { "Enter a username" }
         require(password.length >= 8) { "Password must be at least 8 characters" }
+        val defaults = api(config, "/api/v1/settings/main")
+        require(defaults.has("defaultPermissions") && !defaults.isNull("defaultPermissions")) {
+            "Seerr did not return its default user permissions"
+        }
+        val defaultPermissions = defaults.getInt("defaultPermissions")
+        require(defaultPermissions >= 0) { "Invalid default permissions from Seerr" }
         val created = api(config, "/api/v1/user", JSONObject()
             .put("email", email.trim())
             .put("username", username.trim())
-            .put("permissions", 32))
+            .put("permissions", defaultPermissions))
         val id = created.optInt("id", 0)
         require(id > 0) { "Seerr did not return a user ID; check the Seerr user list" }
         try {
