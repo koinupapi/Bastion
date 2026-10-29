@@ -115,7 +115,7 @@ object SeerrClient {
                     val connection = url.openConnection() as HttpURLConnection
                     try {
                         connection.connectTimeout = 2500
-                        connection.readTimeout = 7000
+                        connection.readTimeout = if (path == "/api/v1/request" && payload != null) 20000 else 7000
                         connection.instanceFollowRedirects = false
                         if (config.apiKey.startsWith("session:")) {
                             connection.setRequestProperty("Cookie", "connect.sid=" + config.apiKey.removePrefix("session:"))
@@ -140,6 +140,12 @@ object SeerrClient {
                     } finally { connection.disconnect() }
                 } catch (error: Exception) {
                     failure = "$label: ${error.message ?: error.javaClass.simpleName}"
+                    if (payload != null) {
+                        if (error is java.net.SocketTimeoutException) {
+                            throw IllegalStateException("Seerr did not respond in time. Your request may have been received. Check Seerr requests before trying again.", error)
+                        }
+                        throw IllegalStateException(failure, error)
+                    }
                     if (failure.contains("HTTP 401") || failure.contains("HTTP 403")) break
                 }
             }
