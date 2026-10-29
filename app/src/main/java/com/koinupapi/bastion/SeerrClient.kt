@@ -208,16 +208,23 @@ object SeerrClient {
         val profileId = request.optInt("profileId", 0).takeIf { it > 0 }
         val rootFolder = request.optString("rootFolder").takeIf { it.isNotBlank() }
         val options = requestOptions(config, isTv).getOrNull().orEmpty()
+        // Pending requests may omit serverId; infer only when exactly one
+        // server is configured. Never silently choose among multiple servers.
         val server = options.firstOrNull { it.id == serverId }
-        val profile = server?.profiles?.firstOrNull { it.id == profileId }
-        val root = server?.roots?.firstOrNull { it.name == rootFolder || it.id.toString() == rootFolder }
+            ?: if (serverId == null) options.singleOrNull() else null
+        val resolvedProfileId = profileId ?: server?.defaultProfile?.takeIf { it > 0 }
+        val profile = server?.profiles?.firstOrNull { it.id == resolvedProfileId }
+        val defaultRoot = server?.roots?.firstOrNull { it.id == server.defaultRoot }
+        val root = server?.roots?.firstOrNull {
+            it.name == rootFolder || it.id.toString() == rootFolder
+        } ?: if (rootFolder == null) defaultRoot else null
         SeerrApprovalDetails(
             server = server?.name ?: serverId?.let { "Server #$it" },
-            profile = profile?.name ?: profileId?.let { "Profile #$it" },
+            profile = profile?.name ?: resolvedProfileId?.let { "Profile #$it" },
             rootFolder = rootFolder ?: root?.name,
-            hasServer = serverId != null,
-            hasProfile = profileId != null,
-            hasRoot = rootFolder != null
+            hasServer = server != null,
+            hasProfile = resolvedProfileId != null && profile != null,
+            hasRoot = rootFolder != null || root != null
         )
     }
 
