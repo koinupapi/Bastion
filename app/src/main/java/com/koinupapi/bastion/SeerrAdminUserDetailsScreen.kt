@@ -58,7 +58,7 @@ private fun PermissionCheckbox(entry: PermissionEntry, value: Int, parentBit: In
 }
 
 @Composable
-fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: () -> Unit) {
+fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: () -> Unit, onDeleted: () -> Unit = onBack) {
     var user by remember(instance.id, userId) { mutableStateOf<SeerrAdminUserDetails?>(null) }
     var error by remember(instance.id, userId) { mutableStateOf<String?>(null) }
     var loading by remember(instance.id, userId) { mutableStateOf(true) }
@@ -70,6 +70,8 @@ fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: ()
     var editQuotas by remember(instance.id, userId) { mutableStateOf(false) }
     var quotaValues by remember(instance.id, userId) { mutableStateOf(listOf("", "", "", "")) }
     var confirmation by remember(instance.id, userId) { mutableStateOf<String?>(null) }
+    var deleteConfirmation by remember(instance.id, userId) { mutableStateOf(false) }
+    var deleting by remember(instance.id, userId) { mutableStateOf(false) }
     var saving by remember(instance.id, userId) { mutableStateOf(false) }
     var saveError by remember(instance.id, userId) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -140,9 +142,45 @@ fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: ()
                         it.isBlank() || (it.toIntOrNull()?.let { n -> n >= 0 } == true)
                     }) { Text("Review quota change") }
             }
+            HorizontalDivider()
+            if (details.id != 1 && permissionContext != null &&
+                (details.permissions and 2 == 0 || permissionContext?.actingUserId == 1)) {
+                OutlinedButton(onClick = { deleteConfirmation = true }, enabled = !saving && !deleting) {
+                    Text("Delete account", color = MaterialTheme.colorScheme.error)
+                }
+            }
             saveError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             if (saving) LinearProgressIndicator(Modifier.fillMaxWidth())
         }
+    }
+    if (deleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { if (!deleting) deleteConfirmation = false },
+            title = { Text("Permanently delete this account?") },
+            text = {
+                Text("Delete ${user?.displayName?.ifBlank { user?.username ?: "" } ?: "this user"} (ID $userId)? This permanently removes the Seerr account AND all media requests associated with it. This cannot be undone.")
+            },
+            confirmButton = {
+                TextButton(enabled = !deleting, onClick = {
+                    deleting = true
+                    scope.launch {
+                        SeerrClient.deleteAdminUser(instance, userId)
+                            .onSuccess {
+                                deleteConfirmation = false
+                                onDeleted()
+                            }
+                            .onFailure {
+                                saveError = it.message ?: "Unable to delete user"
+                                deleteConfirmation = false
+                            }
+                        deleting = false
+                    }
+                }) { Text(if (deleting) "Deleting…" else "Delete permanently", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(enabled = !deleting, onClick = { deleteConfirmation = false }) { Text("Cancel") }
+            }
+        )
     }
     confirmation?.let { action ->
         AlertDialog(onDismissRequest = { if (!saving) confirmation = null },
