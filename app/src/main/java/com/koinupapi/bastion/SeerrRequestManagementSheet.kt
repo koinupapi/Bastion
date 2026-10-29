@@ -99,6 +99,22 @@ fun SeerrRequestManagementSheet(
                     Text("Decline request")
                 }
             }
+            if (request.requestStatus == "Failed") {
+                Button(onClick = {
+                    busy = true
+                    error = null
+                    scope.launch {
+                        SeerrClient.retryRequest(instance, request.requestId)
+                            .onSuccess { onChanged(); onDismiss() }
+                            .onFailure { error = it.message ?: "Retry failed" }
+                        busy = false
+                    }
+                }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Retry request")
+                }
+            }
             if (!confirmDelete) {
                 TextButton(onClick = { confirmDelete = true }, enabled = !busy,
                     modifier = Modifier.fillMaxWidth()) {
