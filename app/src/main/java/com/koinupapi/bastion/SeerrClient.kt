@@ -292,6 +292,36 @@ object SeerrClient {
     }
 
     /** Create a local Seerr user and set their initial password. No password is persisted. */
+    /** Account inspection; no changes to server state. */
+    suspend fun adminUserDetails(config: ServiceConfig, userId: Int): Result<SeerrAdminUserDetails> = runCatching {
+        require(userId > 0)
+        val user = api(config, "/api/v1/user/$userId")
+        val permissions = api(config, "/api/v1/user/$userId/settings/permissions")
+        val quota = api(config, "/api/v1/user/$userId/quota")
+        val settings = api(config, "/api/v1/user/$userId/settings/main")
+        fun quotaInfo(key: String): SeerrAdminQuota {
+            val item = quota.optJSONObject(key) ?: JSONObject()
+            return SeerrAdminQuota(
+                days = item.optInt("days"), limit = item.optInt("limit"),
+                used = item.optInt("used"), remaining = item.optInt("remaining"),
+                restricted = item.optBoolean("restricted"))
+        }
+        SeerrAdminUserDetails(
+            id = user.optInt("id", userId),
+            displayName = user.optString("displayName"),
+            username = user.optString("username"),
+            email = user.optString("email"),
+            userType = user.optInt("userType"),
+            permissions = permissions.optInt("permissions", user.optInt("permissions")),
+            movieQuota = quotaInfo("movie"),
+            tvQuota = quotaInfo("tv"),
+            movieQuotaLimit = settings.optInt("movieQuotaLimit"),
+            movieQuotaDays = settings.optInt("movieQuotaDays"),
+            tvQuotaLimit = settings.optInt("tvQuotaLimit"),
+            tvQuotaDays = settings.optInt("tvQuotaDays")
+        )
+    }
+
     /** Read-only user directory; Seerr controls access via the authenticated account. */
     suspend fun userDirectory(config: ServiceConfig, take: Int = 25, skip: Int = 0): Result<SeerrUserDirectory> = runCatching {
         val response = api(config, "/api/v1/user?take=${take.coerceIn(1, 100)}&skip=${skip.coerceAtLeast(0)}&sort=displayname")
@@ -997,6 +1027,16 @@ data class SeerrIssue(
     val author: String, val createdAt: String, val message: String,
     val comments: List<String>,
     val commentEntries: List<SeerrIssueComment> = emptyList()
+)
+data class SeerrAdminQuota(
+    val days: Int, val limit: Int, val used: Int, val remaining: Int, val restricted: Boolean
+)
+data class SeerrAdminUserDetails(
+    val id: Int, val displayName: String, val username: String, val email: String,
+    val userType: Int, val permissions: Int,
+    val movieQuota: SeerrAdminQuota, val tvQuota: SeerrAdminQuota,
+    val movieQuotaLimit: Int, val movieQuotaDays: Int,
+    val tvQuotaLimit: Int, val tvQuotaDays: Int
 )
 data class SeerrAdminUser(
     val id: Int, val displayName: String, val email: String,
