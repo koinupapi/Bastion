@@ -415,16 +415,16 @@ object SeerrClient {
                     val currentIds = runCatching {
                         recentRequestIds(config, tmdbId, isTv)
                     }.getOrNull()
-                    if (currentIds != null && previousIds != null &&
-                        (currentIds - previousIds).isNotEmpty()) {
-                        throw IllegalStateException(
-                            "Seerr created the request, but the response timed out. " +
-                                "Check its status in Requests; it may still fail during processing.", error)
-                    }
-                    if (currentIds != null && currentIds.isNotEmpty()) {
-                        throw IllegalStateException(
-                            "Seerr has a request for this title, but the submission result is uncertain. " +
-                                "Check Requests before trying again.", error)
+                    when (SeerrSubmissionReconciliation.classify(previousIds, currentIds)) {
+                        SeerrSubmissionReconciliation.Outcome.NEW_REQUEST_FOUND ->
+                            throw IllegalStateException(
+                                "Seerr created the request, but the response timed out. " +
+                                    "Check its status in Requests; it may still fail during processing.", error)
+                        SeerrSubmissionReconciliation.Outcome.EXISTING_REQUEST_FOUND ->
+                            throw IllegalStateException(
+                                "Seerr has a request for this title, but the submission result is uncertain. " +
+                                    "Check Requests before trying again.", error)
+                        SeerrSubmissionReconciliation.Outcome.UNCONFIRMED -> Unit
                     }
                 }
                 throw error
