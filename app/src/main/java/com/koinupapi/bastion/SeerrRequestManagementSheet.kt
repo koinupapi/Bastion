@@ -81,11 +81,14 @@ fun SeerrRequestManagementSheet(
             Text("REQUEST INFORMATION", style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (request.isTv && request.seasons.isNotEmpty()) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Requested seasons", style = MaterialTheme.typography.bodyMedium,
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Requested seasons", modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium)
                     Text(request.seasons.joinToString(", ") { "Season $it" },
-                        style = MaterialTheme.typography.bodyMedium)
+                        modifier = Modifier.weight(1.35f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.End)
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -120,10 +123,15 @@ fun SeerrRequestManagementSheet(
                                     Text(destination.profile ?: "Not specified",
                                         style = MaterialTheme.typography.bodyMedium)
                                 }
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("Root folder", style = MaterialTheme.typography.bodyMedium)
+                                Row(Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                    Text("Root folder", modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodyMedium)
                                     Text(destination.rootFolder ?: "Not specified",
+                                        modifier = Modifier.weight(1.35f),
                                         style = MaterialTheme.typography.bodyMedium,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 if (request.requestStatus == "Pending" &&
