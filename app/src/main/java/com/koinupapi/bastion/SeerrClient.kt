@@ -138,7 +138,7 @@ object SeerrClient {
                             throw IllegalStateException("HTTP $status $detail")
                         }
                         val body = connection.inputStream.bufferedReader().use { it.readText() }
-                        return@withContext if (body.isBlank()) JSONObject() else JSONObject(body)
+                        return@withContext when { body.isBlank() -> JSONObject(); body.trimStart().startsWith("[") -> JSONObject().put("results", JSONArray(body)); else -> JSONObject(body) }
                     } finally { connection.disconnect() }
                 } catch (error: Exception) {
                     failure = "$label: ${error.message ?: error.javaClass.simpleName}"
@@ -378,15 +378,21 @@ object SeerrClient {
 
     /** Plex account discovery; this endpoint returns a JSON array rather than an object. */
     suspend fun plexImportCandidates(config: ServiceConfig): Result<List<SeerrPlexCandidate>> = runCatching {
-        val result = api(config, "/api/v1/settings/plex/users")
-        val users = result.optJSONArray("results") ?: JSONArray()
+        val users = api(config, "/api/v1/settings/plex/users").getJSONArray("results")
         (0 until users.length()).mapNotNull { index ->
             users.optJSONObject(index)?.let { item ->
                 SeerrPlexCandidate(item.optString("id"),
-                    item.optString("title").ifBlank { item.optString("username") },
+                    item.optString("title").ifBlank { item.optString("username").ifBlank { item.optString("email") } },
                     item.optString("email"))
             }
         }.filter { it.id.isNotBlank() }
+    }
+
+    suspend fun importPlexUsers(config: ServiceConfig, plexIds: List<String>): Result<Int> = runCatching {
+        require(plexIds.isNotEmpty()) { "Select at least one Plex user" }
+        val result = api(config, "/api/v1/user/import-from-plex",
+            JSONObject().put("plexIds", JSONArray(plexIds)))
+        result.getJSONArray("results").length()
     }
 
     suspend fun createLocalUser(config: ServiceConfig, email: String,
