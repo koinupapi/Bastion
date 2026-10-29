@@ -116,7 +116,6 @@ fun SeerrRequestManagementSheet(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.error)
                                 }
-                            }
                         },
                         onFailure = { failure ->
                             Text("Unable to load approval settings: " +
