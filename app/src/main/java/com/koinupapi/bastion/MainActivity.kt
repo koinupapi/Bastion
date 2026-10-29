@@ -1352,6 +1352,8 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
             SeerrDiscoverScreen(instance, discoverResults, onRequestClick)
         } else if (destination == 2) {
             SeerrIssuesScreen(instance)
+        } else if (destination == 3) {
+            SeerrUserDirectoryScreen(instance)
         } else if (destination != 1) {
             val heading = when (destination) {
                 0 -> "Discover"
