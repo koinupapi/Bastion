@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -26,6 +27,19 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
     var loading by remember(initial.id) { mutableStateOf(true) }
     var busy by remember(initial.id) { mutableStateOf(false) }
     var error by remember(initial.id) { mutableStateOf<String?>(null) }
+    var currentUser by remember(instance.id) { mutableStateOf<SeerrIssueUser?>(null) }
+    var userLookupComplete by remember(instance.id) { mutableStateOf(false) }
+    var confirmDelete by remember(initial.id) { mutableStateOf(false) }
+    val isAdminConnection = !instance.apiKey.startsWith("session:")
+    val isAdminUser = (currentUser?.permissions?.and(2) ?: 0) != 0
+    val isOwner = currentUser?.id != null && currentUser!!.id > 0 &&
+        currentUser!!.id == issue.creatorId
+    val canDelete = !busy && !loading && userLookupComplete &&
+        (isAdminConnection || isAdminUser || isOwner)
+    LaunchedEffect(instance) {
+        SeerrClient.currentIssueUser(instance).onSuccess { currentUser = it }
+        userLookupComplete = true
+    }
     LaunchedEffect(instance, initial.id) {
         SeerrClient.issueDetail(instance, initial.id)
             .onSuccess { issue = it }
@@ -108,6 +122,50 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
                 Spacer(Modifier.width(8.dp))
                 Text(if (issue.resolved) "Reopen issue" else "Resolve issue")
             }
+            if (canDelete) {
+                OutlinedButton(
+                    onClick = { confirmDelete = true },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Delete issue")
+                }
+            }
         }
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { if (!busy) confirmDelete = false },
+            title = { Text("Permanently delete issue?") },
+            text = { Text("This removes the report and its discussion from Seerr. This cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        busy = true
+                        error = null
+                        scope.launch {
+                            SeerrClient.deleteIssue(instance, issue.id)
+                                .onSuccess {
+                                    confirmDelete = false
+                                    onChanged()
+                                    onDismiss()
+                                }
+                                .onFailure {
+                                    error = it.message ?: "Could not delete issue"
+                                    confirmDelete = false
+                                }
+                            busy = false
+                        }
+                    }
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(enabled = !busy, onClick = { confirmDelete = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
