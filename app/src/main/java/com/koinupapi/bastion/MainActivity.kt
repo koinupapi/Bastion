@@ -1681,6 +1681,14 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             if (fetched.error == null) cache[cacheKey] = fetched
         }
     }
+    // Invalidate stale season and availability information after a confirmed request.
+    // This also runs while the success sheet is still visible.
+    LaunchedEffect(instance, cacheKey, requestSubmitted) {
+        if (requestSubmitted) {
+            val refreshed = SeerrClient.mediaDetails(instance, request)
+            if (refreshed.error == null) cache[cacheKey] = refreshed
+        }
+    }
     if (showRequestSheet) {
         SeerrMovieRequestSheet(instance, request.tmdbId,
             isTv = request.isTv, seasons = cache[cacheKey]?.tvSeasons.orEmpty(),
