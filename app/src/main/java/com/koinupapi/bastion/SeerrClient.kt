@@ -142,6 +142,28 @@ object SeerrClient {
             throw IllegalStateException(failure)
         }
 
+    /** Read the settings saved on this request, rather than assuming server defaults. */
+    suspend fun requestApprovalDetails(config: ServiceConfig, requestId: Int,
+        isTv: Boolean): Result<SeerrApprovalDetails> = runCatching {
+        require(requestId > 0) { "Invalid request" }
+        val request = api(config, "/api/v1/request/$requestId")
+        val serverId = request.optInt("serverId", 0).takeIf { it > 0 }
+        val profileId = request.optInt("profileId", 0).takeIf { it > 0 }
+        val rootFolder = request.optString("rootFolder").takeIf { it.isNotBlank() }
+        val options = requestOptions(config, isTv).getOrNull().orEmpty()
+        val server = options.firstOrNull { it.id == serverId }
+        val profile = server?.profiles?.firstOrNull { it.id == profileId }
+        val root = server?.roots?.firstOrNull { it.name == rootFolder || it.id.toString() == rootFolder }
+        SeerrApprovalDetails(
+            server = server?.name ?: serverId?.let { "Server #$it" },
+            profile = profile?.name ?: profileId?.let { "Profile #$it" },
+            rootFolder = rootFolder ?: root?.name,
+            hasServer = serverId != null,
+            hasProfile = profileId != null,
+            hasRoot = rootFolder != null
+        )
+    }
+
     suspend fun changeRequestStatus(config: ServiceConfig, requestId: Int,
         approve: Boolean): Result<Unit> = runCatching {
         require(requestId > 0) { "Invalid request" }
@@ -658,4 +680,10 @@ data class SeerrRequestServer(
     val id: Int, val name: String,
     val profiles: List<SeerrRequestChoice>, val roots: List<SeerrRequestChoice>,
     val defaultProfile: Int, val defaultRoot: Int
+)
+
+/** Values read from the individual Seerr request; absent fields are not inferred. */
+data class SeerrApprovalDetails(
+    val server: String?, val profile: String?, val rootFolder: String?,
+    val hasServer: Boolean, val hasProfile: Boolean, val hasRoot: Boolean
 )
