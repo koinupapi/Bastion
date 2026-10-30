@@ -414,50 +414,64 @@ private fun BastionApp() {
                             when (settingsPage) {
                                 "About" -> item { BastionUpdateSettings() }
                                 "Appearance" -> item {
-                                    Card(shape = MaterialTheme.shapes.extraLarge) {
-                                        Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("Dark theme", Modifier.weight(1f))
-                                                Switch(checked = dark, onCheckedChange = { dark = it; preferences.edit().putBoolean("dark_theme", it).apply() })
-                                            }
-                                            HorizontalDivider()
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("Dynamic colors", Modifier.weight(1f))
-                                                Switch(checked = dynamic, onCheckedChange = { dynamic = it; preferences.edit().putBoolean("dynamic_colors", it).apply() })
-                                            }
-                                            HorizontalDivider()
-                                            Row(verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.padding(top = 12.dp)) {
-                                                Column(Modifier.weight(1f)) {
-                                                    Text("Hide navigation while scrolling",
-                                                        style = MaterialTheme.typography.titleMedium)
-                                                    Text("Scroll down to hide the bottom bar; scroll up to show it.",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    BastionGroupedSettings {
+                                        BastionSwitchSetting(
+                                            title = "Dark theme",
+                                            checked = dark,
+                                            onCheckedChange = {
+                                                dark = it
+                                                preferences.edit().putBoolean("dark_theme", it).apply()
+                                            },
+                                            shape = BastionSettingsDefaults.itemShape(0, 4),
+                                        )
+                                        BastionSwitchSetting(
+                                            title = "Dynamic colors",
+                                            checked = dynamic,
+                                            onCheckedChange = {
+                                                dynamic = it
+                                                preferences.edit().putBoolean("dynamic_colors", it).apply()
+                                            },
+                                            shape = BastionSettingsDefaults.itemShape(1, 4),
+                                        )
+                                        BastionSwitchSetting(
+                                            title = "Hide navigation while scrolling",
+                                            description = "Scroll down to hide the bottom bar; scroll up to show it.",
+                                            checked = hideNavOnScroll,
+                                            onCheckedChange = {
+                                                hideNavOnScroll = it
+                                                preferences.edit().putBoolean("hide_nav_on_scroll", it).apply()
+                                            },
+                                            shape = BastionSettingsDefaults.itemShape(2, 4),
+                                        )
+                                        Surface(
+                                            shape = BastionSettingsDefaults.itemShape(3, 4),
+                                            color = MaterialTheme.colorScheme.surfaceContainer,
+                                        ) {
+                                            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                                                Text("Navigation labels", style = MaterialTheme.typography.titleMedium)
+                                                Text("Choose which destination names appear in the bottom bar.",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                SingleChoiceSegmentedButtonRow(
+                                                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                                                ) {
+                                                    SegmentedButton(
+                                                        selected = showAllNavLabels,
+                                                        onClick = {
+                                                            showAllNavLabels = true
+                                                            preferences.edit().putBoolean("show_all_nav_labels", true).apply()
+                                                        },
+                                                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                                                    ) { Text("All labels") }
+                                                    SegmentedButton(
+                                                        selected = !showAllNavLabels,
+                                                        onClick = {
+                                                            showAllNavLabels = false
+                                                            preferences.edit().putBoolean("show_all_nav_labels", false).apply()
+                                                        },
+                                                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                                                    ) { Text("Selected only") }
                                                 }
-                                                Switch(checked = hideNavOnScroll,
-                                                    onCheckedChange = { hideNavOnScroll = it; preferences.edit().putBoolean("hide_nav_on_scroll", it).apply() })
-                                            }
-                                            HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                                            Text("Navigation labels", style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
-                                            Text("Choose which destination names appear in the bottom bar.",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            SingleChoiceSegmentedButtonRow(
-                                                modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
-                                            ) {
-                                                SegmentedButton(
-                                                    selected = showAllNavLabels,
-                                                    onClick = { showAllNavLabels = true; preferences.edit().putBoolean("show_all_nav_labels", true).apply() },
-                                                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                                                ) { Text("All labels") }
-                                                SegmentedButton(
-                                                    selected = !showAllNavLabels,
-                                                    onClick = { showAllNavLabels = false; preferences.edit().putBoolean("show_all_nav_labels", false).apply() },
-                                                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                                                ) { Text("Selected only") }
                                             }
                                         }
                                     }
