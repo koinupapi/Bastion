@@ -63,6 +63,18 @@ object SeerrBrowseClient {
         }
     }
 
+    suspend fun searchStudios(config: ServiceConfig, query: String): Result<List<SeerrBrowseOption>> = runCatching {
+        val data = JSONObject(get(config, "/api/v1/search/company?query=${encode(query)}&page=1"))
+        val array = data.optJSONArray("results") ?: JSONArray()
+        (0 until array.length()).mapNotNull { i ->
+            array.optJSONObject(i)?.let { item ->
+                val id = item.optInt("id")
+                val name = item.optString("name")
+                if (id > 0 && name.isNotBlank()) SeerrBrowseOption(id, name) else null
+            }
+        }
+    }
+
     suspend fun browse(
         config: ServiceConfig, kind: String, page: Int,
         filter: String = "all", id: Int = 0, query: String = ""
