@@ -389,6 +389,7 @@ private fun BastionApp() {
                 val screenScroll = seerrScrollStates.getOrPut(scrollKey) {
                     androidx.compose.foundation.lazy.LazyListState()
                 }
+            val screenContent: @Composable () -> Unit = {
             LazyColumn(
                 state = screenScroll,
                 overscrollEffect = rememberOverscrollEffect(),
@@ -897,6 +898,16 @@ private fun BastionApp() {
                     }
                 }
             }
+                val discoverVisible = destination.serviceId != null && destination.tab == 0 &&
+                    !destination.page.startsWith("media:") &&
+                    savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }
+                if (discoverVisible) {
+                    BastionDiscoverRefresh(isRefreshing = seerrDiscoverRefreshing,
+                        onRefresh = {
+                            seerrDiscoverRefreshing = true
+                            seerrRefreshDiscover()
+                        }) { screenContent() }
+                } else screenContent()
             }
             val activeTabs = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
                 seerrLabels.mapIndexed { index, label ->
