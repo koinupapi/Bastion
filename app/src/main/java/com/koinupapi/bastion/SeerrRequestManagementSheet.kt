@@ -86,17 +86,17 @@ fun SeerrRequestManagementSheet(
     }
     ModalBottomSheet(onDismissRequest = { if (!busy) onDismiss() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        shape = BastionShapes.bottomSheet) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = BastionSheetDefaults.horizontalPadding).padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
             Text(if (canManage == true) "Manage request" else "Request details",
                 style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
                 if (!request.posterUrl.isNullOrBlank()) {
                     AsyncImage(model = request.posterUrl, contentDescription = "${request.title} poster",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.width(112.dp).height(168.dp)
-                            .clip(RoundedCornerShape(20.dp)))
+                            .clip(BastionShapes.mediaArtwork))
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(request.title, style = MaterialTheme.typography.titleLarge,
@@ -104,7 +104,7 @@ fun SeerrRequestManagementSheet(
                     Text("${if (request.isTv) "TV series" else "Movie"} · Request #${request.requestId}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                         Surface(shape = RoundedCornerShape(50),
                             color = MaterialTheme.colorScheme.primaryContainer) {
                             Text(request.requestStatus, modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
@@ -126,7 +126,7 @@ fun SeerrRequestManagementSheet(
             Text("REQUEST INFORMATION", style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (request.isTv && request.seasons.isNotEmpty()) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                     Text("Requested seasons", modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium)
@@ -169,7 +169,7 @@ fun SeerrRequestManagementSheet(
                                         style = MaterialTheme.typography.bodyMedium)
                                 }
                                 Row(Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium),
                                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                     Text("Root folder", modifier = Modifier.weight(1f),
                                         style = MaterialTheme.typography.bodyMedium)
@@ -325,7 +325,7 @@ fun SeerrRequestManagementSheet(
             } else if (canManage == true) {
                 Text("Remove this request from Seerr? This does not remove files from your media library.",
                     color = MaterialTheme.colorScheme.error)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                     OutlinedButton(onClick = { confirmDelete = false }, enabled = !busy,
                         modifier = Modifier.weight(1f)) { Text("Cancel") }
                     Button(colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error), onClick = {
@@ -351,7 +351,7 @@ private fun RequestDestinationSelector(label: String, options: List<Pair<String,
     selected: String, enabled: Boolean, onSelect: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val display = options.firstOrNull { it.first == selected }?.second ?: "Select…"
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.xSmall)) {
         Text(label, style = MaterialTheme.typography.labelMedium)
         Box {
             OutlinedButton(onClick = { expanded = true },
