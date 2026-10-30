@@ -387,13 +387,29 @@ private fun BastionApp() {
                             onBack = { popSeerrMedia() },
                             onRelatedClick = { seerrMediaStack.add(it) }) }
                         else item {
-                            seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${seerrTab}") {
-                                Box(Modifier.fillMaxWidth().then(if (seerrTab == 0) Modifier else Modifier.padding(horizontal = 16.dp))) {
-                                SeerrManagementScreen(service, seerrTab, seerrDiscoverCache,
-                                    seerrSettingsSection, { seerrSettingsSection = it },
-                                    seerrSearching, { seerrSearching = it }) {
-                                    seerrMediaStack.add(it)
-                                }
+                            val destination = if (seerrTab == 4) "settings:${seerrSettingsSection}" else "tab:${seerrTab}"
+                            BastionDestinationTransition(
+                                destination = destination,
+                                modifier = Modifier.fillMaxWidth(),
+                                direction = { from, to ->
+                                    when {
+                                        from.startsWith("settings:") && to.startsWith("settings:") ->
+                                            if (to == "settings:root") -1 else 1
+                                        else -> 0
+                                    }
+                                },
+                            ) { visibleDestination ->
+                                val visibleTab = if (visibleDestination.startsWith("settings:")) 4
+                                    else visibleDestination.substringAfter("tab:").toIntOrNull() ?: 0
+                                val visibleSection = if (visibleTab == 4) visibleDestination.substringAfter("settings:") else "root"
+                                seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${visibleTab}") {
+                                    Box(Modifier.fillMaxWidth().then(if (visibleTab == 0) Modifier else Modifier.padding(horizontal = 16.dp))) {
+                                        SeerrManagementScreen(service, visibleTab, seerrDiscoverCache,
+                                            visibleSection, { seerrSettingsSection = it },
+                                            seerrSearching, { seerrSearching = it }) {
+                                            seerrMediaStack.add(it)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1171,7 +1187,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        AnimatedVisibility(visible = searching, enter = fadeIn(), exit = fadeOut()) {
+        BastionReveal(visible = searching) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                 OutlinedTextField(value = query, onValueChange = { query = it },
