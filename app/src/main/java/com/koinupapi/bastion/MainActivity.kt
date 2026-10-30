@@ -329,14 +329,12 @@ private fun BastionApp() {
             }
         }) {
         LaunchedEffect(tab, selectedMediaId, seerrTab, settingsPage, hideNavOnScroll) { navVisible = true }
-        Scaffold(
-            modifier = Modifier.nestedScroll(topBarScrollBehavior.nestedScrollConnection),
-            topBar = {
-                BastionPageHeader(
-                    title = headerTitle,
-                    subtitle = headerContext,
-                    scrollBehavior = topBarScrollBehavior,
-                    onNavigationClick = {
+        BastionAppShell(
+            title = headerTitle,
+            subtitle = headerContext,
+            isBack = headerBack,
+            scrollBehavior = topBarScrollBehavior,
+            onNavigationClick = {
                         when {
                             openSeerrRequest != null -> popSeerrMedia()
                             nestedSeerrSettings -> seerrSettingsSection = when (seerrSettingsSection) {
@@ -347,20 +345,17 @@ private fun BastionApp() {
                             nestedBastionSettings -> goBackSettings()
                             else -> scope.launch { drawerState.open() }
                         }
-                    },
-                    isBack = headerBack,
-                    actions = {
+            },
+            actions = {
                         if (serviceScreen && seerrTab == 0 && openSeerrRequest == null) {
                             IconButton(onClick = { seerrSearching = !seerrSearching }) {
                                 Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
                                     contentDescription = if (seerrSearching) "Close search" else "Search movies and TV")
                             }
                         }
-                    },
-                )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
-            containerColor = MaterialTheme.colorScheme.background) { insets ->
+        ) { insets ->
             Box(Modifier.fillMaxSize()) {
             val activeDestination = BastionScreenDestination(
                 serviceId = selectedMediaId,
