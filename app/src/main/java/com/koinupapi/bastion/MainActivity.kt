@@ -416,20 +416,15 @@ private fun BastionApp() {
                             }
                             item {
                                 BastionGroupedSettings {
-                                    BastionSettingsDestination("App updates", "Version checks and new releases",
-                                        Icons.Default.SystemUpdate, index = 0, count = 2) {
-                                        openSettingsPage("App updates")
-                                    }
-                                    BastionSettingsDestination("About", "App information and acknowledgments",
-                                        Icons.Default.Info, index = 1, count = 2) {
-                                        openSettingsPage("About")
+                                    BastionSettingsDestination("About & Updates", "App version, updates and release information",
+                                        Icons.Default.Info, index = 0, count = 1) {
+                                        openSettingsPage("About & Updates")
                                     }
                                 }
                             }
                         } else {
                             when (settingsPage) {
-                                "App updates" -> item { BastionUpdateSettings() }
-                                "About" -> item {
+                                "About & Updates" -> item {
                                     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                                         Text("About Bastion", style = MaterialTheme.typography.headlineSmall)
                                         Text("Bastion brings your homelab services together in one Android app.",
@@ -443,6 +438,7 @@ private fun BastionApp() {
                                                 Text("Build: ${appInfo.longVersionCode}")
                                             }
                                         }
+                                        BastionUpdateSettings()
                                     }
                                 }
                                 "Notifications" -> item {
@@ -570,14 +566,6 @@ private fun BastionApp() {
                                             openSettingsPage("Add service")
                                         }
                                     }
-                                    if (savedInstances.any { it.type == "Seerr" }) {
-                                        item {
-                                            SettingsEntry("Create Seerr user", "Add a local account to Seerr",
-                                                Icons.Default.PersonAdd) {
-                                                openSettingsPage("Create Seerr user")
-                                            }
-                                        }
-                                    }
                                     item { SectionTitle("Your services") }
                                     if (savedInstances.isEmpty()) {
                                         item {
@@ -611,16 +599,6 @@ private fun BastionApp() {
                                                     }
                                                 }
                                             }
-                                        }
-                                    }
-                                }
-                                "Create Seerr user" -> {
-                                    val seerrInstances = savedInstances.filter { it.type == "Seerr" }
-                                    if (seerrInstances.isEmpty()) {
-                                        item { Text("Configure a Seerr service first.") }
-                                    } else {
-                                        seerrInstances.forEach { seerr ->
-                                            item { SeerrCreateLocalUserSettings(seerr) }
                                         }
                                     }
                                 }
@@ -825,11 +803,12 @@ private fun BastionApp() {
                 exit = androidx.compose.animation.slideOutVertically { it } + fadeOut()) {
             if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
                 NavigationBar {
-                    listOf("Discover", "Requests", "Issues", "Settings").forEachIndexed { index, label ->
+                    listOf("Discover", "Requests", "Issues", "Users", "Settings").forEachIndexed { index, label ->
                         val icon = when (index) {
                             0 -> Icons.Default.Explore
                             1 -> Icons.Default.ListAlt
                             2 -> Icons.Default.ReportProblem
+                            3 -> Icons.Default.People
                             else -> Icons.Default.Settings
                         }
                         NavigationBarItem(selected = seerrTab == index,
@@ -1379,6 +1358,17 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
         mutableIntStateOf(pagePreferences.getInt("requests_page_size_${instance.id}", 25)
             .takeIf { it in listOf(25, 50, 100) } ?: 25)
     }
+    DisposableEffect(instance.id) {
+        val key = "requests_page_size_${instance.id}"
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, changed ->
+            if (changed == key) {
+                pageSize = prefs.getInt(key, 25).takeIf { it in listOf(25, 50, 100) } ?: 25
+                page = 0
+            }
+        }
+        pagePreferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { pagePreferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     LaunchedEffect(instance, destination, page, pageSize, filter, mediaType, sortOrder, sortDirection, refresh) {
         if (destination != 1) return@LaunchedEffect
         loading = true
@@ -1395,6 +1385,8 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
         } else if (destination == 2) {
             SeerrIssuesScreen(instance)
         } else if (destination == 3) {
+            SeerrUserDirectoryScreen(instance)
+        } else if (destination == 4) {
             SeerrSettingsScreen(instance)
         } else {
         Text("Requests", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -1433,29 +1425,6 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
                 Icon(if (sortDirection == "desc") Icons.Default.ArrowDownward
                     else Icons.Default.ArrowUpward, contentDescription =
                     if (sortDirection == "desc") "Sort descending" else "Sort ascending")
-            }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically) {
-            Text("Requests per page", style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.width(8.dp))
-            var sizeExpanded by remember { mutableStateOf(false) }
-            Box {
-                OutlinedButton(onClick = { sizeExpanded = true }) {
-                    Text(pageSize.toString())
-                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                }
-                DropdownMenu(expanded = sizeExpanded, onDismissRequest = { sizeExpanded = false }) {
-                    listOf(25, 50, 100).forEach { amount ->
-                        DropdownMenuItem(text = { Text(amount.toString()) }, onClick = {
-                            pageSize = amount
-                            page = 0
-                            pagePreferences.edit().putInt("requests_page_size_${instance.id}", amount).apply()
-                            sizeExpanded = false
-                        })
-                    }
-                }
             }
         }
         counts?.let { summary ->
