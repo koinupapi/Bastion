@@ -26,13 +26,13 @@ fun SeerrReportIssueSheet(instance: ServiceConfig, title: String, mediaId: Int,
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     ModalBottomSheet(onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) {
+        shape = BastionShapes.bottomSheet) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp).padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            .padding(horizontal = BastionSheetDefaults.horizontalPadding).padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
             Row(verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Surface(shape = RoundedCornerShape(20.dp),
+                Surface(shape = BastionShapes.mediaArtwork,
                     color = MaterialTheme.colorScheme.secondaryContainer) {
                     Icon(Icons.Default.ReportProblem, contentDescription = null,
                         modifier = Modifier.padding(16.dp).size(28.dp),
@@ -79,7 +79,7 @@ fun SeerrReportIssueSheet(instance: ServiceConfig, title: String, mediaId: Int,
                 }
             }, enabled = !submitting && mediaId > 0 && description.isNotBlank(),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                shape = RoundedCornerShape(24.dp)) {
+                shape = BastionShapes.prominentAction) {
                 if (submitting) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 else Text("Submit issue")
             }
