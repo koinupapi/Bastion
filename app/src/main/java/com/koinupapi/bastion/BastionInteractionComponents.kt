@@ -1,10 +1,6 @@
 package com.koinupapi.bastion
 
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
-import kotlin.math.sin
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,7 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.asPaddingValues
@@ -107,32 +102,16 @@ fun BastionTransferProgress(
     modifier: Modifier = Modifier,
 ) {
     val value = progress.coerceIn(0f, 1f)
-    when (state) {
-        BastionTransferState.Active -> LinearWavyProgressIndicator(
-            progress = { value }, modifier = modifier)
-        BastionTransferState.Paused -> {
-            val muted = MaterialTheme.colorScheme.onSurfaceVariant
-            val track = MaterialTheme.colorScheme.surfaceContainerHighest
-            Canvas(modifier.fillMaxWidth().height(12.dp)) {
-                val y = size.height / 2f
-                drawLine(track, androidx.compose.ui.geometry.Offset(0f, y),
-                    androidx.compose.ui.geometry.Offset(size.width, y), strokeWidth = 4.dp.toPx())
-                val end = size.width * value
-                val path = Path()
-                val amplitude = 2.5.dp.toPx()
-                val period = 22.dp.toPx()
-                path.moveTo(0f, y)
-                var x = 0f
-                while (x <= end) {
-                    path.lineTo(x, y + amplitude * sin(x / period * (2f * Math.PI).toFloat()))
-                    x += 2.dp.toPx()
-                }
-                drawPath(path, muted, style = Stroke(width = 4.dp.toPx(),
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round))
-            }
-        }
-        BastionTransferState.Stopped -> LinearProgressIndicator(
-            progress = { value }, modifier = modifier,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
+    val active = state == BastionTransferState.Active
+    val stopped = state == BastionTransferState.Stopped
+    val wavelength = WavyProgressIndicatorDefaults.LinearDeterminateWavelength
+    LinearWavyProgressIndicator(
+        progress = { value },
+        modifier = modifier,
+        color = if (active) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+        amplitude = { if (stopped) 0f else 1f },
+        wavelength = wavelength,
+        waveSpeed = if (active) wavelength else 0.dp,
+    )
 }
