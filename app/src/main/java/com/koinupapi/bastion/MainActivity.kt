@@ -133,6 +133,9 @@ private fun BastionApp() {
         val seerrScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.lazy.LazyListState>() }
         val seerrCarouselScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.ScrollState>() }
         val seerrDiscoverCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrDiscoverResult>() }
+        var seerrDiscoverRefresh by remember(selectedMediaId) { mutableIntStateOf(0) }
+        var seerrDiscoverRefreshing by remember(selectedMediaId) { mutableStateOf(false) }
+        val seerrRefreshDiscover: () -> Unit = { seerrDiscoverRefresh++ }
         val seerrPageStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
         val openSeerrRequest = seerrMediaStack.lastOrNull()
         val popSeerrMedia = { if (seerrMediaStack.isNotEmpty()) seerrMediaStack.removeAt(seerrMediaStack.lastIndex) }
@@ -386,6 +389,7 @@ private fun BastionApp() {
                 val screenScroll = seerrScrollStates.getOrPut(scrollKey) {
                     androidx.compose.foundation.lazy.LazyListState()
                 }
+            val screenContent: @Composable () -> Unit = {
             LazyColumn(
                 state = screenScroll,
                 overscrollEffect = rememberOverscrollEffect(),
@@ -403,13 +407,25 @@ private fun BastionApp() {
                             carouselScrollStates = seerrCarouselScrollStates,
                             navigationDepth = seerrMediaStack.size,
                             onBack = { popSeerrMedia() },
-                            onRelatedClick = { seerrMediaStack.add(it) }) }
+                            onRelatedClick = { seerrMediaStack.add(it) },
+                            onRequestSubmitted = { tmdbId, isTv ->
+                                seerrDiscoverCache.keys.toList().forEach { section ->
+                                    val previous = seerrDiscoverCache[section] ?: return@forEach
+                                    seerrDiscoverCache[section] = previous.copy(items = previous.items.map { title ->
+                                        if (title.tmdbId == tmdbId && title.isTv == isTv &&
+                                            title.mediaStatus !in listOf(2, 3, 4, 5))
+                                            title.copy(mediaStatus = 2) else title
+                                    })
+                                }
+                                seerrDiscoverRefresh++
+                            }) }
                         else item {
                             seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${destination.tab}-${destination.page}") {
                                 Box(Modifier.fillMaxWidth().then(if (destination.tab == 0) Modifier else Modifier.padding(horizontal = 16.dp))) {
                                     SeerrManagementScreen(service, destination.tab, seerrDiscoverCache,
                                         destination.page, { seerrSettingsSection = it },
-                                        seerrSearching, { seerrSearching = it }) {
+                                        seerrSearching, { seerrSearching = it }, seerrDiscoverRefresh,
+                                        { seerrDiscoverRefreshing = it }) {
                                         seerrMediaStack.add(it)
                                     }
                                 }
@@ -882,6 +898,16 @@ private fun BastionApp() {
                     }
                 }
             }
+                val discoverVisible = destination.serviceId != null && destination.tab == 0 &&
+                    !destination.page.startsWith("media:") &&
+                    savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }
+                if (discoverVisible) {
+                    BastionDiscoverRefresh(isRefreshing = seerrDiscoverRefreshing,
+                        onRefresh = {
+                            seerrDiscoverRefreshing = true
+                            seerrRefreshDiscover()
+                        }) { screenContent() }
+                } else screenContent()
             }
             val activeTabs = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
                 seerrLabels.mapIndexed { index, label ->
@@ -1164,6 +1190,7 @@ private fun SettingsEntry(
 private fun SeerrDiscoverScreen(instance: ServiceConfig,
     results: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
     searching: Boolean, onSearchingChange: (Boolean) -> Unit,
+    refresh: Int, onRefreshingChange: (Boolean) -> Unit,
     onMediaClick: (SeerrRecentRequest) -> Unit) {
     val sections = remember { listOf("Trending", "Popular Movies", "Popular TV Shows",
         "Upcoming Movies", "Upcoming TV Shows") }
@@ -1182,14 +1209,21 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             searchLoading = false
         }
     }
-    LaunchedEffect(instance) {
-        kotlinx.coroutines.coroutineScope {
-            sections.filter { it !in results }.forEach { section ->
-                launch {
-                    val response = SeerrClient.discover(instance, section)
-                    results[section] = response
+    LaunchedEffect(instance, refresh) {
+        try {
+            kotlinx.coroutines.coroutineScope {
+                sections.filter { refresh > 0 || it !in results }.forEach { section ->
+                    launch {
+                        val response = SeerrClient.discover(instance, section)
+                        results[section] = response
+                    }
                 }
             }
+            if (searching && query.trim().length >= 2) {
+                searchResult = SeerrClient.discover(instance, "Search", query)
+            }
+        } finally {
+            onRefreshingChange(false)
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -1407,6 +1441,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     discoverResults: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
     settingsSection: String, onSettingsSectionChange: (String) -> Unit,
     searching: Boolean, onSearchingChange: (Boolean) -> Unit,
+    discoverRefresh: Int, onDiscoverRefreshingChange: (Boolean) -> Unit,
     onRequestClick: (SeerrRecentRequest) -> Unit) {
     var page by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
     var filter by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
@@ -1449,7 +1484,8 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     }
     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
         if (destination == 0) {
-            SeerrDiscoverScreen(instance, discoverResults, searching, onSearchingChange, onRequestClick)
+            SeerrDiscoverScreen(instance, discoverResults, searching, onSearchingChange,
+                discoverRefresh, onDiscoverRefreshingChange, onRequestClick)
         } else if (destination == 2) {
             SeerrIssuesScreen(instance)
         } else if (destination == 3) {
@@ -1918,7 +1954,8 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
     cache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrMediaDetails>,
     carouselScrollStates: MutableMap<String, androidx.compose.foundation.ScrollState>,
     navigationDepth: Int,
-    onBack: () -> Unit, onRelatedClick: (SeerrRecentRequest) -> Unit) {
+    onBack: () -> Unit, onRelatedClick: (SeerrRecentRequest) -> Unit,
+    onRequestSubmitted: (Int, Boolean) -> Unit) {
     var showRequestSheet by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
     var requestSubmitted by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
     var showIssueSheet by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
@@ -1987,6 +2024,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                 knownRequestedSeasons = knownRequestedSeasons.orEmpty() + confirmedSeasons
                 protectConfirmedSeasons(confirmedSeasons)
                 requestSubmitted = true
+                onRequestSubmitted(request.tmdbId, request.isTv)
             },
             onSubmitted = { showRequestSheet = false })
     }

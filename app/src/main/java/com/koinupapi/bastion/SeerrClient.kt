@@ -764,7 +764,7 @@ object SeerrClient {
                 "Popular TV Shows" to "/api/v1/discover/tv",
                 "Upcoming Movies" to "/api/v1/discover/movies/upcoming",
                 "Upcoming TV Shows" to "/api/v1/discover/tv/upcoming")
-            val path = if (category == "Search") "/api/v1/search?query=" + java.net.URLEncoder.encode(query.trim(), "UTF-8") else paths[category] ?: return@withContext SeerrDiscoverResult(error = "Unknown category")
+            val path = if (category == "Search") "/api/v1/search?query=" + java.net.URLEncoder.encode(query.trim(), "UTF-8").replace("+", "%20") else paths[category] ?: return@withContext SeerrDiscoverResult(error = "Unknown category")
             val addresses = when (config.mode) {
                 "Local only" -> listOf("Local" to config.localUrl)
                 "Remote only" -> listOf("Remote" to config.remoteUrl)
