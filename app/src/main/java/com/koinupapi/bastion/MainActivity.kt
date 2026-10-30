@@ -445,6 +445,7 @@ private fun BastionApp() {
                                         )
                                         SegmentedListItem(
                                             shapes = ListItemDefaults.segmentedShapes(index = 3, count = 4),
+                                            colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
                                             content = {
                                                 Column(Modifier.fillMaxWidth()) {
                                                 Text("Navigation labels", style = MaterialTheme.typography.titleMedium)
