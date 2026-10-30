@@ -362,12 +362,22 @@ private fun BastionApp() {
             snackbarHost = { SnackbarHost(snackbarHostState) },
             containerColor = MaterialTheme.colorScheme.background) { insets ->
             Box(Modifier.fillMaxSize()) {
-            val scrollKey = if (openSeerrRequest != null)
-                "media-${seerrMediaStack.size}-${openSeerrRequest.tmdbId}-${openSeerrRequest.isTv}"
-                else "main-${selectedMediaId ?: "bastion"}-${if (selectedMediaId == null) tab else seerrTab}"
-            val screenScroll = seerrScrollStates.getOrPut(scrollKey) {
-                androidx.compose.foundation.lazy.LazyListState()
-            }
+            val activeDestination = BastionScreenDestination(
+                serviceId = selectedMediaId,
+                tab = if (selectedMediaId == null) tab else seerrTab,
+                page = when {
+                    openSeerrRequest != null -> "media:${seerrMediaStack.size}:${openSeerrRequest.tmdbId}"
+                    selectedMediaId != null && seerrTab == 4 -> seerrSettingsSection
+                    selectedMediaId == null && tab == 2 -> settingsPage
+                    else -> "root"
+                },
+            )
+            BastionNavigationHost(destination = activeDestination, modifier = Modifier.fillMaxSize()) { destination ->
+                val scrollKey = if (destination.page.startsWith("media:")) destination.page
+                    else "main-${destination.serviceId ?: "bastion"}-${destination.tab}-${destination.page}"
+                val screenScroll = seerrScrollStates.getOrPut(scrollKey) {
+                    androidx.compose.foundation.lazy.LazyListState()
+                }
             LazyColumn(
                 state = screenScroll,
                 overscrollEffect = rememberOverscrollEffect(),
@@ -376,9 +386,9 @@ private fun BastionApp() {
                     bottom = if (openSeerrRequest != null) 28.dp else if (!hideNavOnScroll || navVisible) 100.dp else 16.dp),
                 verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)
             ) {
-                if (selectedMediaId == null && tab == 0) item { DemoNotice() }
-                if (selectedMediaId != null) {
-                    val service = savedInstances.firstOrNull { it.id == selectedMediaId }
+                if (destination.serviceId == null && destination.tab == 0) item { DemoNotice() }
+                if (destination.serviceId != null) {
+                    val service = savedInstances.firstOrNull { it.id == destination.serviceId }
                     if (service?.type == "Seerr") {
                         if (openSeerrRequest != null) item { SeerrRequestDetails(service, openSeerrRequest!!,
                             cache = seerrMediaCache,
@@ -387,35 +397,19 @@ private fun BastionApp() {
                             onBack = { popSeerrMedia() },
                             onRelatedClick = { seerrMediaStack.add(it) }) }
                         else item {
-                            val destination = if (seerrTab == 4) "settings:${seerrSettingsSection}" else "tab:${seerrTab}"
-                            BastionDestinationTransition(
-                                destination = destination,
-                                modifier = Modifier.fillMaxWidth(),
-                                direction = { from, to ->
-                                    when {
-                                        from.startsWith("settings:") && to.startsWith("settings:") ->
-                                            if (to == "settings:root") -1 else 1
-                                        else -> 0
-                                    }
-                                },
-                            ) { visibleDestination ->
-                                val visibleTab = if (visibleDestination.startsWith("settings:")) 4
-                                    else visibleDestination.substringAfter("tab:").toIntOrNull() ?: 0
-                                val visibleSection = if (visibleTab == 4) visibleDestination.substringAfter("settings:") else "root"
-                                seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${visibleTab}") {
-                                    Box(Modifier.fillMaxWidth().then(if (visibleTab == 0) Modifier else Modifier.padding(horizontal = 16.dp))) {
-                                        SeerrManagementScreen(service, visibleTab, seerrDiscoverCache,
-                                            visibleSection, { seerrSettingsSection = it },
-                                            seerrSearching, { seerrSearching = it }) {
-                                            seerrMediaStack.add(it)
-                                        }
+                            seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${destination.tab}") {
+                                Box(Modifier.fillMaxWidth().then(if (destination.tab == 0) Modifier else Modifier.padding(horizontal = 16.dp))) {
+                                    SeerrManagementScreen(service, destination.tab, seerrDiscoverCache,
+                                        destination.page, { seerrSettingsSection = it },
+                                        seerrSearching, { seerrSearching = it }) {
+                                        seerrMediaStack.add(it)
                                     }
                                 }
                             }
                         }
                     }
                     else item { Text("Service management coming soon.") }
-                } else when (tab) {
+                } else when (destination.tab) {
                     0 -> {
                         item { ServerWidget() }
                         item { DownloadsWidget() }
@@ -426,7 +420,7 @@ private fun BastionApp() {
                     }
                     1 -> { item { UnifiedCalendarScreen() } }
                     else -> {
-                        if (settingsPage == "Settings") {
+                        if (destination.page == "Settings") {
                             item { Text("Customize Bastion and manage your integrations",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -463,7 +457,7 @@ private fun BastionApp() {
                                 }
                             }
                         } else {
-                            when (settingsPage) {
+                            when (destination.page) {
                                 "About & Updates" -> item {
                                     BastionAboutScreen(openUpdates = { openSettingsPage("Check for updates") })
                                 }
@@ -868,6 +862,7 @@ private fun BastionApp() {
                         }
                     }
                 }
+            }
             }
             AnimatedVisibility(modifier = Modifier.align(Alignment.BottomCenter), visible = openSeerrRequest == null && (!hideNavOnScroll || navVisible),
                 enter = androidx.compose.animation.slideInVertically { it } + fadeIn(),
