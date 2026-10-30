@@ -11,7 +11,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
@@ -58,6 +57,37 @@ fun BastionReveal(
             androidx.compose.animation.expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)),
         exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
             androidx.compose.animation.shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)),
+        content = content,
+    )
+}
+
+/**
+ * Common destination identity for the app shell. All services use the same
+ * navigation transition host; only the supplied destination keys differ.
+ */
+data class BastionScreenDestination(
+    val serviceId: String?,
+    val tab: Int,
+    val page: String = "root",
+)
+
+@Composable
+fun BastionNavigationHost(
+    destination: BastionScreenDestination,
+    modifier: Modifier = Modifier,
+    content: @Composable (BastionScreenDestination) -> Unit,
+) {
+    BastionDestinationTransition(
+        destination = destination,
+        modifier = modifier,
+        direction = { from, to ->
+            when {
+                from.serviceId != to.serviceId -> 0
+                from.tab != to.tab -> 0
+                to.page == "root" || to.page == "Settings" -> -1
+                else -> 1
+            }
+        },
         content = content,
     )
 }
