@@ -14,12 +14,11 @@ import androidx.compose.ui.unit.dp
 
 /** About and update actions share a destination, while retaining the existing updater. */
 @Composable
-fun BastionAboutScreen() {
+fun BastionAboutScreen(openUpdates: () -> Unit) {
     val context = LocalContext.current
     val packageInfo = remember(context) {
         context.packageManager.getPackageInfo(context.packageName, 0)
     }
-    var showUpdater by remember { mutableStateOf(false) }
     val repository = "https://github.com/koinupapi/Bastion"
     fun openExternal(url: String) {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -50,7 +49,7 @@ fun BastionAboutScreen() {
                 description = "Find and install a newer signed APK",
                 icon = Icons.Default.SystemUpdate,
                 index = 0, count = 2,
-            ) { showUpdater = !showUpdater }
+            ) { openUpdates() }
             BastionSettingsDestination(
                 title = "What's new",
                 description = "Browse GitHub releases and change notes",
@@ -58,11 +57,6 @@ fun BastionAboutScreen() {
                 index = 1, count = 2,
             ) { openExternal("$repository/releases") }
         }
-        if (showUpdater) {
-            // Preserve the existing update channel, checks, download and install logic.
-            BastionUpdateSettings()
-        }
-
         Text("PROJECT & FEEDBACK", style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary)
         BastionGroupedSettings {
