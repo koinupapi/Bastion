@@ -1,22 +1,60 @@
 package com.koinupapi.bastion
 
 import android.os.Build
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.google.android.material.color.utilities.Scheme
 
 /**
- * Application-wide native Material 3 Expressive theme entry point.
- *
- * Preserve the existing dynamic-color and light/dark behavior while keeping
- * service screens independent of the user's selected color source.
- * Additional theme modes and semantic tokens can be introduced here later.
+ * Bastion's only branded source color. All fallback theme roles are generated
+ * using Google's Material Color Utilities rather than manually selected.
  */
+private const val BASTION_BLUE = 0xFF326FD3.toInt()
+
+private fun generatedBastionScheme(dark: Boolean): ColorScheme {
+    val scheme = if (dark) Scheme.dark(BASTION_BLUE) else Scheme.light(BASTION_BLUE)
+    val colors = { argb: Int -> Color(argb) }
+    val base = if (dark) darkColorScheme() else lightColorScheme()
+    return base.copy(
+        primary = colors(scheme.primary),
+        onPrimary = colors(scheme.onPrimary),
+        primaryContainer = colors(scheme.primaryContainer),
+        onPrimaryContainer = colors(scheme.onPrimaryContainer),
+        secondary = colors(scheme.secondary),
+        onSecondary = colors(scheme.onSecondary),
+        secondaryContainer = colors(scheme.secondaryContainer),
+        onSecondaryContainer = colors(scheme.onSecondaryContainer),
+        tertiary = colors(scheme.tertiary),
+        onTertiary = colors(scheme.onTertiary),
+        tertiaryContainer = colors(scheme.tertiaryContainer),
+        onTertiaryContainer = colors(scheme.onTertiaryContainer),
+        background = colors(scheme.background),
+        onBackground = colors(scheme.onBackground),
+        surface = colors(scheme.surface),
+        onSurface = colors(scheme.onSurface),
+        surfaceVariant = colors(scheme.surfaceVariant),
+        onSurfaceVariant = colors(scheme.onSurfaceVariant),
+        outline = colors(scheme.outline),
+        outlineVariant = colors(scheme.outlineVariant),
+        inverseSurface = colors(scheme.inverseSurface),
+        inverseOnSurface = colors(scheme.inverseOnSurface),
+        inversePrimary = colors(scheme.inversePrimary),
+        error = colors(scheme.error),
+        onError = colors(scheme.onError),
+        errorContainer = colors(scheme.errorContainer),
+        onErrorContainer = colors(scheme.onErrorContainer),
+    )
+}
+
+/** One theme entry point for Bastion and every integration. */
 @Composable
 fun BastionTheme(
     dark: Boolean,
@@ -26,24 +64,8 @@ fun BastionTheme(
     val context = LocalContext.current
     val colors = if (dynamic && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else if (dark) {
-        darkColorScheme(
-            primary = Color(0xFFADC6FF), onPrimary = Color(0xFF002E69),
-            primaryContainer = Color(0xFF16488F), onPrimaryContainer = Color(0xFFD8E3FF),
-            secondary = Color(0xFFBCC6DC), onSecondary = Color(0xFF263144),
-            secondaryContainer = Color(0xFF3D475A), onSecondaryContainer = Color(0xFFD8E2F9),
-            tertiary = Color(0xFFDABDE4), onTertiary = Color(0xFF3D2947),
-            tertiaryContainer = Color(0xFF553F5F), onTertiaryContainer = Color(0xFFF7D8FF),
-        )
     } else {
-        lightColorScheme(
-            primary = Color(0xFF326FD3), onPrimary = Color.White,
-            primaryContainer = Color(0xFFD8E3FF), onPrimaryContainer = Color(0xFF001A41),
-            secondary = Color(0xFF565F71), onSecondary = Color.White,
-            secondaryContainer = Color(0xFFDAE2F9), onSecondaryContainer = Color(0xFF131C2B),
-            tertiary = Color(0xFF715574), onTertiary = Color.White,
-            tertiaryContainer = Color(0xFFFAD7F9), onTertiaryContainer = Color(0xFF29132D),
-        )
+        remember(dark) { generatedBastionScheme(dark) }
     }
     MaterialExpressiveTheme(colorScheme = colors, content = content)
 }
