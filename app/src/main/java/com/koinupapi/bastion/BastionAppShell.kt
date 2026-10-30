@@ -1,6 +1,7 @@
 package com.koinupapi.bastion
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -40,6 +41,7 @@ fun BastionAppShell(
             )
         },
         snackbarHost = snackbarHost,
+        contentWindowInsets = if (immersive) WindowInsets(0, 0, 0, 0) else androidx.compose.material3.ScaffoldDefaults.contentWindowInsets,
         containerColor = MaterialTheme.colorScheme.background,
         content = content,
     )
