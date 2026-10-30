@@ -49,10 +49,10 @@ fun BastionNavigationSetting(
             {
                 Box(contentAlignment = Alignment.Center) {
                     Surface(shape = MaterialTheme.shapes.large,
-                        color = MaterialTheme.colorScheme.tertiaryContainer) {
+                        color = MaterialTheme.colorScheme.secondaryContainer) {
                         Icon(icon, contentDescription = null,
                             modifier = Modifier.padding(12.dp),
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer)
                     }
                 }
             }
