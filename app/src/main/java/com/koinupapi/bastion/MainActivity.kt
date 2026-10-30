@@ -333,6 +333,7 @@ private fun BastionApp() {
             title = headerTitle,
             subtitle = headerContext,
             isBack = headerBack,
+            immersive = openSeerrRequest != null,
             scrollBehavior = topBarScrollBehavior,
             onNavigationClick = {
                         when {
