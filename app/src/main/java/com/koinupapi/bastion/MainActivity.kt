@@ -858,20 +858,21 @@ private fun BastionApp() {
                                             }
                                         }
                                         if (deleteConfirmation) {
-                                            AlertDialog(onDismissRequest = { deleteConfirmation = false },
-                                                title = { Text("Remove ${previewName}?") },
-                                                text = { Text("This removes the Bastion connection and its saved API key. Your Seerr server and media will not be changed.") },
-                                                confirmButton = {
-                                                    TextButton(onClick = {
-                                                        savedInstances.removeAll { it.id == editingId }
-                                                        persistServices()
-                                                        deleteConfirmation = false
-                                                        settingsHistory.clear()
-                                                        settingsHistory.add("Settings")
-                                                        settingsPage = "Services"
-                                                    }) { Text("Remove", color = MaterialTheme.colorScheme.error) }
+                                            BastionConfirmDialog(
+                                                title = "Remove ${previewName}?",
+                                                message = "This removes the Bastion connection and its saved API key. Your Seerr server and media will not be changed.",
+                                                confirmLabel = "Remove",
+                                                destructive = true,
+                                                onDismiss = { deleteConfirmation = false },
+                                                onConfirm = {
+                                                    savedInstances.removeAll { it.id == editingId }
+                                                    persistServices()
+                                                    deleteConfirmation = false
+                                                    settingsHistory.clear()
+                                                    settingsHistory.add("Settings")
+                                                    settingsPage = "Services"
                                                 },
-                                                dismissButton = { TextButton(onClick = { deleteConfirmation = false }) { Text("Cancel") } })
+                                            )
                                         }
                                     }
                                 }
@@ -2283,7 +2284,11 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                                             Text(relatedBadge,
                                                 Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = Color.White)
+                                                color = when (title.mediaStatus) {
+                                                     2, 4 -> MaterialTheme.colorScheme.onTertiary
+                                                     3 -> MaterialTheme.colorScheme.onSecondary
+                                                     else -> MaterialTheme.colorScheme.onPrimary
+                                                 })
                                         }
                                     }
                                     }
