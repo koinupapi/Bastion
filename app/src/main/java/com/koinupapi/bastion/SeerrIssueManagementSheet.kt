@@ -56,7 +56,7 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
     }
     ModalBottomSheet(onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = BastionShapes.bottomSheet) {
+        shape = BottomSheetDefaults.ExpandedShape) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.86f)
             .padding(horizontal = BastionSheetDefaults.horizontalPadding).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -86,7 +86,7 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
                     val isMine = ownComment && comment.userId > 0
                     Row(Modifier.fillMaxWidth(),
                         horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start) {
-                    Surface(shape = BastionShapes.mediaArtwork,
+                    Surface(shape = MaterialTheme.shapes.large,
                         modifier = Modifier.fillMaxWidth(0.88f),
                         color = if (isMine) MaterialTheme.colorScheme.primaryContainer
                             else MaterialTheme.colorScheme.surfaceContainerHigh) {
