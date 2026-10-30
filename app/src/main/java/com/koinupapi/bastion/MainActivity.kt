@@ -858,20 +858,21 @@ private fun BastionApp() {
                                             }
                                         }
                                         if (deleteConfirmation) {
-                                            AlertDialog(onDismissRequest = { deleteConfirmation = false },
-                                                title = { Text("Remove ${previewName}?") },
-                                                text = { Text("This removes the Bastion connection and its saved API key. Your Seerr server and media will not be changed.") },
-                                                confirmButton = {
-                                                    TextButton(onClick = {
-                                                        savedInstances.removeAll { it.id == editingId }
-                                                        persistServices()
-                                                        deleteConfirmation = false
-                                                        settingsHistory.clear()
-                                                        settingsHistory.add("Settings")
-                                                        settingsPage = "Services"
-                                                    }) { Text("Remove", color = MaterialTheme.colorScheme.error) }
+                                            BastionConfirmDialog(
+                                                title = "Remove ${previewName}?",
+                                                message = "This removes the Bastion connection and its saved API key. Your Seerr server and media will not be changed.",
+                                                confirmLabel = "Remove",
+                                                destructive = true,
+                                                onDismiss = { deleteConfirmation = false },
+                                                onConfirm = {
+                                                    savedInstances.removeAll { it.id == editingId }
+                                                    persistServices()
+                                                    deleteConfirmation = false
+                                                    settingsHistory.clear()
+                                                    settingsHistory.add("Settings")
+                                                    settingsPage = "Services"
                                                 },
-                                                dismissButton = { TextButton(onClick = { deleteConfirmation = false }) { Text("Cancel") } })
+                                            )
                                         }
                                     }
                                 }
@@ -977,7 +978,7 @@ private fun Metric(label: String, value: String, progress: Float, modifier: Modi
     Column(modifier, verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium)
         Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+        BastionTransferProgress(progress = progress, state = BastionTransferState.Stopped, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -1000,7 +1001,7 @@ private fun DownloadLine(name: String, progress: Float) {
             Spacer(Modifier.width(8.dp))
             Text("${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
         }
-        LinearWavyProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+        BastionTransferProgress(progress = progress, state = BastionTransferState.Active, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -1195,16 +1196,8 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         BastionReveal(visible = searching) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
-                OutlinedTextField(value = query, onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    shape = RoundedCornerShape(28.dp),
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = if (query.isNotEmpty()) {
-                        { IconButton(onClick = { query = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear search")
-                        } }
-                    } else null,
-                    placeholder = { Text("Search movies and TV shows") })
+                BastionSearchField(value = query, onValueChange = { query = it },
+                    placeholder = "Search movies and TV shows")
                 if (query.trim().length < 2) {
                     Text("Enter at least two characters to search Seerr.",
                         style = MaterialTheme.typography.bodySmall,
@@ -1212,10 +1205,9 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 } else if (searchLoading) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 } else if (searchResult?.error != null) {
-                    Text(searchResult?.error.orEmpty(), color = MaterialTheme.colorScheme.error)
+                    BastionErrorState(searchResult?.error.orEmpty())
                 } else if (searchResult != null && searchResult?.items.isNullOrEmpty()) {
-                    Text("No matching movies or TV shows.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    BastionNoSearchResults(query)
                 } else {
                     searchResult?.items?.take(20)?.forEach { title ->
                         Row(Modifier.fillMaxWidth().clickable {
@@ -1328,7 +1320,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                                             color = tint) {
                                             Text(badge, Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = Color.White, maxLines = 1)
+                                                color = MaterialTheme.colorScheme.onPrimary, maxLines = 1)
                                         }
                                     }
                                 }
@@ -1715,9 +1707,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
             it.id == server.defaultRoot
         }?.name ?: server?.roots?.firstOrNull()?.name.orEmpty()
     }
-    ModalBottomSheet(onDismissRequest = { if (!submitting) { if (submitted) onSubmitted() else onDismiss() } },
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = BottomSheetDefaults.ExpandedShape) {
+    BastionBottomSheet(onDismiss = { if (!submitting) { if (submitted) onSubmitted() else onDismiss() } }) {
         Column(Modifier.fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = BastionSheetDefaults.horizontalPadding)
@@ -2031,6 +2021,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                     0.60f to pageColor.copy(alpha = 0.70f),
                     0.88f to pageColor,
                     1f to pageColor)))
+                BastionStatusBarScrim(Modifier.align(Alignment.TopCenter))
             }
             FilledTonalIconButton(onClick = onBack,
                 modifier = Modifier.align(Alignment.TopStart)
@@ -2293,7 +2284,11 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                                             Text(relatedBadge,
                                                 Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = Color.White)
+                                                color = when (title.mediaStatus) {
+                                                     2, 4 -> MaterialTheme.colorScheme.onTertiary
+                                                     3 -> MaterialTheme.colorScheme.onSecondary
+                                                     else -> MaterialTheme.colorScheme.onPrimary
+                                                 })
                                         }
                                     }
                                     }
