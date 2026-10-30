@@ -898,6 +898,7 @@ private fun BastionApp() {
                     }
                 }
             }
+            }
                 val discoverVisible = destination.serviceId != null && destination.tab == 0 &&
                     !destination.page.startsWith("media:") &&
                     savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }
