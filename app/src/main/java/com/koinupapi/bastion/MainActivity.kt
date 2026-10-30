@@ -422,7 +422,7 @@ private fun BastionApp() {
                                                 dark = it
                                                 preferences.edit().putBoolean("dark_theme", it).apply()
                                             },
-                                            shape = BastionSettingsDefaults.itemShape(0, 4),
+                                            index = 0, count = 4,
                                         )
                                         BastionSwitchSetting(
                                             title = "Dynamic colors",
@@ -431,7 +431,7 @@ private fun BastionApp() {
                                                 dynamic = it
                                                 preferences.edit().putBoolean("dynamic_colors", it).apply()
                                             },
-                                            shape = BastionSettingsDefaults.itemShape(1, 4),
+                                            index = 1, count = 4,
                                         )
                                         BastionSwitchSetting(
                                             title = "Hide navigation while scrolling",
@@ -441,13 +441,12 @@ private fun BastionApp() {
                                                 hideNavOnScroll = it
                                                 preferences.edit().putBoolean("hide_nav_on_scroll", it).apply()
                                             },
-                                            shape = BastionSettingsDefaults.itemShape(2, 4),
+                                            index = 2, count = 4,
                                         )
-                                        Surface(
-                                            shape = BastionSettingsDefaults.itemShape(3, 4),
-                                            color = MaterialTheme.colorScheme.surfaceContainer,
-                                        ) {
-                                            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                                        SegmentedListItem(
+                                            shapes = ListItemDefaults.segmentedShapes(index = 3, count = 4),
+                                            content = {
+                                                Column(Modifier.fillMaxWidth()) {
                                                 Text("Navigation labels", style = MaterialTheme.typography.titleMedium)
                                                 Text("Choose which destination names appear in the bottom bar.",
                                                     style = MaterialTheme.typography.bodySmall,
@@ -472,8 +471,8 @@ private fun BastionApp() {
                                                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                                                     ) { Text("Selected only") }
                                                 }
-                                            }
-                                        }
+                                            },
+                                        )
                                     }
                                 }
                                 "Behavior" -> item {
