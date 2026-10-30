@@ -215,7 +215,7 @@ private fun BastionApp() {
         val labels = listOf("Dash", "Calendar", "Settings")
         val icons = listOf(Icons.Default.Home, Icons.Default.CalendarMonth, Icons.Default.Settings)
         ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
-            ModalDrawerSheet {
+            BastionNavigationDrawerSheet {
                 Column(Modifier.fillMaxHeight().padding(horizontal = 12.dp)) {
                     Row(Modifier.fillMaxWidth().padding(start = 12.dp, top = 24.dp, bottom = 12.dp),
                         verticalAlignment = Alignment.CenterVertically) {
@@ -811,31 +811,42 @@ private fun BastionApp() {
                 enter = androidx.compose.animation.slideInVertically { it } + fadeIn(),
                 exit = androidx.compose.animation.slideOutVertically { it } + fadeOut()) {
             if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
-                NavigationBar {
-                    listOf("Discover", "Requests", "Issues", "Users", "Settings").forEachIndexed { index, label ->
-                        val icon = when (index) {
-                            0 -> Icons.Default.Explore
-                            1 -> Icons.Default.ListAlt
-                            2 -> Icons.Default.ReportProblem
-                            3 -> Icons.Default.People
-                            else -> Icons.Default.Settings
-                        }
-                        NavigationBarItem(selected = seerrTab == index,
-                            onClick = { seerrTab = index },
-                            icon = { Icon(icon, contentDescription = null) },
-                            label = { Text(label) }, alwaysShowLabel = showAllNavLabels)
-                    }
-                }
-            } else if (selectedMediaId == null && (tab != 2 || settingsPage == "Settings")) NavigationBar {
-                labels.forEachIndexed { index, label ->
-                    NavigationBarItem(
-                        selected = tab == index,
-                        onClick = { tab = index; selectedMediaId = null; settingsPage = "Settings"; settingsHistory.clear(); lastExitBackAt = 0L },
-                        icon = { Icon(icons[index], contentDescription = null) },
-                        label = { Text(label) },
-                        alwaysShowLabel = showAllNavLabels
-                    )
-                }
+                BastionBottomNavigation(
+                    destinations = listOf("Discover", "Requests", "Issues", "Users", "Settings")
+                        .mapIndexed { index, label ->
+                            BastionNavDestination(
+                                label = label,
+                                icon = when (index) {
+                                    0 -> Icons.Default.Explore
+                                    1 -> Icons.Default.ListAlt
+                                    2 -> Icons.Default.ReportProblem
+                                    3 -> Icons.Default.People
+                                    else -> Icons.Default.Settings
+                                },
+                                selected = seerrTab == index,
+                                onClick = { seerrTab = index },
+                            )
+                        },
+                    showAllLabels = showAllNavLabels,
+                )
+            } else if (selectedMediaId == null && (tab != 2 || settingsPage == "Settings")) {
+                BastionBottomNavigation(
+                    destinations = labels.mapIndexed { index, label ->
+                        BastionNavDestination(
+                            label = label,
+                            icon = icons[index],
+                            selected = tab == index,
+                            onClick = {
+                                tab = index
+                                selectedMediaId = null
+                                settingsPage = "Settings"
+                                settingsHistory.clear()
+                                lastExitBackAt = 0L
+                            },
+                        )
+                    },
+                    showAllLabels = showAllNavLabels,
+                )
             }
             }
         }
