@@ -48,8 +48,7 @@ fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
         loading = false
     }
     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Users", style = MaterialTheme.typography.headlineSmall)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             IconButton(onClick = { refresh++ }, enabled = !loading) {
                 Icon(Icons.Default.Refresh, contentDescription = "Refresh users")
             }
