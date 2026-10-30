@@ -1,6 +1,7 @@
 package com.koinupapi.bastion
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -311,6 +312,7 @@ private fun BastionApp() {
             }
             LazyColumn(
                 state = screenScroll,
+                overscrollEffect = rememberOverscrollEffect(),
                 modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).padding(insets),
                 contentPadding = PaddingValues(start = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp, top = if (openSeerrRequest != null) 0.dp else 16.dp, end = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp,
                     bottom = if (openSeerrRequest != null) 28.dp else if (!hideNavOnScroll || navVisible) 100.dp else 16.dp),
@@ -425,21 +427,7 @@ private fun BastionApp() {
                         } else {
                             when (settingsPage) {
                                 "About & Updates" -> item {
-                                    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
-                                        Text("About Bastion", style = MaterialTheme.typography.headlineSmall)
-                                        Text("Bastion brings your homelab services together in one Android app.",
-                                            style = MaterialTheme.typography.bodyMedium)
-                                        val appInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-                                        BastionGroupedSettings {
-                                            BastionSettingsContent(index = 0, count = 2) {
-                                                Text("Installed version: ${appInfo.versionName ?: "Unknown"}")
-                                            }
-                                            BastionSettingsContent(index = 1, count = 2) {
-                                                Text("Build: ${appInfo.longVersionCode}")
-                                            }
-                                        }
-                                        BastionUpdateSettings()
-                                    }
+                                    BastionAboutScreen()
                                 }
                                 "Notifications" -> item {
                                     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
@@ -646,12 +634,26 @@ private fun BastionApp() {
                                         }
                                     } else {
                                         Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
-                                            Card(shape = MaterialTheme.shapes.extraLarge) {
-                                                Column(Modifier.fillMaxWidth().padding(20.dp),
-                                                    verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                                    Text("Seerr connection", style = MaterialTheme.typography.titleLarge)
+                                            Column(Modifier.fillMaxWidth(),
+                                                verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
+                                                    Text("SERVICE", style = MaterialTheme.typography.labelLarge,
+                                                        color = MaterialTheme.colorScheme.primary)
+                                                    BastionSettingsContent(index = 0, count = 1) {
+                                                        Row(verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
+                                                            Icon(Icons.Default.Dns, contentDescription = null,
+                                                                tint = MaterialTheme.colorScheme.primary)
+                                                            Column {
+                                                                Text("Seerr", style = MaterialTheme.typography.titleMedium)
+                                                                Text("Media requests", style = MaterialTheme.typography.bodySmall,
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                            }
+                                                        }
+                                                    }
                                                     OutlinedTextField(value = previewName, onValueChange = { previewName = it },
                                                         label = { Text("Display name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                                    Text("CONNECTION", style = MaterialTheme.typography.labelLarge,
+                                                        color = MaterialTheme.colorScheme.primary)
                                                     OutlinedTextField(value = localUrl, onValueChange = { localUrl = it },
                                                         label = { Text("Local URL (HTTP or HTTPS)") },
                                                         placeholder = { Text("http://192.168.1.100:5055") },
@@ -660,17 +662,21 @@ private fun BastionApp() {
                                                         label = { Text("Remote URL (HTTPS)") },
                                                         placeholder = { Text("https://seerr.example.com") },
                                                         modifier = Modifier.fillMaxWidth(), singleLine = true)
-                                                    Text("Authentication", style = MaterialTheme.typography.titleMedium)
-                                                    Row(horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
-                                                        listOf("API key", "Local user").forEach { method ->
-                                                            FilterChip(selected = seerrAuthMethod == method,
+                                                    Text("AUTHENTICATION", style = MaterialTheme.typography.labelLarge,
+                                                        color = MaterialTheme.colorScheme.primary)
+                                                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                                        listOf("API key", "Local user").forEachIndexed { index, method ->
+                                                            SegmentedButton(
+                                                                selected = seerrAuthMethod == method,
                                                                 onClick = {
                                                                     if (seerrAuthMethod != method) {
                                                                         seerrAuthMethod = method
                                                                         apiKey = ""
                                                                         testResult = ""
                                                                     }
-                                                                }, label = { Text(method) })
+                                                                },
+                                                                shape = SegmentedButtonDefaults.itemShape(index = index, count = 2)
+                                                            ) { Text(method) }
                                                         }
                                                     }
                                                     if (seerrAuthMethod == "API key") {
@@ -709,7 +715,8 @@ private fun BastionApp() {
                                                             Text(if (loggingIn) "Signing in…" else "Sign in to Seerr")
                                                         }
                                                     }
-                                                    Text("Connection preference", style = MaterialTheme.typography.titleMedium)
+                                                    Text("CONNECTION PREFERENCE", style = MaterialTheme.typography.labelLarge,
+                                                        color = MaterialTheme.colorScheme.primary)
                                                     listOf("Automatic", "Local only", "Remote only").forEach { mode ->
                                                         Row(verticalAlignment = Alignment.CenterVertically,
                                                             modifier = Modifier.fillMaxWidth().clickable { connectionMode = mode }) {
@@ -761,7 +768,6 @@ private fun BastionApp() {
                                                     }, modifier = Modifier.fillMaxWidth()) {
                                                         Text(if (editingId == null) "Save service" else "Save changes")
                                                     }
-                                                }
                                             }
                                             if (editingId != null) {
                                                 OutlinedButton(onClick = { deleteConfirmation = true },
