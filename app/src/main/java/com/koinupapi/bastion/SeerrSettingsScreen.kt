@@ -46,7 +46,7 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
                     )
                     entries.forEachIndexed { index, entry ->
                         BastionNavigationSetting(entry.first, entry.second,
-                            shape = BastionSettingsDefaults.itemShape(index, entries.size),
+                            index = index, count = entries.size,
                             onClick = { section = if (index == 0) "app" else "server" })
                     }
                 }
@@ -67,7 +67,7 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
                             category,
                             if (category == "Users") "View and manage Seerr accounts"
                             else "Settings category · Coming soon",
-                            shape = BastionSettingsDefaults.itemShape(index, categories.size),
+                            index = index, count = categories.size,
                             onClick = { section = category.lowercase() },
                         )
                     }
