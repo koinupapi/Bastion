@@ -19,7 +19,11 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.13'
+          gradle-version: '9.3.1'
+      - name: Install Android API 37
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-37'
       - name: Restore signing keystore
         env:
           BASTION_KEYSTORE_BASE64: ${{ secrets.BASTION_KEYSTORE_BASE64 }}
