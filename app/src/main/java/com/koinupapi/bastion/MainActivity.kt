@@ -427,7 +427,10 @@ private fun BastionApp() {
                         } else {
                             when (settingsPage) {
                                 "About & Updates" -> item {
-                                    BastionAboutScreen()
+                                    BastionAboutScreen(openUpdates = { openSettingsPage("Check for updates") })
+                                }
+                                "Check for updates" -> item {
+                                    BastionUpdateSettings()
                                 }
                                 "Notifications" -> item {
                                     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
