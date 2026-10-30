@@ -38,6 +38,7 @@ fun BastionNavigationSetting(
         onClick = onClick,
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
         modifier = modifier,
+        colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         supportingContent = { Text(description) },
         trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
         content = { Text(title) },
@@ -61,6 +62,10 @@ fun BastionSwitchSetting(
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
         modifier = modifier,
         enabled = enabled,
+        colors = ListItemDefaults.segmentedColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
         supportingContent = if (description != null) { { Text(description) } } else null,
         trailingContent = {
             Switch(checked = checked, onCheckedChange = null, enabled = enabled)
