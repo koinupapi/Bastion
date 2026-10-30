@@ -43,3 +43,21 @@ fun BastionAppShell(
         content = content,
     )
 }
+
+/** Consistent bottom-bar visibility motion, independent of the service's tabs. */
+@Composable
+fun BastionShellBottomBar(
+    visible: Boolean,
+    destinations: List<BastionNavDestination>,
+    showAllLabels: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut(),
+    ) {
+        BastionBottomNavigation(destinations, showAllLabels)
+    }
+}
