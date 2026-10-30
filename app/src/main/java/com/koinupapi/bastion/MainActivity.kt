@@ -391,28 +391,68 @@ private fun BastionApp() {
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             item {
-                                BastionSettingsDestination("Appearance", "Theme, dynamic colors and display", Icons.Default.Palette) {
-                                    openSettingsPage("Appearance")
+                                BastionGroupedSettings {
+                                    BastionSettingsDestination("Appearance", "Theme, dynamic colors and display",
+                                        Icons.Default.Palette, index = 0, count = 2) {
+                                        openSettingsPage("Appearance")
+                                    }
+                                    BastionSettingsDestination("Behavior", "Navigation and exit preferences",
+                                        Icons.Default.Tune, index = 1, count = 2) {
+                                        openSettingsPage("Behavior")
+                                    }
                                 }
                             }
                             item {
-                                BastionSettingsDestination("Services", "Manage homelab service connections", Icons.Default.Widgets) {
-                                    openSettingsPage("Services")
+                                BastionGroupedSettings {
+                                    BastionSettingsDestination("Services", "Manage homelab integrations",
+                                        Icons.Default.Widgets, index = 0, count = 2) {
+                                        openSettingsPage("Services")
+                                    }
+                                    BastionSettingsDestination("Notifications", "Alerts and notification preferences",
+                                        Icons.Default.Notifications, index = 1, count = 2) {
+                                        openSettingsPage("Notifications")
+                                    }
                                 }
                             }
                             item {
-                                BastionSettingsDestination("Behavior", "Back navigation and exit confirmation", Icons.Default.Tune) {
-                                    openSettingsPage("Behavior")
-                                }
-                            }
-                            item {
-                                BastionSettingsDestination("About", "Version and preview information", Icons.Default.Info) {
-                                    openSettingsPage("About")
+                                BastionGroupedSettings {
+                                    BastionSettingsDestination("App updates", "Version checks and new releases",
+                                        Icons.Default.SystemUpdate, index = 0, count = 2) {
+                                        openSettingsPage("App updates")
+                                    }
+                                    BastionSettingsDestination("About", "App information and acknowledgments",
+                                        Icons.Default.Info, index = 1, count = 2) {
+                                        openSettingsPage("About")
+                                    }
                                 }
                             }
                         } else {
                             when (settingsPage) {
-                                "About" -> item { BastionUpdateSettings() }
+                                "App updates" -> item { BastionUpdateSettings() }
+                                "About" -> item {
+                                    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
+                                        Text("About Bastion", style = MaterialTheme.typography.headlineSmall)
+                                        Text("Bastion brings your homelab services together in one Android app.",
+                                            style = MaterialTheme.typography.bodyMedium)
+                                        val appInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                                        BastionGroupedSettings {
+                                            BastionSettingsContent(index = 0, count = 2) {
+                                                Text("Installed version: ${appInfo.versionName ?: "Unknown"}")
+                                            }
+                                            BastionSettingsContent(index = 1, count = 2) {
+                                                Text("Build: ${appInfo.longVersionCode}")
+                                            }
+                                        }
+                                    }
+                                }
+                                "Notifications" -> item {
+                                    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
+                                        Text("Notifications", style = MaterialTheme.typography.headlineSmall)
+                                        Text("Notification preferences are not available yet. This section will house alert and notification controls as integrations gain support.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
                                 "Appearance" -> item {
                                     BastionGroupedSettings {
                                         BastionSwitchSetting(
