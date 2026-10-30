@@ -69,6 +69,7 @@ data class BastionScreenDestination(
     val serviceId: String?,
     val tab: Int,
     val page: String = "root",
+    val depth: Int = 0,
 )
 
 @Composable
@@ -84,8 +85,9 @@ fun BastionNavigationHost(
             when {
                 from.serviceId != to.serviceId -> 0
                 from.tab != to.tab -> 0
-                to.page == "root" || to.page == "Settings" -> -1
-                else -> 1
+                to.depth < from.depth -> -1
+                to.depth > from.depth -> 1
+                else -> 0
             }
         },
         content = content,
