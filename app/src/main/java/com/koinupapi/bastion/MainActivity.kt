@@ -233,7 +233,7 @@ private fun BastionApp() {
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary)
                     Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                         val categories = savedInstances.groupBy { config ->
                             integrationCatalog.firstOrNull { it.name == config.type }?.category ?: "Other services"
                         }
@@ -314,7 +314,7 @@ private fun BastionApp() {
                 modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).padding(insets),
                 contentPadding = PaddingValues(start = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp, top = if (openSeerrRequest != null) 0.dp else 16.dp, end = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp,
                     bottom = if (openSeerrRequest != null) 28.dp else if (!hideNavOnScroll || navVisible) 100.dp else 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)
             ) {
                 if (openSeerrRequest == null) item {
                     val nestedSettings = selectedMediaId == null && tab == 2 && settingsPage != "Settings"
@@ -465,7 +465,7 @@ private fun BastionApp() {
                                 "Behavior" -> item {
                                     Card(shape = MaterialTheme.shapes.extraLarge) {
                                         Column(Modifier.fillMaxWidth().padding(20.dp),
-                                            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                                             Text("Back button behavior", style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.SemiBold)
                                             Text("When you press Back from a main navigation tab:",
@@ -536,7 +536,7 @@ private fun BastionApp() {
                                         item {
                                             Card(shape = MaterialTheme.shapes.extraLarge) {
                                                 Column(Modifier.fillMaxWidth().padding(24.dp),
-                                                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    verticalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                                                     Icon(Icons.Default.Extension, contentDescription = null,
                                                         tint = MaterialTheme.colorScheme.primary)
                                                     Text("No services configured yet", style = MaterialTheme.typography.titleMedium)
@@ -614,13 +614,13 @@ private fun BastionApp() {
                                     if (selectedIntegration != "Seerr") {
                                         Card(shape = MaterialTheme.shapes.extraLarge) {
                                             Column(Modifier.fillMaxWidth().padding(20.dp),
-                                                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                                                 Text("Coming soon", style = MaterialTheme.typography.titleLarge)
                                                 Text("Real connections for ${selectedIntegration} aren't implemented yet. Seerr is our first integration.")
                                             }
                                         }
                                     } else {
-                                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
                                             Card(shape = MaterialTheme.shapes.extraLarge) {
                                                 Column(Modifier.fillMaxWidth().padding(20.dp),
                                                     verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -636,7 +636,7 @@ private fun BastionApp() {
                                                         placeholder = { Text("https://seerr.example.com") },
                                                         modifier = Modifier.fillMaxWidth(), singleLine = true)
                                                     Text("Authentication", style = MaterialTheme.typography.titleMedium)
-                                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                                                         listOf("API key", "Local user").forEach { method ->
                                                             FilterChip(selected = seerrAuthMethod == method,
                                                                 onClick = {
@@ -832,7 +832,7 @@ private fun WidgetCard(title: String, icon: androidx.compose.ui.graphics.vector.
     content: @Composable ColumnScope.() -> Unit) {
     Card(shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(10.dp))
@@ -850,7 +850,7 @@ private fun ServerWidget() {
     WidgetCard("Home Server", Icons.Default.Dns) {
         Text("● Online  •  Uptime 12 days", color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.labelMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
             Metric("CPU", "18%", 0.18f, Modifier.weight(1f))
             Metric("Memory", "6.8 / 16 GB", 0.425f, Modifier.weight(1f))
         }
@@ -941,7 +941,7 @@ private fun RequestsWidget(instances: List<ServiceConfig>) {
                         result.requests.forEachIndexed { index, request ->
                             if (index > 0) Spacer(Modifier.height(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                                 Surface(shape = RoundedCornerShape(12.dp),
                                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                     modifier = Modifier.width(58.dp).height(86.dp)) {
@@ -1101,7 +1101,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         }
         AnimatedVisibility(visible = searching, enter = fadeIn(), exit = fadeOut()) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                 OutlinedTextField(value = query, onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(), singleLine = true,
                     shape = RoundedCornerShape(28.dp),
@@ -1162,7 +1162,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium)
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
             listOf("All", "Movies", "TV Shows").forEach { choice ->
                 FilterChip(selected = category == choice, onClick = { category = choice },
                     label = { Text(choice) },
@@ -1195,7 +1195,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     Text("No titles found", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium),
                         contentPadding = PaddingValues(horizontal = 16.dp)) {
                         items(visibleItems, key = { "${it.tmdbId}-${it.isTv}" }) { title ->
                             Column(Modifier.width(124.dp).clickable {
@@ -1269,11 +1269,11 @@ private fun SeerrIssuesScreen(instance: ServiceConfig) {
         result = null
         result = SeerrClient.issuePage(instance, 20, page * 20, filter)
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
         Text("Issues", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Reported media problems • Manage issues",
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
             listOf("open", "resolved", "all").forEach { option ->
                 FilterChip(selected = filter == option,
                     onClick = { filter = option; page = 0 },
@@ -1350,7 +1350,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     LaunchedEffect(instance, destination, refresh) {
         if (destination == 1) counts = SeerrClient.requestCounts(instance).getOrNull()
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
         if (destination == 0) {
             SeerrDiscoverScreen(instance, discoverResults, onRequestClick)
         } else if (destination == 2) {
@@ -1361,7 +1361,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
         Text("Requests", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Browse and manage Seerr requests", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
             var typeExpanded by remember { mutableStateOf(false) }
             Box(Modifier.weight(1f)) {
                 OutlinedButton(onClick = { typeExpanded = true }, modifier = Modifier.fillMaxWidth()) {
@@ -1513,14 +1513,14 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
                                 scaleX = cardScale
                                 scaleY = cardScale
                             },
-                        shape = RoundedCornerShape(24.dp),
+                        shape = BastionShapes.prominentAction,
                         colors = CardDefaults.elevatedCardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
                     ) {
                         Row(Modifier.fillMaxWidth().padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            horizontalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
                             Surface(shape = RoundedCornerShape(16.dp),
                                 modifier = Modifier.width(88.dp).height(132.dp),
                                 color = MaterialTheme.colorScheme.surfaceContainerHighest) {
@@ -1535,7 +1535,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
                                 }
                             }
                             Column(Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                verticalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                                 Text(request.title + (request.year?.let { " ($it)" } ?: ""),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold)
@@ -1634,12 +1634,12 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
     }
     ModalBottomSheet(onDismissRequest = { if (!submitting) { if (submitted) onSubmitted() else onDismiss() } },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) {
+        shape = BastionShapes.bottomSheet) {
         Column(Modifier.fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = BastionSheetDefaults.horizontalPadding)
             .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
             AnimatedVisibility(visible = submitted, enter = fadeIn(), exit = fadeOut()) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -1668,16 +1668,16 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center)
                     Button(onClick = onSubmitted, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                        shape = RoundedCornerShape(24.dp)) {
+                        shape = BastionShapes.prominentAction) {
                         Text("Done")
                     }
                 }
             }
             AnimatedVisibility(visible = !submitted, enter = fadeIn(), exit = fadeOut()) {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
             Row(verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Surface(shape = RoundedCornerShape(20.dp),
+                Surface(shape = BastionShapes.mediaArtwork,
                     color = MaterialTheme.colorScheme.secondaryContainer) {
                     Icon(Icons.Default.Movie, contentDescription = null,
                         modifier = Modifier.padding(16.dp).size(28.dp),
@@ -1738,11 +1738,11 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                             else selectedSeasons.add(season.number)
                         }
                     }, enabled = !unavailable && !forced,
-                        shape = RoundedCornerShape(20.dp),
+                        shape = BastionShapes.mediaArtwork,
                         color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                         Row(Modifier.fillMaxWidth().padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                             Checkbox(checked = season.number in selectedSeasons || forced,
                                 onCheckedChange = null, enabled = !unavailable && !forced)
                             Column(Modifier.weight(1f)) {
@@ -1759,7 +1759,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                shape = RoundedCornerShape(24.dp),
+                shape = BastionShapes.prominentAction,
                 enabled = server != null && profileId >= 0 && rootPath.isNotBlank() && !submitting &&
                     (!isTv || (seasons.any { it.number > 0 && it.status !in listOf(2, 3, 4, 5) } &&
                         (partialEnabled == false || selectedSeasons.isNotEmpty()))),
@@ -1816,7 +1816,7 @@ private fun SeerrRequestDropdown(label: String, selected: String,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Row(Modifier.padding(horizontal = 18.dp, vertical = 17.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                     Icon(leadingIcon, contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary)
                     Text(selected, modifier = Modifier.weight(1f),
@@ -1956,7 +1956,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             Row(Modifier.align(Alignment.BottomStart).fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                horizontalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
                 val poster = media?.posterUrl ?: request.posterUrl
                 Surface(shape = RoundedCornerShape(18.dp), shadowElevation = 8.dp,
                     modifier = Modifier.width(122.dp).height(183.dp)) {
@@ -1997,7 +1997,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             Row(Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                if (displayedStatus != null && displayedStatus != "Available") Surface(shape = RoundedCornerShape(24.dp),
+                if (displayedStatus != null && displayedStatus != "Available") Surface(shape = BastionShapes.prominentAction,
                     color = MaterialTheme.colorScheme.secondaryContainer) {
                     Text(displayedStatus, Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
                         style = MaterialTheme.typography.labelLarge,
@@ -2011,7 +2011,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             }
         if (media?.seerrMediaId != null && media.seerrMediaId > 0 &&
             displayedStatus in listOf("Available", "Partially available")) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(BastionSpacing.xSmall)) {
                 Surface(modifier = Modifier.weight(1f).heightIn(min = 54.dp),
                     shape = RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp,
                         topEnd = 8.dp, bottomEnd = 8.dp),
@@ -2054,8 +2054,8 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (!media?.genres.isNullOrEmpty()) {
             androidx.compose.foundation.layout.FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small),
+                verticalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                 media!!.genres.forEach { genre ->
                     Surface(shape = RoundedCornerShape(50),
                         color = MaterialTheme.colorScheme.tertiaryContainer) {
@@ -2068,11 +2068,11 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
         }
         val overview = media?.overview ?: request.overview
         if (!overview.isNullOrBlank()) {
-            ElevatedCard(shape = RoundedCornerShape(24.dp),
+            ElevatedCard(shape = BastionShapes.prominentAction,
                 colors = CardDefaults.elevatedCardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 Column(Modifier.fillMaxWidth().padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    verticalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                     Text("Overview", style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold)
                     Text(overview, maxLines = if (expanded) Int.MAX_VALUE else 4,
@@ -2091,7 +2091,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
         if (media != null && media.cast.isNotEmpty()) {
             Text("Cast", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                 media.cast.forEach { actor ->
                     Column(Modifier.width(92.dp), horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -2126,9 +2126,9 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                 Text(if (request.isTv) "Series details" else "Movie details",
                     style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Column(Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
                     facts.chunked(2).forEach { pair ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
                             pair.forEach { (label, value) ->
                                 Column(Modifier.weight(1f),
                                     verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -2164,7 +2164,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                                 }
                             }
                             .horizontalScroll(carouselScroll),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                             Spacer(Modifier.width(20.dp))
                             titles.forEach { title ->
                                 Column(Modifier.width(125.dp)
@@ -2241,8 +2241,8 @@ private fun UnifiedCalendarScreen() {
     val sourceColors = listOf(Color(0xFF448DD6), Color(0xFF51B86B), Color(0xFFB18CE6))
     var enabledSources by remember { mutableStateOf(setOf("Sonarr", "Radarr", "Bindery")) }
 
-    Column(Modifier.fillMaxWidth().animateContentSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.fillMaxWidth().animateContentSize(), verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(BastionSpacing.xSmall)) {
             Column(Modifier.weight(1f)) {
                 Text(month.year.toString(), style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2349,14 +2349,14 @@ private fun UnifiedCalendarScreen() {
         HorizontalDivider()
         AnimatedContent(targetState = selected, label = "Selected day agenda",
             transitionSpec = { fadeIn().togetherWith(fadeOut()) }) { date ->
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                 Text(date.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d")),
                     style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                Surface(shape = RoundedCornerShape(24.dp),
+                Surface(shape = BastionShapes.prominentAction,
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                         Icon(Icons.Default.EventNote, contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary)
                         Column {
