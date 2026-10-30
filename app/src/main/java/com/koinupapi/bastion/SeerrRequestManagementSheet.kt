@@ -86,7 +86,7 @@ fun SeerrRequestManagementSheet(
     }
     ModalBottomSheet(onDismissRequest = { if (!busy) onDismiss() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = BastionShapes.bottomSheet) {
+        shape = BottomSheetDefaults.ExpandedShape) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = BastionSheetDefaults.horizontalPadding).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
             Text(if (canManage == true) "Manage request" else "Request details",
@@ -96,7 +96,7 @@ fun SeerrRequestManagementSheet(
                     AsyncImage(model = request.posterUrl, contentDescription = "${request.title} poster",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.width(112.dp).height(168.dp)
-                            .clip(BastionShapes.mediaArtwork))
+                            .clip(MaterialTheme.shapes.large))
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(request.title, style = MaterialTheme.typography.titleLarge,
