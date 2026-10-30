@@ -85,8 +85,8 @@ fun BastionSettingsDestination(
     title: String,
     description: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onClick: () -> Unit,
 ) {
     SegmentedListItem(
         onClick = onClick,
