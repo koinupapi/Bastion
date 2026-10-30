@@ -1318,10 +1318,10 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                                     }
                                     if (badge != null) {
                                         val tint = when (title.mediaStatus) {
-                                            5 -> Color(0xFF167D48)
-                                            4 -> Color(0xFF8460B3)
-                                            3 -> Color(0xFF246BB1)
-                                            else -> Color(0xFFAD741C)
+                                            5 -> MaterialTheme.colorScheme.primary
+                                            4 -> MaterialTheme.colorScheme.tertiary
+                                            3 -> MaterialTheme.colorScheme.secondary
+                                            else -> MaterialTheme.colorScheme.tertiary
                                         }
                                         Surface(modifier = Modifier.align(Alignment.TopEnd).padding(5.dp),
                                             shape = RoundedCornerShape(50),
@@ -1623,11 +1623,11 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold)
                                 val statusColor = when (request.status.lowercase()) {
-                                    "available" -> Color(0xFF176B43)
-                                    "processing" -> Color(0xFF245DA3)
-                                    "pending" -> Color(0xFF996000)
+                                    "available" -> MaterialTheme.colorScheme.primary
+                                    "processing" -> MaterialTheme.colorScheme.secondary
+                                    "pending" -> MaterialTheme.colorScheme.tertiary
                                     "declined", "failed" -> MaterialTheme.colorScheme.error
-                                    "partially available" -> Color(0xFF7652A2)
+                                    "partially available" -> MaterialTheme.colorScheme.tertiary
                                     else -> MaterialTheme.colorScheme.secondary
                                 }
                                 Surface(shape = RoundedCornerShape(50),
@@ -2285,10 +2285,10 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                                             Surface(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
                                                 shape = RoundedCornerShape(12.dp),
                                             color = when (title.mediaStatus) {
-                                                2 -> Color(0xFFE3A008)
-                                                3 -> Color(0xFF247AC0)
-                                                4 -> Color(0xFF8E56C8)
-                                                else -> Color(0xFF168A55)
+                                                2 -> MaterialTheme.colorScheme.tertiary
+                                                3 -> MaterialTheme.colorScheme.secondary
+                                                4 -> MaterialTheme.colorScheme.tertiary
+                                                else -> MaterialTheme.colorScheme.primary
                                             }) {
                                             Text(relatedBadge,
                                                 Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
@@ -2322,7 +2322,7 @@ private fun UnifiedCalendarScreen() {
     var selected by remember { mutableStateOf(today) }
     var hideDownloaded by remember { mutableStateOf(false) }
     val sources = listOf("Sonarr", "Radarr", "Bindery")
-    val sourceColors = listOf(Color(0xFF448DD6), Color(0xFF51B86B), Color(0xFFB18CE6))
+    val sourceColors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary)
     var enabledSources by remember { mutableStateOf(setOf("Sonarr", "Radarr", "Bindery")) }
 
     Column(Modifier.fillMaxWidth().animateContentSize(), verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
