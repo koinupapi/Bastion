@@ -42,7 +42,7 @@ fun <T : Any> BastionDestinationTransition(
             (enter togetherWith exit).using(SizeTransform(clip = false))
         },
         label = "Bastion destination",
-        content = content,
+        content = { state -> content(state) },
     )
 }
 
