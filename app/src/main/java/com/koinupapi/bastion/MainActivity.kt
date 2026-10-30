@@ -108,6 +108,7 @@ private fun BastionApp() {
     var dark by remember { mutableStateOf(preferences.getBoolean("dark_theme", false)) }
     var dynamic by remember { mutableStateOf(preferences.getBoolean("dynamic_colors", true)) }
     var showAllNavLabels by remember { mutableStateOf(preferences.getBoolean("show_all_nav_labels", true)) }
+    var showInstanceSubtitle by remember { mutableStateOf(preferences.getBoolean("show_instance_subtitle", true)) }
     var returnToDashboard by remember { mutableStateOf(preferences.getBoolean("return_to_dashboard", true)) }
     var doubleBackToExit by remember { mutableStateOf(preferences.getBoolean("double_back_exit", true)) }
     val activity = context as ComponentActivity
@@ -237,7 +238,7 @@ private fun BastionApp() {
             tab == 0 -> "Bastion"
             else -> if (tab == 1) "Calendar" else "Settings"
         }
-        val headerContext = if (serviceScreen) savedInstances.firstOrNull { it.id == selectedMediaId }?.name else null
+        val headerContext = if (serviceScreen && showInstanceSubtitle) savedInstances.firstOrNull { it.id == selectedMediaId }?.name else null
         val headerBack = openSeerrRequest != null || nestedSeerrSettings || nestedBastionSettings
         val topBarScrollBehavior = if (hideHeaderOnScroll) TopAppBarDefaults.enterAlwaysScrollBehavior() else TopAppBarDefaults.pinnedScrollBehavior()
         val icons = listOf(Icons.Default.Home, Icons.Default.CalendarMonth, Icons.Default.Settings)
@@ -470,7 +471,7 @@ private fun BastionApp() {
                                                 dark = it
                                                 preferences.edit().putBoolean("dark_theme", it).apply()
                                             },
-                                            index = 0, count = 3,
+                                            index = 0, count = 4,
                                         )
                                         BastionSwitchSetting(
                                             title = "Dynamic colors",
@@ -479,10 +480,20 @@ private fun BastionApp() {
                                                 dynamic = it
                                                 preferences.edit().putBoolean("dynamic_colors", it).apply()
                                             },
-                                            index = 1, count = 3,
+                                            index = 1, count = 4,
+                                        )
+                                        BastionSwitchSetting(
+                                            title = "Show instance name in top bar",
+                                            description = "Display the selected service instance below the page title.",
+                                            checked = showInstanceSubtitle,
+                                            onCheckedChange = {
+                                                showInstanceSubtitle = it
+                                                preferences.edit().putBoolean("show_instance_subtitle", it).apply()
+                                            },
+                                            index = 2, count = 4,
                                         )
                                         BastionSettingsContent(
-                                            index = 2, count = 3,
+                                            index = 3, count = 4,
                                             content = {
                                                 Column(Modifier.fillMaxWidth()) {
                                                 Text("Navigation labels", style = MaterialTheme.typography.titleMedium)
@@ -542,6 +553,18 @@ private fun BastionApp() {
                                                 },
                                             )
                                         }
+                                        BastionGroupedSettings {
+                                            BastionSwitchSetting(
+                                                title = "Double Back to exit",
+                                                description = "Press Back twice within 2 seconds to exit.",
+                                                checked = doubleBackToExit,
+                                                onCheckedChange = {
+                                                    doubleBackToExit = it
+                                                    preferences.edit().putBoolean("double_back_exit", it).apply()
+                                                },
+                                                index = 0, count = 1,
+                                            )
+                                        }
                                         Text("Scrolling behavior", style = MaterialTheme.typography.titleMedium)
                                         BastionGroupedSettings {
                                         BastionSwitchSetting(
@@ -565,18 +588,7 @@ private fun BastionApp() {
                                             index = 1, count = 2,
                                         )
                                         }
-                                        BastionGroupedSettings {
-                                            BastionSwitchSetting(
-                                                title = "Double Back to exit",
-                                                description = "Press Back twice within 2 seconds to exit.",
-                                                checked = doubleBackToExit,
-                                                onCheckedChange = {
-                                                    doubleBackToExit = it
-                                                    preferences.edit().putBoolean("double_back_exit", it).apply()
-                                                },
-                                                index = 0, count = 1,
-                                            )
-                                        }
+
                                     }
                                 }
                                 "Services" -> {
