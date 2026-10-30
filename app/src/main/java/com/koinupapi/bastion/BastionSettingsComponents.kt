@@ -33,9 +33,9 @@ fun BastionNavigationSetting(
     description: String,
     index: Int,
     count: Int,
+    modifier: Modifier = Modifier,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     SegmentedListItem(
         onClick = onClick,
