@@ -366,6 +366,17 @@ private fun BastionApp() {
                     selectedMediaId == null && tab == 2 -> settingsPage
                     else -> "root"
                 },
+                depth = when {
+                    openSeerrRequest != null -> seerrMediaStack.size
+                    selectedMediaId != null && seerrTab == 4 -> when (seerrSettingsSection) {
+                        "root" -> 0
+                        "Plex", "Radarr", "Sonarr", "Override Rules",
+                        "Logs", "Scheduled Jobs", "Cache Management" -> 2
+                        else -> 1
+                    }
+                    selectedMediaId == null && tab == 2 -> settingsHistory.size
+                    else -> 0
+                },
             )
             BastionNavigationHost(destination = activeDestination, modifier = Modifier.fillMaxSize()) { destination ->
                 val scrollKey = if (destination.page.startsWith("media:")) destination.page
