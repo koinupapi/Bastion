@@ -393,7 +393,10 @@ private fun BastionApp() {
             LazyColumn(
                 state = screenScroll,
                 overscrollEffect = rememberOverscrollEffect(),
-                modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).padding(insets),
+                modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).then(
+                    if (destination.serviceId != null && destination.tab == 0 && !destination.page.startsWith("media:") &&
+                        savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) Modifier else Modifier.padding(insets)
+                ),
                 contentPadding = PaddingValues(start = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp, top = if (openSeerrRequest != null) 0.dp else 16.dp, end = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp,
                     bottom = if (openSeerrRequest != null) 28.dp else if (!hideNavOnScroll || navVisible) 100.dp else 16.dp),
                 verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)
@@ -903,11 +906,13 @@ private fun BastionApp() {
                     !destination.page.startsWith("media:") &&
                     savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }
                 if (discoverVisible) {
+                    Box(Modifier.fillMaxSize().padding(insets)) {
                     BastionDiscoverRefresh(isRefreshing = seerrDiscoverRefreshing,
                         onRefresh = {
                             seerrDiscoverRefreshing = true
                             seerrRefreshDiscover()
                         }) { screenContent() }
+                    }
                 } else screenContent()
             }
             val activeTabs = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
