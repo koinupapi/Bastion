@@ -39,8 +39,17 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
         }, style = MaterialTheme.typography.headlineSmall)
         when (section) {
             "root" -> {
-                SettingsNavigationCard("App Settings", "Preferences stored only in Bastion") { section = "app" }
-                SettingsNavigationCard("Server Settings", "Manage settings on this Seerr instance") { section = "server" }
+                BastionGroupedSettings {
+                    val entries = listOf(
+                        "App Settings" to "Preferences stored only in Bastion",
+                        "Server Settings" to "Manage settings on this Seerr instance",
+                    )
+                    entries.forEachIndexed { index, entry ->
+                        BastionNavigationSetting(entry.first, entry.second,
+                            shape = BastionSettingsDefaults.itemShape(index, entries.size),
+                            onClick = { section = if (index == 0) "app" else "server" })
+                    }
+                }
             }
             "app" -> {
                 Text("Bastion-only settings for this Seerr instance.",
@@ -50,11 +59,18 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
                     style = MaterialTheme.typography.bodyMedium)
             }
             "server" -> {
-                listOf("General", "Permissions", "Users", "Plex", "Radarr", "Sonarr",
-                    "Notifications", "Jobs & Cache", "About").forEach { category ->
-                    SettingsNavigationCard(category,
-                        if (category == "Users") "View and manage Seerr accounts"
-                        else "Settings category · Coming soon") { section = category.lowercase() }
+                val categories = listOf("General", "Permissions", "Users", "Plex", "Radarr", "Sonarr",
+                    "Notifications", "Jobs & Cache", "About")
+                BastionGroupedSettings {
+                    categories.forEachIndexed { index, category ->
+                        BastionNavigationSetting(
+                            category,
+                            if (category == "Users") "View and manage Seerr accounts"
+                            else "Settings category · Coming soon",
+                            shape = BastionSettingsDefaults.itemShape(index, categories.size),
+                            onClick = { section = category.lowercase() },
+                        )
+                    }
                 }
             }
             "users" -> SeerrUserDirectoryScreen(instance)
@@ -66,17 +82,3 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
     }
 }
 
-@Composable
-private fun SettingsNavigationCard(title: String, subtitle: String, onClick: () -> Unit) {
-    ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(BastionSpacing.xSmall)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Icon(Icons.Default.ChevronRight, contentDescription = null)
-        }
-    }
-}
