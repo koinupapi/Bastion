@@ -671,7 +671,7 @@ private fun BastionApp() {
                                             it.category.contains(serviceSearch.trim(), ignoreCase = true)
                                     }
                                     if (filtered.isEmpty()) {
-                                        item { Text("No matching integrations found.") }
+                                        item { BastionNoSearchResults(serviceSearch) }
                                     }
                                     listOf("Infrastructure", "Media management", "Media servers", "Other services").forEach { category ->
                                         val matches = filtered.filter { it.category == category }
@@ -1041,7 +1041,7 @@ private fun RequestsWidget(instances: List<ServiceConfig>) {
                         Text(result.error, color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall)
                     } else {
-                        if (result.requests.isEmpty()) Text("No requests yet.")
+                        if (result.requests.isEmpty()) BastionEmptyState("All caught up!", "There are no recent requests to show.")
                         result.requests.forEachIndexed { index, request ->
                             if (index > 0) Spacer(Modifier.height(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically,
@@ -1372,7 +1372,7 @@ private fun SeerrIssuesScreen(instance: ServiceConfig) {
         }
         if (result == null) LinearProgressIndicator(Modifier.fillMaxWidth())
         result?.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        if (result?.issues?.isEmpty() == true) Text("No matching issues.")
+        if (result?.issues?.isEmpty() == true) BastionEmptyState("No issues to show", "Everything looks clear here.")
         result?.issues?.forEach { issue ->
             ElevatedCard(onClick = { selected = issue }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1567,7 +1567,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
         else {
             result?.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            if (result?.error == null && result?.requests?.isEmpty() == true) Text("No matching requests.")
+            if (result?.error == null && result?.requests?.isEmpty() == true) BastionEmptyState("No requests found", "Try another filter or check back later.")
             result?.requests?.forEach { request ->
                 key(request.title, request.requestedBy, request.releaseDate) {
                     val interaction = remember { MutableInteractionSource() }
