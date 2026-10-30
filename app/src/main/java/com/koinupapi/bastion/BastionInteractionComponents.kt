@@ -77,6 +77,7 @@ fun BastionSearchField(
 }
 
 /** Shared native modal sheet; integration content and lifecycle remain caller-owned. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BastionBottomSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss,
