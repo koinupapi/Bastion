@@ -4,8 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
@@ -48,8 +46,7 @@ fun BastionNavigationSetting(
         colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
         leadingContent = if (icon != null) {
             {
-                Box(modifier = Modifier.heightIn(min = 72.dp),
-                    contentAlignment = Alignment.Center) {
+                Box(contentAlignment = Alignment.Center) {
                     Surface(shape = MaterialTheme.shapes.large,
                         color = MaterialTheme.colorScheme.tertiaryContainer) {
                         Icon(icon, contentDescription = null,
@@ -116,8 +113,7 @@ fun BastionSettingsDestination(
         ),
         modifier = modifier,
         leadingContent = {
-            Box(modifier = Modifier.heightIn(min = 72.dp),
-                contentAlignment = Alignment.Center) {
+            Box(contentAlignment = Alignment.Center) {
                 Surface(shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.secondaryContainer) {
                     Icon(imageVector = icon, contentDescription = null,
