@@ -469,7 +469,7 @@ private fun BastionApp() {
                                                 dark = it
                                                 preferences.edit().putBoolean("dark_theme", it).apply()
                                             },
-                                            index = 0, count = 4,
+                                            index = 0, count = 3,
                                         )
                                         BastionSwitchSetting(
                                             title = "Dynamic colors",
@@ -478,30 +478,10 @@ private fun BastionApp() {
                                                 dynamic = it
                                                 preferences.edit().putBoolean("dynamic_colors", it).apply()
                                             },
-                                            index = 1, count = 4,
-                                        )
-                                        BastionSwitchSetting(
-                                            title = "Hide bottom bar while scrolling",
-                                            description = "Scroll down to hide the bottom bar; scroll up to show it.",
-                                            checked = hideNavOnScroll,
-                                            onCheckedChange = {
-                                                hideNavOnScroll = it
-                                                preferences.edit().putBoolean("hide_nav_on_scroll", it).apply()
-                                            },
-                                            index = 2, count = 5,
-                                        )
-                                        BastionSwitchSetting(
-                                            title = "Hide top bar while scrolling",
-                                            description = "Scroll down to hide the page header; scroll up to show it.",
-                                            checked = hideHeaderOnScroll,
-                                            onCheckedChange = {
-                                                hideHeaderOnScroll = it
-                                                preferences.edit().putBoolean("hide_header_on_scroll", it).apply()
-                                            },
-                                            index = 3, count = 5,
+                                            index = 1, count = 3,
                                         )
                                         BastionSettingsContent(
-                                            index = 4, count = 5,
+                                            index = 2, count = 3,
                                             content = {
                                                 Column(Modifier.fillMaxWidth()) {
                                                 Text("Navigation labels", style = MaterialTheme.typography.titleMedium)
@@ -560,6 +540,29 @@ private fun BastionApp() {
                                                     preferences.edit().putBoolean("return_to_dashboard", true).apply()
                                                 },
                                             )
+                                        }
+                                        Text("Scrolling behavior", style = MaterialTheme.typography.titleMedium)
+                                        BastionGroupedSettings {
+                                        BastionSwitchSetting(
+                                            title = "Hide bottom bar while scrolling",
+                                            description = "Scroll down to hide the bottom bar; scroll up to show it.",
+                                            checked = hideNavOnScroll,
+                                            onCheckedChange = {
+                                                hideNavOnScroll = it
+                                                preferences.edit().putBoolean("hide_nav_on_scroll", it).apply()
+                                            },
+                                            index = 0, count = 2,
+                                        )
+                                        BastionSwitchSetting(
+                                            title = "Hide top bar while scrolling",
+                                            description = "Scroll down to hide the page header; scroll up to show it.",
+                                            checked = hideHeaderOnScroll,
+                                            onCheckedChange = {
+                                                hideHeaderOnScroll = it
+                                                preferences.edit().putBoolean("hide_header_on_scroll", it).apply()
+                                            },
+                                            index = 1, count = 2,
+                                        )
                                         }
                                         BastionGroupedSettings {
                                             BastionSwitchSetting(
