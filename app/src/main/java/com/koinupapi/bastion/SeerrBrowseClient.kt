@@ -42,6 +42,7 @@ object SeerrBrowseClient {
                     connection.setRequestProperty("Accept", "application/json")
                     val status = connection.responseCode
                     if (status !in 200..299) error("HTTP $status")
+                    android.util.Log.d("BastionSeerrBrowse", "GET $path via $label: HTTP $status")
                     return@withContext connection.inputStream.bufferedReader().use { it.readText() }
                 } finally { connection.disconnect() }
             } catch (e: Exception) {
