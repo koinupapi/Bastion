@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
  */
 object BastionSettingsDefaults {
     val itemGap = 3.dp
+    // Group geometry remains isolated until the native segmented API is verified.
     val outerCorner = 28.dp
     val innerCorner = 6.dp
     val horizontalPadding = 16.dp
@@ -57,23 +58,12 @@ fun BastionNavigationSetting(
         shape = shape,
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
-        Row(
-            Modifier.fillMaxWidth().padding(
-                horizontal = BastionSettingsDefaults.horizontalPadding,
-                vertical = BastionSettingsDefaults.verticalPadding,
-            ),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(description, style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            androidx.compose.material3.Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-            )
-        }
+        ListItem(
+            headlineContent = { Text(title) },
+            supportingContent = { Text(description) },
+            trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        )
     }
 }
 
@@ -94,21 +84,13 @@ fun BastionSwitchSetting(
         shape = shape,
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
-        Row(
-            Modifier.fillMaxWidth().padding(
-                horizontal = BastionSettingsDefaults.horizontalPadding,
-                vertical = BastionSettingsDefaults.verticalPadding,
-            ),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge)
-                if (description != null) Text(description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Switch(checked = checked, onCheckedChange = null, enabled = enabled)
-        }
+        ListItem(
+            headlineContent = { Text(title) },
+            supportingContent = if (description != null) { { Text(description) } } else null,
+            trailingContent = {
+                Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+            },
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        )
     }
 }
