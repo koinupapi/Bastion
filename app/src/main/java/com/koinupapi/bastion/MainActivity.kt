@@ -1217,7 +1217,6 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     var movieGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var tvGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var browseError by remember(instance.id) { mutableStateOf<String?>(null) }
-    var trendingWindow by remember(instance.id) { mutableStateOf("day") }
     val browseFilter = if (browseKind == "Trending") when (category) {
         "Movies" -> "movie"
         "TV Shows" -> "tv"
@@ -1235,12 +1234,11 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         kotlinx.coroutines.delay(350)
         studioOptions = SeerrBrowseClient.searchStudios(instance, studioQuery.trim()).getOrDefault(emptyList())
     }
-    LaunchedEffect(instance.id, browseKind, browseId, browsePage, browseFilter, trendingWindow, refresh) {
+    LaunchedEffect(instance.id, browseKind, browseId, browsePage, browseFilter, refresh) {
         val kind = browseKind ?: return@LaunchedEffect
         browseLoading = true
         browseResult = SeerrBrowseClient.browse(instance, kind, browsePage,
-            if (kind == "Trending") browseFilter else "all", browseId,
-            if (kind == "Trending") trendingWindow else "")
+            if (kind == "Trending") browseFilter else "all", browseId)
         browseLoading = false
     }
 
