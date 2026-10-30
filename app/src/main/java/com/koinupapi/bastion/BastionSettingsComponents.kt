@@ -86,11 +86,13 @@ fun BastionSettingsDestination(
     description: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier = Modifier,
+    index: Int = 0,
+    count: Int = 1,
     onClick: () -> Unit,
 ) {
     SegmentedListItem(
         onClick = onClick,
-        shapes = ListItemDefaults.segmentedShapes(index = 0, count = 1),
+        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
         colors = ListItemDefaults.segmentedColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ),
@@ -111,5 +113,49 @@ fun BastionSettingsDestination(
         supportingContent = { Text(description) },
         trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
         content = { Text(title, style = MaterialTheme.typography.titleMedium) },
+    )
+}
+
+/** Native Expressive radio row for mutually exclusive settings. */
+@Composable
+fun BastionChoiceSetting(
+    title: String,
+    description: String,
+    selected: Boolean,
+    index: Int,
+    count: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SegmentedListItem(
+        checked = selected,
+        onCheckedChange = { if (it) onClick() },
+        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
+        colors = ListItemDefaults.segmentedColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+        modifier = modifier,
+        supportingContent = { Text(description) },
+        trailingContent = { RadioButton(selected = selected, onClick = null) },
+        content = { Text(title) },
+    )
+}
+
+/** Native segmented surface for controls that do not fit a standard switch or navigation row. */
+@Composable
+fun BastionSettingsContent(
+    index: Int,
+    count: Int,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    SegmentedListItem(
+        shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
+        colors = ListItemDefaults.segmentedColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+        modifier = modifier,
+        content = content,
     )
 }
