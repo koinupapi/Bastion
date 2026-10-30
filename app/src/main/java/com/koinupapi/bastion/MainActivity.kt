@@ -1526,7 +1526,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
                                 scaleX = cardScale
                                 scaleY = cardScale
                             },
-                        shape = BastionShapes.prominentAction,
+                        shape = MaterialTheme.shapes.extraLarge,
                         colors = CardDefaults.elevatedCardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
@@ -1647,7 +1647,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
     }
     ModalBottomSheet(onDismissRequest = { if (!submitting) { if (submitted) onSubmitted() else onDismiss() } },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = BastionShapes.bottomSheet) {
+        shape = BottomSheetDefaults.ExpandedShape) {
         Column(Modifier.fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = BastionSheetDefaults.horizontalPadding)
@@ -1681,7 +1681,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center)
                     Button(onClick = onSubmitted, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                        shape = BastionShapes.prominentAction) {
+                        shape = MaterialTheme.shapes.extraLarge) {
                         Text("Done")
                     }
                 }
@@ -1690,7 +1690,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                 Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
             Row(verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Surface(shape = BastionShapes.mediaArtwork,
+                Surface(shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.secondaryContainer) {
                     Icon(Icons.Default.Movie, contentDescription = null,
                         modifier = Modifier.padding(16.dp).size(28.dp),
@@ -1751,7 +1751,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                             else selectedSeasons.add(season.number)
                         }
                     }, enabled = !unavailable && !forced,
-                        shape = BastionShapes.mediaArtwork,
+                        shape = MaterialTheme.shapes.large,
                         color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                         Row(Modifier.fillMaxWidth().padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -1772,7 +1772,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                shape = BastionShapes.prominentAction,
+                shape = MaterialTheme.shapes.extraLarge,
                 enabled = server != null && profileId >= 0 && rootPath.isNotBlank() && !submitting &&
                     (!isTv || (seasons.any { it.number > 0 && it.status !in listOf(2, 3, 4, 5) } &&
                         (partialEnabled == false || selectedSeasons.isNotEmpty()))),
@@ -2010,7 +2010,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             Row(Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                if (displayedStatus != null && displayedStatus != "Available") Surface(shape = BastionShapes.prominentAction,
+                if (displayedStatus != null && displayedStatus != "Available") Surface(shape = MaterialTheme.shapes.extraLarge,
                     color = MaterialTheme.colorScheme.secondaryContainer) {
                     Text(displayedStatus, Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
                         style = MaterialTheme.typography.labelLarge,
@@ -2081,7 +2081,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
         }
         val overview = media?.overview ?: request.overview
         if (!overview.isNullOrBlank()) {
-            ElevatedCard(shape = BastionShapes.prominentAction,
+            ElevatedCard(shape = MaterialTheme.shapes.extraLarge,
                 colors = CardDefaults.elevatedCardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 Column(Modifier.fillMaxWidth().padding(18.dp),
@@ -2365,7 +2365,7 @@ private fun UnifiedCalendarScreen() {
             Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                 Text(date.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d")),
                     style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                Surface(shape = BastionShapes.prominentAction,
+                Surface(shape = MaterialTheme.shapes.extraLarge,
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically,
