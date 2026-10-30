@@ -139,7 +139,7 @@ fun BastionUpdateSettings() {
                     }
                 }, enabled = !downloading && !checking,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                    shape = BastionShapes.prominentAction) {
+                    shape = MaterialTheme.shapes.extraLarge) {
                     Icon(Icons.Default.SystemUpdate, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("Download and install build ${candidate.versionCode}")
