@@ -1206,6 +1206,44 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     var query by remember(instance.id) { mutableStateOf("") }
     var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
     var searchLoading by remember(instance.id) { mutableStateOf(false) }
+    var browseKind by remember(instance.id) { mutableStateOf<String?>(null) }
+    var browseTitle by remember(instance.id) { mutableStateOf("") }
+    var browseId by remember(instance.id) { mutableIntStateOf(0) }
+    var browsePage by remember(instance.id) { mutableIntStateOf(1) }
+    var browseResult by remember(instance.id) { mutableStateOf<SeerrBrowsePage?>(null) }
+    var browseLoading by remember(instance.id) { mutableStateOf(false) }
+    var studioQuery by remember(instance.id) { mutableStateOf("") }
+    var studioOptions by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
+    var movieGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
+    var tvGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
+    var browseError by remember(instance.id) { mutableStateOf<String?>(null) }
+    var trendingWindow by remember(instance.id) { mutableStateOf("day") }
+    val browseFilter = if (browseKind == "Trending") when (category) {
+        "Movies" -> "movie"
+        "TV Shows" -> "tv"
+        else -> "all"
+    } else "all"
+    LaunchedEffect(instance.id) {
+        val movies = SeerrBrowseClient.options(instance, "genres/movie")
+        val tv = SeerrBrowseClient.options(instance, "genres/tv")
+        movieGenres = movies.getOrDefault(emptyList())
+        tvGenres = tv.getOrDefault(emptyList())
+        browseError = movies.exceptionOrNull()?.message ?: tv.exceptionOrNull()?.message
+    }
+    LaunchedEffect(instance.id, studioQuery) {
+        if (studioQuery.trim().length < 2) { studioOptions = emptyList(); return@LaunchedEffect }
+        kotlinx.coroutines.delay(350)
+        studioOptions = SeerrBrowseClient.searchStudios(instance, studioQuery.trim()).getOrDefault(emptyList())
+    }
+    LaunchedEffect(instance.id, browseKind, browseId, browsePage, browseFilter, trendingWindow, refresh) {
+        val kind = browseKind ?: return@LaunchedEffect
+        browseLoading = true
+        browseResult = SeerrBrowseClient.browse(instance, kind, browsePage,
+            if (kind == "Trending") browseFilter else "all", browseId,
+            if (kind == "Trending") trendingWindow else "")
+        browseLoading = false
+    }
+
     LaunchedEffect(instance, searching, query) {
         if (!searching || query.trim().length < 2) {
             searchResult = null
@@ -1251,7 +1289,65 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             onRefreshingChange(false)
         }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    if (browseKind != null) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            TextButton(onClick = { browseKind = null; browsePage = 1 }) {
+                Icon(Icons.Default.ArrowBack, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Back to Discover")
+            }
+            Text(browseTitle, style = MaterialTheme.typography.headlineSmall)
+            if (browseKind == "Trending") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("All", "Movies", "TV Shows").forEach { option ->
+                        FilterChip(selected = category == option,
+                            onClick = { category = option; browsePage = 1 },
+                            label = { Text(option) })
+                    }
+                }
+            }
+            if (browseLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            browseResult?.error?.let { BastionErrorState(it) }
+            browseResult?.takeIf { it.error == null }?.let { page ->
+                if (page.items.isEmpty()) Text("No titles found")
+                page.items.forEach { title ->
+                    Row(Modifier.fillMaxWidth().clickable {
+                        onMediaClick(SeerrRecentRequest(title = title.title, status = "",
+                            posterUrl = title.posterUrl, year = title.year,
+                            requestedBy = null, isTv = title.isTv, tmdbId = title.tmdbId))
+                    }.padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Surface(Modifier.size(width = 58.dp, height = 86.dp),
+                            shape = RoundedCornerShape(12.dp)) {
+                            if (title.posterUrl != null) AsyncImage(model = title.posterUrl,
+                                contentDescription = title.title, contentScale = ContentScale.Crop)
+                            else Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Movie, contentDescription = null)
+                            }
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(title.title, style = MaterialTheme.typography.titleMedium)
+                            Text(listOf(if (title.isTv) "TV" else "Movie", title.year)
+                                .filter { it.isNotBlank() }.joinToString(" • "),
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = null)
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { browsePage-- }, enabled = browsePage > 1 && !browseLoading) {
+                        Text("Previous")
+                    }
+                    Text("Page ${page.page} of ${page.totalPages}")
+                    TextButton(onClick = { browsePage++ },
+                        enabled = browsePage < page.totalPages && !browseLoading) { Text("Next") }
+                }
+            }
+        }
+    } else Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         BastionReveal(visible = searching) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
@@ -1316,14 +1412,68 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     } else null)
             }
         }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Browse by genre", style = MaterialTheme.typography.titleLarge)
+            browseError?.let { Text("Genres: $it", color = MaterialTheme.colorScheme.error) }
+            Text("Movie genres", style = MaterialTheme.typography.titleSmall)
+            Row(Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                movieGenres.forEach { option ->
+                    AssistChip(onClick = {
+                        browseKind = "Movie genre"; browseTitle = "${option.name} Movies"
+                        browseId = option.id; browsePage = 1
+                    }, label = { Text(option.name) })
+                }
+            }
+            Text("TV genres", style = MaterialTheme.typography.titleSmall)
+            Row(Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                tvGenres.forEach { option ->
+                    AssistChip(onClick = {
+                        browseKind = "TV genre"; browseTitle = "${option.name} TV Shows"
+                        browseId = option.id; browsePage = 1
+                    }, label = { Text(option.name) })
+                }
+            }
+            Text("Browse by studio", style = MaterialTheme.typography.titleSmall)
+            OutlinedTextField(value = studioQuery, onValueChange = { studioQuery = it },
+                label = { Text("Search movie studios") }, singleLine = true,
+                modifier = Modifier.fillMaxWidth())
+            studioOptions.take(8).forEach { option ->
+                TextButton(onClick = {
+                    browseKind = "Studio"; browseTitle = "${option.name} Movies"
+                    browseId = option.id; browsePage = 1
+                }) { Text(option.name) }
+            }
+            Text("Browse TV by network", style = MaterialTheme.typography.titleSmall)
+            Row(Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(SeerrBrowseOption(213, "Netflix"), SeerrBrowseOption(49, "HBO"),
+                    SeerrBrowseOption(2739, "Disney+"), SeerrBrowseOption(2552, "Apple TV+"),
+                    SeerrBrowseOption(1024, "Amazon")).forEach { option ->
+                    AssistChip(onClick = {
+                        browseKind = "Network"; browseTitle = "${option.name} TV Shows"
+                        browseId = option.id; browsePage = 1
+                    }, label = { Text(option.name) })
+                }
+            }
+        }
         sections.filter { section ->
             category == "All" || section == "Trending" ||
                 (category == "Movies" && section.contains("Movies")) ||
                 (category == "TV Shows" && section.contains("TV"))
         }.forEach { section ->
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(section, modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold)
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(section, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    TextButton(onClick = {
+                        browseKind = section; browseTitle = section
+                        browsePage = 1; browseId = 0
+                    }) { Text("View all") }
+                }
                 val result = results[section]
                 val visibleItems = result?.items?.filter {
                     section != "Trending" || category == "All" ||
