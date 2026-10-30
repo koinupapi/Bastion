@@ -33,6 +33,7 @@ fun BastionNavigationSetting(
     description: String,
     index: Int,
     count: Int,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -41,6 +42,16 @@ fun BastionNavigationSetting(
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
         modifier = modifier,
         colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        leadingContent = if (icon != null) {
+            {
+                Surface(shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.tertiaryContainer) {
+                    Icon(icon, contentDescription = null,
+                        modifier = Modifier.padding(12.dp),
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                }
+            }
+        } else null,
         supportingContent = { Text(description) },
         trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
         content = { Text(title) },
