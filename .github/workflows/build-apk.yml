@@ -20,10 +20,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
-      - name: Install Android API 37
+      - name: Install Android API 37.0
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-37'
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'platforms;android-37.0'
+          # API 37 is published as android-37.0; some AGP lookups request android-37.
+          # Keep the installed SDK intact and provide the alias only if needed.
+          if [ -d "$ANDROID_HOME/platforms/android-37.0" ] && [ ! -e "$ANDROID_HOME/platforms/android-37" ]; then
+            ln -s android-37.0 "$ANDROID_HOME/platforms/android-37"
+          fi
+          test -f "$ANDROID_HOME/platforms/android-37.0/android.jar"
       - name: Restore signing keystore
         env:
           BASTION_KEYSTORE_BASE64: ${{ secrets.BASTION_KEYSTORE_BASE64 }}
