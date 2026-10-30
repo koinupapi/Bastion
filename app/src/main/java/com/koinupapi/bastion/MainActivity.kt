@@ -390,14 +390,14 @@ private fun BastionApp() {
                 if (destination.serviceId != null) {
                     val service = savedInstances.firstOrNull { it.id == destination.serviceId }
                     if (service?.type == "Seerr") {
-                        if (openSeerrRequest != null) item { SeerrRequestDetails(service, openSeerrRequest!!,
+                        if (destination.page.startsWith("media:") && openSeerrRequest != null) item { SeerrRequestDetails(service, openSeerrRequest!!,
                             cache = seerrMediaCache,
                             carouselScrollStates = seerrCarouselScrollStates,
                             navigationDepth = seerrMediaStack.size,
                             onBack = { popSeerrMedia() },
                             onRelatedClick = { seerrMediaStack.add(it) }) }
                         else item {
-                            seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${destination.tab}") {
+                            seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${destination.tab}-${destination.page}") {
                                 Box(Modifier.fillMaxWidth().then(if (destination.tab == 0) Modifier else Modifier.padding(horizontal = 16.dp))) {
                                     SeerrManagementScreen(service, destination.tab, seerrDiscoverCache,
                                         destination.page, { seerrSettingsSection = it },
