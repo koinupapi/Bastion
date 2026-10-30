@@ -107,6 +107,7 @@ private fun BastionApp() {
     }
     var dark by remember { mutableStateOf(preferences.getBoolean("dark_theme", false)) }
     var dynamic by remember { mutableStateOf(preferences.getBoolean("dynamic_colors", true)) }
+    var themeSeed by remember { mutableIntStateOf(preferences.getInt("theme_seed", 0xFF326FD3.toInt())) }
     var showAllNavLabels by remember { mutableStateOf(preferences.getBoolean("show_all_nav_labels", true)) }
     var showInstanceSubtitle by remember { mutableStateOf(preferences.getBoolean("show_instance_subtitle", true)) }
     var returnToDashboard by remember { mutableStateOf(preferences.getBoolean("return_to_dashboard", true)) }
@@ -120,7 +121,7 @@ private fun BastionApp() {
         @Suppress("DEPRECATION")
         activity.window.isNavigationBarContrastEnforced = false
     }
-    BastionTheme(dark = dark, dynamic = dynamic) {
+    BastionTheme(dark = dark, dynamic = dynamic, seed = themeSeed) {
         var tab by remember { mutableIntStateOf(0) }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         var selectedMediaId by remember { mutableStateOf<String?>(null) }
@@ -480,6 +481,7 @@ private fun BastionApp() {
                                     }
                                 }
                                 "Appearance" -> item {
+                                    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
                                     BastionGroupedSettings {
                                         BastionSwitchSetting(
                                             title = "Dark theme",
@@ -540,6 +542,15 @@ private fun BastionApp() {
                                                 }
                                             },
                                         )
+                                    }
+                                    BastionPaletteSettings(
+                                        dynamic = dynamic,
+                                        selectedSeed = themeSeed,
+                                        onSeedChange = {
+                                            themeSeed = it
+                                            preferences.edit().putInt("theme_seed", it).apply()
+                                        },
+                                    )
                                     }
                                 }
                                 "Behavior" -> item {
