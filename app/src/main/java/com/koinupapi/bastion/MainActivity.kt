@@ -471,6 +471,7 @@ private fun BastionApp() {
                                                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                                                     ) { Text("Selected only") }
                                                 }
+                                                }
                                             },
                                         )
                                     }
