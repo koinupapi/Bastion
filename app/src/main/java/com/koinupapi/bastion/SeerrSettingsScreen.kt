@@ -21,7 +21,7 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
     BackHandler(section != "root") {
         section = if (section == "app" || section == "server") "root" else "server"
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
         if (section != "root") {
             TextButton(onClick = {
                 section = if (section == "app" || section == "server") "root" else "server"
@@ -71,7 +71,7 @@ private fun SettingsNavigationCard(title: String, subtitle: String, onClick: () 
     ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(BastionSpacing.xSmall)) {
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 Text(subtitle, style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
