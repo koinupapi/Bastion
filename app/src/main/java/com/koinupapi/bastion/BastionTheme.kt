@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import com.google.android.material.color.utilities.Scheme
+import com.google.android.material.color.utilities.CorePalette
 
 /**
  * Bastion's only branded source color. All fallback theme roles are generated
@@ -36,9 +37,9 @@ private fun generatedBastionScheme(dark: Boolean, seed: Int): ColorScheme {
     val scheme = if (dark) Scheme.dark(seed) else Scheme.light(seed)
     val colors = { argb: Int -> Color(argb) }
     val base = if (dark) darkColorScheme() else lightColorScheme()
-    val charcoal = if (dark) Color(0xFF24272D) else colors(scheme.background)
-    val raised = if (dark) Color(0xFF343840) else colors(scheme.surfaceVariant)
-    val high = if (dark) Color(0xFF424750) else colors(scheme.surfaceVariant)
+    // Derive every modern surface role from the selected seed's neutral tonal palette.
+    val neutral = CorePalette.of(seed).n1
+    val tone = { value: Int -> colors(neutral.tone(value)) }
     return base.copy(
         primary = colors(scheme.primary),
         onPrimary = colors(scheme.onPrimary),
@@ -52,16 +53,16 @@ private fun generatedBastionScheme(dark: Boolean, seed: Int): ColorScheme {
         onTertiary = colors(scheme.onTertiary),
         tertiaryContainer = colors(scheme.tertiaryContainer),
         onTertiaryContainer = colors(scheme.onTertiaryContainer),
-        background = charcoal,
+        background = tone(if (dark) 6 else 98),
         onBackground = colors(scheme.onBackground),
-        surface = charcoal,
-        surfaceDim = if (dark) charcoal else colors(scheme.surface),
-        surfaceBright = if (dark) high else colors(scheme.surface),
-        surfaceContainerLowest = if (dark) charcoal else colors(scheme.surface),
-        surfaceContainerLow = if (dark) charcoal else colors(scheme.surface),
-        surfaceContainer = raised,
-        surfaceContainerHigh = high,
-        surfaceContainerHighest = high,
+        surface = tone(if (dark) 6 else 98),
+        surfaceDim = tone(if (dark) 6 else 87),
+        surfaceBright = tone(if (dark) 24 else 98),
+        surfaceContainerLowest = tone(if (dark) 4 else 100),
+        surfaceContainerLow = tone(if (dark) 10 else 96),
+        surfaceContainer = tone(if (dark) 12 else 94),
+        surfaceContainerHigh = tone(if (dark) 17 else 92),
+        surfaceContainerHighest = tone(if (dark) 22 else 90),
         onSurface = colors(scheme.onSurface),
         surfaceVariant = colors(scheme.surfaceVariant),
         onSurfaceVariant = colors(scheme.onSurfaceVariant),
