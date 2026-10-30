@@ -3,6 +3,10 @@ package com.koinupapi.bastion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.*
@@ -44,11 +48,14 @@ fun BastionNavigationSetting(
         colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
         leadingContent = if (icon != null) {
             {
-                Surface(shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.tertiaryContainer) {
-                    Icon(icon, contentDescription = null,
-                        modifier = Modifier.padding(12.dp),
-                        tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                Box(modifier = Modifier.heightIn(min = 72.dp),
+                    contentAlignment = Alignment.Center) {
+                    Surface(shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.tertiaryContainer) {
+                        Icon(icon, contentDescription = null,
+                            modifier = Modifier.padding(12.dp),
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                    }
                 }
             }
         } else null,
@@ -109,16 +116,14 @@ fun BastionSettingsDestination(
         ),
         modifier = modifier,
         leadingContent = {
-            androidx.compose.material3.Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    modifier = Modifier.padding(12.dp),
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
+            Box(modifier = Modifier.heightIn(min = 72.dp),
+                contentAlignment = Alignment.Center) {
+                Surface(shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Icon(imageVector = icon, contentDescription = null,
+                        modifier = Modifier.padding(12.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                }
             }
         },
         supportingContent = { Text(description) },
