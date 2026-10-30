@@ -3,7 +3,7 @@ package com.koinupapi.bastion
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -55,7 +55,8 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
                         "Access & Users" to "Sign-in, default permissions and request limits",
                         "Network" to "Network and security configuration",
                     ).forEachIndexed { index, entry ->
-                        BastionNavigationSetting(entry.first, entry.second, index, 3) {
+                        BastionNavigationSetting(entry.first, entry.second, index, 3,
+                            icon = listOf(Icons.Default.Tune, Icons.Default.ManageAccounts, Icons.Default.Language)[index]) {
                             section = entry.first
                         }
                     }
@@ -65,7 +66,8 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
                         "Media Services" to "Plex, Radarr, Sonarr and override rules",
                         "Metadata Providers" to "External metadata configuration",
                     ).forEachIndexed { index, entry ->
-                        BastionNavigationSetting(entry.first, entry.second, index, 2) {
+                        BastionNavigationSetting(entry.first, entry.second, index, 2,
+                            icon = listOf(Icons.Default.Dns, Icons.Default.AutoAwesome)[index]) {
                             section = entry.first
                         }
                     }
@@ -75,7 +77,8 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
                         "Notifications" to "Seerr server notification channels",
                         "Maintenance & Diagnostics" to "Logs, scheduled jobs and cache",
                     ).forEachIndexed { index, entry ->
-                        BastionNavigationSetting(entry.first, entry.second, index, 2) {
+                        BastionNavigationSetting(entry.first, entry.second, index, 2,
+                            icon = listOf(Icons.Default.Notifications, Icons.Default.Build)[index]) {
                             section = entry.first
                         }
                     }
@@ -83,7 +86,7 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
                 BastionGroupedSettings {
                     BastionNavigationSetting(
                         "App Preferences", "Bastion preferences for this Seerr connection",
-                        index = 0, count = 1,
+                        index = 0, count = 1, icon = Icons.Default.PhoneAndroid,
                     ) { section = "App Preferences" }
                 }
                 Text("Seerr server settings are separate from Bastion's local preferences.",
@@ -93,13 +96,15 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
             "Media Services" -> BastionGroupedSettings {
                 mediaPages.forEachIndexed { index, name ->
                     BastionNavigationSetting(name, "Configure ${name.lowercase()} integration",
-                        index, mediaPages.size) { section = name }
+                        index, mediaPages.size,
+                        icon = listOf(Icons.Default.Tv, Icons.Default.Movie, Icons.Default.LiveTv, Icons.Default.Rule)[index]) { section = name }
                 }
             }
             "Maintenance & Diagnostics" -> BastionGroupedSettings {
                 maintenancePages.forEachIndexed { index, name ->
                     BastionNavigationSetting(name, "Manage ${name.lowercase()}",
-                        index, maintenancePages.size) { section = name }
+                        index, maintenancePages.size,
+                        icon = listOf(Icons.Default.Article, Icons.Default.Schedule, Icons.Default.CleaningServices)[index]) { section = name }
                 }
             }
             "App Preferences" -> {
