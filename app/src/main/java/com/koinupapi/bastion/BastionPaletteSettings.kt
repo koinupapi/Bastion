@@ -23,7 +23,6 @@ fun BastionPaletteSettings(
     selectedSeed: Int,
     onSeedChange: (Int) -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Basic colors", style = MaterialTheme.typography.titleMedium)
         Text(
@@ -52,13 +51,8 @@ fun BastionPaletteSettings(
                 }
             }
         }
-        HorizontalDivider()
-        TextButton(onClick = { expanded = !expanded }) {
-            Text("Current Material 3 palette")
-            Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = null)
-        }
-        if (expanded) {
+        BastionExpandableSection(title = "Current Material 3 palette",
+            description = "Inspect the active generated theme colors") {
             val scheme = MaterialTheme.colorScheme
             val entries = listOf(
                 "Primary" to scheme.primary, "On primary" to scheme.onPrimary,
