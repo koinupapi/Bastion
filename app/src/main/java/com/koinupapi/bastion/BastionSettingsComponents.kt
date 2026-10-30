@@ -1,6 +1,8 @@
 package com.koinupapi.bastion
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -68,7 +70,7 @@ fun BastionNavigationSetting(
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             androidx.compose.material3.Icon(
-                androidx.compose.material.icons.Icons.Default.ChevronRight,
+                Icons.Default.ChevronRight,
                 contentDescription = null,
             )
         }
