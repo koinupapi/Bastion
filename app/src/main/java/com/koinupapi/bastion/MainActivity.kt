@@ -91,6 +91,7 @@ private fun BastionApp() {
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("bastion_settings", android.content.Context.MODE_PRIVATE) }
     var hideNavOnScroll by remember { mutableStateOf(preferences.getBoolean("hide_nav_on_scroll", false)) }
+    var hideHeaderOnScroll by remember { mutableStateOf(preferences.getBoolean("hide_header_on_scroll", false)) }
     var navVisible by remember { mutableStateOf(true) }
     val navigationScrollConnection = remember(hideNavOnScroll) {
         object : NestedScrollConnection {
@@ -122,6 +123,8 @@ private fun BastionApp() {
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         var selectedMediaId by remember { mutableStateOf<String?>(null) }
         var seerrTab by remember(selectedMediaId) { mutableIntStateOf(0) }
+        var seerrSettingsSection by remember(selectedMediaId) { mutableStateOf("root") }
+        var seerrSearching by remember(selectedMediaId) { mutableStateOf(false) }
         val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
         val seerrMediaCache = remember { mutableStateMapOf<String, SeerrMediaDetails>() }
         val seerrScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.lazy.LazyListState>() }
@@ -178,6 +181,13 @@ private fun BastionApp() {
             when {
                 openSeerrRequest != null -> popSeerrMedia()
                 selectedMediaId != null -> {
+                    if (seerrTab == 4 && seerrSettingsSection != "root") {
+                        seerrSettingsSection = when (seerrSettingsSection) {
+                            "Plex", "Radarr", "Sonarr", "Override Rules" -> "Media Services"
+                            "Logs", "Scheduled Jobs", "Cache Management" -> "Maintenance & Diagnostics"
+                            else -> "root"
+                        }
+                    } else {
                     // Back from a Seerr service tab returns to its home (Discover),
                     // not the global Bastion dashboard. Nested Settings back is
                     // handled by SeerrSettingsScreen while a subpage is open.
@@ -187,6 +197,7 @@ private fun BastionApp() {
                         tab = 0
                         settingsHistory.clear()
                         settingsPage = "Settings"
+                    }
                     }
                 }
                 tab == 2 && settingsPage != "Settings" -> goBackSettings()
@@ -213,6 +224,21 @@ private fun BastionApp() {
             }
         }
         val labels = listOf("Dash", "Calendar", "Settings")
+        val seerrLabels = listOf("Discover", "Requests", "Issues", "Users", "Settings")
+        val serviceScreen = selectedMediaId != null
+        val nestedBastionSettings = !serviceScreen && tab == 2 && settingsPage != "Settings"
+        val nestedSeerrSettings = serviceScreen && seerrTab == 4 && seerrSettingsSection != "root"
+        val headerTitle = when {
+            openSeerrRequest != null -> openSeerrRequest.title
+            nestedSeerrSettings -> seerrSettingsSection
+            serviceScreen -> seerrLabels[seerrTab]
+            nestedBastionSettings -> if (settingsPage == "Service detail") selectedIntegration else settingsPage
+            tab == 0 -> "Bastion"
+            else -> if (tab == 1) "Calendar" else "Settings"
+        }
+        val headerContext = if (serviceScreen) savedInstances.firstOrNull { it.id == selectedMediaId }?.name else null
+        val headerBack = openSeerrRequest != null || nestedSeerrSettings || nestedBastionSettings
+        val topBarScrollBehavior = if (hideHeaderOnScroll) TopAppBarDefaults.enterAlwaysScrollBehavior() else TopAppBarDefaults.pinnedScrollBehavior()
         val icons = listOf(Icons.Default.Home, Icons.Default.CalendarMonth, Icons.Default.Settings)
         ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
             BastionNavigationDrawerSheet {
@@ -301,7 +327,37 @@ private fun BastionApp() {
             }
         }) {
         LaunchedEffect(tab, selectedMediaId, seerrTab, settingsPage, hideNavOnScroll) { navVisible = true }
-        Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) },
+        Scaffold(
+            modifier = Modifier.nestedScroll(topBarScrollBehavior.nestedScrollConnection),
+            topBar = {
+                BastionPageHeader(
+                    title = headerTitle,
+                    subtitle = headerContext,
+                    scrollBehavior = topBarScrollBehavior,
+                    onNavigationClick = {
+                        when {
+                            openSeerrRequest != null -> popSeerrMedia()
+                            nestedSeerrSettings -> seerrSettingsSection = when (seerrSettingsSection) {
+                                "Plex", "Radarr", "Sonarr", "Override Rules" -> "Media Services"
+                                "Logs", "Scheduled Jobs", "Cache Management" -> "Maintenance & Diagnostics"
+                                else -> "root"
+                            }
+                            nestedBastionSettings -> goBackSettings()
+                            else -> scope.launch { drawerState.open() }
+                        }
+                    },
+                    isBack = headerBack,
+                    actions = {
+                        if (serviceScreen && seerrTab == 0 && openSeerrRequest == null) {
+                            IconButton(onClick = { seerrSearching = !seerrSearching }) {
+                                Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
+                                    contentDescription = if (seerrSearching) "Close search" else "Search movies and TV")
+                            }
+                        }
+                    },
+                )
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             containerColor = MaterialTheme.colorScheme.background) { insets ->
             Box(Modifier.fillMaxSize()) {
             val scrollKey = if (openSeerrRequest != null)
@@ -318,44 +374,6 @@ private fun BastionApp() {
                     bottom = if (openSeerrRequest != null) 28.dp else if (!hideNavOnScroll || navVisible) 100.dp else 16.dp),
                 verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)
             ) {
-                if (openSeerrRequest == null) item {
-                    val nestedSettings = selectedMediaId == null && tab == 2 && settingsPage != "Settings"
-                    val serviceScreen = selectedMediaId != null
-                    Row(verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = if (selectedMediaId != null) 16.dp else 0.dp)) {
-                        IconButton(onClick = {
-                            when {
-                                nestedSettings -> goBackSettings()
-                                else -> scope.launch { drawerState.open() }
-                            }
-                        }) {
-                            Icon(if (nestedSettings) Icons.Default.ArrowBack
-                                else Icons.Default.Menu,
-                                contentDescription = if (nestedSettings) "Navigate back"
-                                    else "Open services")
-                        }
-                        Column(Modifier.weight(1f)) {
-                            if (!nestedSettings && !serviceScreen && tab == 0)
-                                Text("YOUR HOMELAB", style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary)
-                            Text(
-                                when {
-                                    serviceScreen -> savedInstances.firstOrNull { it.id == selectedMediaId }?.name ?: "Service"
-                                    nestedSettings -> if (settingsPage == "Service detail") selectedIntegration else settingsPage
-                                    tab == 0 -> "Bastion"
-                                    else -> labels[tab]
-                                },
-                                style = if (nestedSettings || serviceScreen)
-                                    MaterialTheme.typography.headlineMedium
-                                else MaterialTheme.typography.headlineLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        if (!nestedSettings && !serviceScreen)
-                            Icon(Icons.Default.Shield, contentDescription = "Bastion",
-                                tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
                 if (selectedMediaId == null && tab == 0) item { DemoNotice() }
                 if (selectedMediaId != null) {
                     val service = savedInstances.firstOrNull { it.id == selectedMediaId }
@@ -369,7 +387,9 @@ private fun BastionApp() {
                         else item {
                             seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${seerrTab}") {
                                 Box(Modifier.fillMaxWidth().then(if (seerrTab == 0) Modifier else Modifier.padding(horizontal = 16.dp))) {
-                                SeerrManagementScreen(service, seerrTab, seerrDiscoverCache) {
+                                SeerrManagementScreen(service, seerrTab, seerrDiscoverCache,
+                                    seerrSettingsSection, { seerrSettingsSection = it },
+                                    seerrSearching, { seerrSearching = it }) {
                                     seerrMediaStack.add(it)
                                 }
                                 }
@@ -461,17 +481,27 @@ private fun BastionApp() {
                                             index = 1, count = 4,
                                         )
                                         BastionSwitchSetting(
-                                            title = "Hide navigation while scrolling",
+                                            title = "Hide bottom bar while scrolling",
                                             description = "Scroll down to hide the bottom bar; scroll up to show it.",
                                             checked = hideNavOnScroll,
                                             onCheckedChange = {
                                                 hideNavOnScroll = it
                                                 preferences.edit().putBoolean("hide_nav_on_scroll", it).apply()
                                             },
-                                            index = 2, count = 4,
+                                            index = 2, count = 5,
+                                        )
+                                        BastionSwitchSetting(
+                                            title = "Hide top bar while scrolling",
+                                            description = "Scroll down to hide the page header; scroll up to show it.",
+                                            checked = hideHeaderOnScroll,
+                                            onCheckedChange = {
+                                                hideHeaderOnScroll = it
+                                                preferences.edit().putBoolean("hide_header_on_scroll", it).apply()
+                                            },
+                                            index = 3, count = 5,
                                         )
                                         BastionSettingsContent(
-                                            index = 3, count = 4,
+                                            index = 4, count = 5,
                                             content = {
                                                 Column(Modifier.fillMaxWidth()) {
                                                 Text("Navigation labels", style = MaterialTheme.typography.titleMedium)
@@ -1095,11 +1125,11 @@ private fun SettingsEntry(
 @Composable
 private fun SeerrDiscoverScreen(instance: ServiceConfig,
     results: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
+    searching: Boolean, onSearchingChange: (Boolean) -> Unit,
     onMediaClick: (SeerrRecentRequest) -> Unit) {
     val sections = remember { listOf("Trending", "Popular Movies", "Popular TV Shows",
         "Upcoming Movies", "Upcoming TV Shows") }
     var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
-    var searching by remember(instance.id) { mutableStateOf(false) }
     var query by remember(instance.id) { mutableStateOf("") }
     var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
     var searchLoading by remember(instance.id) { mutableStateOf(false) }
@@ -1125,18 +1155,6 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Text("Discover", modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold)
-            IconButton(onClick = {
-                searching = !searching
-                if (!searching) query = ""
-            }) {
-                Icon(if (searching) Icons.Default.Close else Icons.Default.Search,
-                    contentDescription = if (searching) "Close search" else "Search movies and TV")
-            }
-        }
         AnimatedVisibility(visible = searching, enter = fadeIn(), exit = fadeOut()) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
@@ -1308,7 +1326,6 @@ private fun SeerrIssuesScreen(instance: ServiceConfig) {
         result = SeerrClient.issuePage(instance, 20, page * 20, filter)
     }
     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
-        Text("Issues", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Reported media problems • Manage issues",
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
@@ -1359,6 +1376,8 @@ private fun SeerrIssuesScreen(instance: ServiceConfig) {
 @Composable
 private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     discoverResults: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
+    settingsSection: String, onSettingsSectionChange: (String) -> Unit,
+    searching: Boolean, onSearchingChange: (Boolean) -> Unit,
     onRequestClick: (SeerrRecentRequest) -> Unit) {
     var page by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
     var filter by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
@@ -1401,15 +1420,14 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     }
     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
         if (destination == 0) {
-            SeerrDiscoverScreen(instance, discoverResults, onRequestClick)
+            SeerrDiscoverScreen(instance, discoverResults, searching, onSearchingChange, onRequestClick)
         } else if (destination == 2) {
             SeerrIssuesScreen(instance)
         } else if (destination == 3) {
             SeerrUserDirectoryScreen(instance)
         } else if (destination == 4) {
-            SeerrSettingsScreen(instance)
+            SeerrSettingsScreen(instance, settingsSection, onSettingsSectionChange)
         } else {
-        Text("Requests", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Browse and manage Seerr requests", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
