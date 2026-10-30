@@ -107,9 +107,6 @@ private fun BastionApp() {
     var showAllNavLabels by remember { mutableStateOf(preferences.getBoolean("show_all_nav_labels", true)) }
     var returnToDashboard by remember { mutableStateOf(preferences.getBoolean("return_to_dashboard", true)) }
     var doubleBackToExit by remember { mutableStateOf(preferences.getBoolean("double_back_exit", true)) }
-    val colors = if (dynamic && android.os.Build.VERSION.SDK_INT >= 31) {
-        if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else if (dark) darkColorScheme() else lightColorScheme()
     val activity = context as ComponentActivity
     SideEffect {
         activity.enableEdgeToEdge(
@@ -119,7 +116,7 @@ private fun BastionApp() {
         @Suppress("DEPRECATION")
         activity.window.isNavigationBarContrastEnforced = false
     }
-    MaterialTheme(colorScheme = colors) {
+    BastionTheme(dark = dark, dynamic = dynamic) {
         var tab by remember { mutableIntStateOf(0) }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         var selectedMediaId by remember { mutableStateOf<String?>(null) }
