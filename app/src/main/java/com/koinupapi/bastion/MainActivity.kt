@@ -391,22 +391,22 @@ private fun BastionApp() {
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             item {
-                                SettingsEntry("Appearance", "Theme, dynamic colors and display", Icons.Default.Palette) {
+                                BastionSettingsDestination("Appearance", "Theme, dynamic colors and display", Icons.Default.Palette) {
                                     openSettingsPage("Appearance")
                                 }
                             }
                             item {
-                                SettingsEntry("Services", "Manage homelab service connections", Icons.Default.Widgets) {
+                                BastionSettingsDestination("Services", "Manage homelab service connections", Icons.Default.Widgets) {
                                     openSettingsPage("Services")
                                 }
                             }
                             item {
-                                SettingsEntry("Behavior", "Back navigation and exit confirmation", Icons.Default.Tune) {
+                                BastionSettingsDestination("Behavior", "Back navigation and exit confirmation", Icons.Default.Tune) {
                                     openSettingsPage("Behavior")
                                 }
                             }
                             item {
-                                SettingsEntry("About", "Version and preview information", Icons.Default.Info) {
+                                BastionSettingsDestination("About", "Version and preview information", Icons.Default.Info) {
                                     openSettingsPage("About")
                                 }
                             }
@@ -445,7 +445,7 @@ private fun BastionApp() {
                                         )
                                         SegmentedListItem(
                                             shapes = ListItemDefaults.segmentedShapes(index = 3, count = 4),
-                                            colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                                            colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                                             content = {
                                                 Column(Modifier.fillMaxWidth()) {
                                                 Text("Navigation labels", style = MaterialTheme.typography.titleMedium)
