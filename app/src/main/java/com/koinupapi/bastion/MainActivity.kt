@@ -443,9 +443,8 @@ private fun BastionApp() {
                                             },
                                             index = 2, count = 4,
                                         )
-                                        SegmentedListItem(
-                                            shapes = ListItemDefaults.segmentedShapes(index = 3, count = 4),
-                                            colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                                        BastionSettingsContent(
+                                            index = 3, count = 4,
                                             content = {
                                                 Column(Modifier.fillMaxWidth()) {
                                                 Text("Navigation labels", style = MaterialTheme.typography.titleMedium)
@@ -478,51 +477,44 @@ private fun BastionApp() {
                                     }
                                 }
                                 "Behavior" -> item {
-                                    Card(shape = MaterialTheme.shapes.extraLarge) {
-                                        Column(Modifier.fillMaxWidth().padding(20.dp),
-                                            verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
-                                            Text("Back button behavior", style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.SemiBold)
-                                            Text("When you press Back from a main navigation tab:",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                RadioButton(selected = !returnToDashboard, onClick = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
+                                        Text("Back button behavior", style = MaterialTheme.typography.titleMedium)
+                                        Text("When you press Back from a main navigation tab:",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        BastionGroupedSettings {
+                                            BastionChoiceSetting(
+                                                title = "Exit from current tab",
+                                                description = "Back initiates exiting Bastion.",
+                                                selected = !returnToDashboard,
+                                                index = 0, count = 2,
+                                                onClick = {
                                                     returnToDashboard = false
                                                     preferences.edit().putBoolean("return_to_dashboard", false).apply()
-                                                })
-                                                Column(Modifier.weight(1f)) {
-                                                    Text("Exit from current tab")
-                                                    Text("Back initiates exiting Bastion.",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                }
-                                            }
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                RadioButton(selected = returnToDashboard, onClick = {
+                                                },
+                                            )
+                                            BastionChoiceSetting(
+                                                title = "Return to Dashboard",
+                                                description = "Go Home first from Servers, Media, or Settings.",
+                                                selected = returnToDashboard,
+                                                index = 1, count = 2,
+                                                onClick = {
                                                     returnToDashboard = true
                                                     preferences.edit().putBoolean("return_to_dashboard", true).apply()
-                                                })
-                                                Column(Modifier.weight(1f)) {
-                                                    Text("Return to Dashboard")
-                                                    Text("Go Home first from Servers, Media, or Settings.",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                }
-                                            }
-                                            HorizontalDivider()
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Column(Modifier.weight(1f)) {
-                                                    Text("Double Back to exit", style = MaterialTheme.typography.titleMedium)
-                                                    Text("Press Back twice within 2 seconds to exit.",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                }
-                                                Switch(checked = doubleBackToExit, onCheckedChange = {
+                                                },
+                                            )
+                                        }
+                                        BastionGroupedSettings {
+                                            BastionSwitchSetting(
+                                                title = "Double Back to exit",
+                                                description = "Press Back twice within 2 seconds to exit.",
+                                                checked = doubleBackToExit,
+                                                onCheckedChange = {
                                                     doubleBackToExit = it
                                                     preferences.edit().putBoolean("double_back_exit", it).apply()
-                                                })
-                                            }
+                                                },
+                                                index = 0, count = 1,
+                                            )
                                         }
                                     }
                                 }
@@ -572,7 +564,7 @@ private fun BastionApp() {
                                                     instances.forEachIndexed { index, instance ->
                                                         SettingsEntry(instance.name, instance.type + " • Configured",
                                                             Icons.Default.Dns,
-                                                            shape = connectedServiceShape(index, instances.size)) {
+                                                            index = index, count = instances.size) {
                                                             editService(instance)
                                                             openSettingsPage("Service detail")
                                                         }
@@ -1047,26 +1039,18 @@ private fun SettingsEntry(
     title: String,
     subtitle: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    shape: androidx.compose.ui.graphics.Shape = MaterialTheme.shapes.extraLarge,
-    onClick: () -> Unit
+    index: Int = 0,
+    count: Int = 1,
+    onClick: () -> Unit,
 ) {
-    Card(onClick = onClick, shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.secondaryContainer) {
-                Icon(icon, contentDescription = null, modifier = Modifier.padding(12.dp),
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer)
-            }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Icon(Icons.Default.ChevronRight, contentDescription = null)
-        }
-    }
+    BastionSettingsDestination(
+        title = title,
+        description = subtitle,
+        icon = icon,
+        index = index,
+        count = count,
+        onClick = onClick,
+    )
 }
 
 @Composable
