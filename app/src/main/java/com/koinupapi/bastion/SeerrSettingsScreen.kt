@@ -13,10 +13,7 @@ import androidx.compose.ui.Modifier
  * Server categories are deliberately separate from Bastion's local preferences.
  */
 @Composable
-fun SeerrSettingsScreen(instance: ServiceConfig) {
-    var section by androidx.compose.runtime.saveable.rememberSaveable(instance.id) {
-        mutableStateOf("root")
-    }
+fun SeerrSettingsScreen(instance: ServiceConfig, section: String, onSectionChange: (String) -> Unit) {
     val mediaPages = listOf("Plex", "Radarr", "Sonarr", "Override Rules")
     val maintenancePages = listOf("Logs", "Scheduled Jobs", "Cache Management")
     val parent = when {
@@ -24,9 +21,7 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
         section in maintenancePages -> "Maintenance & Diagnostics"
         else -> "root"
     }
-    val goBack = { section = parent }
-    BackHandler(section != "root") { goBack() }
-
+    
     val context = androidx.compose.ui.platform.LocalContext.current
     val preferences = remember(context) {
         context.getSharedPreferences("bastion_seerr_local", android.content.Context.MODE_PRIVATE)
@@ -37,15 +32,6 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
-        if (section != "root") {
-            TextButton(onClick = goBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = null)
-                Spacer(Modifier.width(BastionSpacing.small))
-                Text("Back")
-            }
-        }
-        Text(if (section == "root") "Settings" else section,
-            style = MaterialTheme.typography.headlineSmall)
 
         when (section) {
             "root" -> {
@@ -57,7 +43,7 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
                     ).forEachIndexed { index, entry ->
                         BastionNavigationSetting(entry.first, entry.second, index, 3,
                             icon = listOf(Icons.Default.Tune, Icons.Default.ManageAccounts, Icons.Default.Language)[index]) {
-                            section = entry.first
+                            onSectionChange(entry.first)
                         }
                     }
                 }
@@ -68,7 +54,7 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
                     ).forEachIndexed { index, entry ->
                         BastionNavigationSetting(entry.first, entry.second, index, 2,
                             icon = listOf(Icons.Default.Dns, Icons.Default.AutoAwesome)[index]) {
-                            section = entry.first
+                            onSectionChange(entry.first)
                         }
                     }
                 }
@@ -79,7 +65,7 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
                     ).forEachIndexed { index, entry ->
                         BastionNavigationSetting(entry.first, entry.second, index, 2,
                             icon = listOf(Icons.Default.Notifications, Icons.Default.Build)[index]) {
-                            section = entry.first
+                            onSectionChange(entry.first)
                         }
                     }
                 }
@@ -87,7 +73,7 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
                     BastionNavigationSetting(
                         "App Preferences", "Bastion preferences for this Seerr connection",
                         index = 0, count = 1, icon = Icons.Default.PhoneAndroid,
-                    ) { section = "App Preferences" }
+                    ) { onSectionChange("App Preferences") }
                 }
                 Text("Seerr server settings are separate from Bastion's local preferences.",
                     style = MaterialTheme.typography.bodySmall,
@@ -97,14 +83,14 @@ fun SeerrSettingsScreen(instance: ServiceConfig) {
                 mediaPages.forEachIndexed { index, name ->
                     BastionNavigationSetting(name, "Configure ${name.lowercase()} integration",
                         index, mediaPages.size,
-                        icon = listOf(Icons.Default.Tv, Icons.Default.Movie, Icons.Default.LiveTv, Icons.Default.Rule)[index]) { section = name }
+                        icon = listOf(Icons.Default.Tv, Icons.Default.Movie, Icons.Default.LiveTv, Icons.Default.Rule)[index]) { onSectionChange(name) }
                 }
             }
             "Maintenance & Diagnostics" -> BastionGroupedSettings {
                 maintenancePages.forEachIndexed { index, name ->
                     BastionNavigationSetting(name, "Manage ${name.lowercase()}",
                         index, maintenancePages.size,
-                        icon = listOf(Icons.Default.Article, Icons.Default.Schedule, Icons.Default.CleaningServices)[index]) { section = name }
+                        icon = listOf(Icons.Default.Article, Icons.Default.Schedule, Icons.Default.CleaningServices)[index]) { onSectionChange(name) }
                 }
             }
             "App Preferences" -> {
