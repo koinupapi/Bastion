@@ -934,18 +934,15 @@ private fun SectionTitle(title: String) {
 private fun WidgetCard(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector,
     trailing: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit) {
-    Card(shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(10.dp))
-                Text(title, style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                trailing?.invoke()
-            }
-            content()
+    BastionContentCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(10.dp))
+            Text(title, style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            trailing?.invoke()
         }
+        content()
     }
 }
 
