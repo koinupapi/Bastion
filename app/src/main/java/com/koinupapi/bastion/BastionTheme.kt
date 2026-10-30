@@ -1,7 +1,7 @@
 package com.koinupapi.bastion
 
 import android.os.Build
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -10,7 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 /**
- * Application-wide Material 3 theme entry point.
+ * Application-wide native Material 3 Expressive theme entry point.
  *
  * Preserve the existing dynamic-color and light/dark behavior while keeping
  * service screens independent of the user's selected color source.
@@ -30,5 +30,5 @@ fun BastionTheme(
     } else {
         lightColorScheme()
     }
-    MaterialTheme(colorScheme = colors, content = content)
+    MaterialExpressiveTheme(colorScheme = colors, content = content)
 }
