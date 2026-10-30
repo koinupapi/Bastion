@@ -2022,7 +2022,8 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                     1f to pageColor)))
             }
             FilledTonalIconButton(onClick = onBack,
-                modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
+                modifier = Modifier.align(Alignment.TopStart)
+                    .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp, start = 16.dp)) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Back to requests")
             }
             Row(Modifier.align(Alignment.BottomStart).fillMaxWidth()
