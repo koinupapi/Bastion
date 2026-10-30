@@ -19,6 +19,7 @@ fun BastionAppShell(
     title: String,
     subtitle: String?,
     isBack: Boolean,
+    immersive: Boolean = false,
     onNavigationClick: () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior,
     modifier: Modifier = Modifier,
@@ -29,7 +30,7 @@ fun BastionAppShell(
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            BastionPageHeader(
+            if (!immersive) BastionPageHeader(
                 title = title,
                 subtitle = subtitle,
                 isBack = isBack,
