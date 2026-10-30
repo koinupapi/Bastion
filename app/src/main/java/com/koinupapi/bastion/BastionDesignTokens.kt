@@ -1,6 +1,5 @@
 package com.koinupapi.bastion
 
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 
 /**
@@ -17,12 +16,6 @@ object BastionSpacing {
     val large = 16.dp
     val xLarge = 24.dp
     val xxLarge = 32.dp
-}
-
-object BastionShapes {
-    val bottomSheet = RoundedCornerShape(topStart = BastionSpacing.xxLarge, topEnd = BastionSpacing.xxLarge)
-    val mediaArtwork = RoundedCornerShape(20.dp)
-    val prominentAction = RoundedCornerShape(BastionSpacing.xLarge)
 }
 
 /** Common spacing for standard modal sheet content; bottom insets may vary. */
