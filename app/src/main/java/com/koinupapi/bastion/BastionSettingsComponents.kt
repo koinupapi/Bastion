@@ -42,6 +42,7 @@ fun BastionNavigationSetting(
     SegmentedListItem(
         onClick = onClick,
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
+        verticalAlignment = Alignment.CenterVertically,
         modifier = modifier,
         colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
         leadingContent = if (icon != null) {
@@ -77,6 +78,7 @@ fun BastionSwitchSetting(
         checked = checked,
         onCheckedChange = onCheckedChange,
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
+        verticalAlignment = Alignment.CenterVertically,
         modifier = modifier,
         enabled = enabled,
         colors = ListItemDefaults.segmentedColors(
@@ -108,6 +110,7 @@ fun BastionSettingsDestination(
     SegmentedListItem(
         onClick = onClick,
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
+        verticalAlignment = Alignment.CenterVertically,
         colors = ListItemDefaults.segmentedColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ),
@@ -143,6 +146,7 @@ fun BastionChoiceSetting(
         checked = selected,
         onCheckedChange = { if (it) onClick() },
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
+        verticalAlignment = Alignment.CenterVertically,
         colors = ListItemDefaults.segmentedColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -164,6 +168,7 @@ fun BastionSettingsContent(
 ) {
     SegmentedListItem(
         shapes = ListItemDefaults.segmentedShapes(index = index, count = count),
+        verticalAlignment = Alignment.CenterVertically,
         colors = ListItemDefaults.segmentedColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ),
