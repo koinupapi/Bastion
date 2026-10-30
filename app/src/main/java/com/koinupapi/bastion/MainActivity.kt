@@ -428,7 +428,8 @@ private fun BastionApp() {
                                     SeerrManagementScreen(service, destination.tab, seerrDiscoverCache,
                                         destination.page, { seerrSettingsSection = it },
                                         seerrSearching, { seerrSearching = it }, seerrDiscoverRefresh,
-                                        { seerrDiscoverRefreshing = it }) {
+                                        { seerrDiscoverRefreshing = it },
+                                        onDiscoverRefreshFeedback = { message -> scope.launch { snackbarHostState.showSnackbar(message) } }) {
                                         seerrMediaStack.add(it)
                                     }
                                 }
@@ -1197,6 +1198,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     results: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
     searching: Boolean, onSearchingChange: (Boolean) -> Unit,
     refresh: Int, onRefreshingChange: (Boolean) -> Unit,
+    onRefreshFeedback: (String) -> Unit,
     onMediaClick: (SeerrRecentRequest) -> Unit) {
     val sections = remember { listOf("Trending", "Popular Movies", "Popular TV Shows",
         "Upcoming Movies", "Upcoming TV Shows") }
@@ -1216,17 +1218,34 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         }
     }
     LaunchedEffect(instance, refresh) {
+        val startedAt = android.os.SystemClock.elapsedRealtime()
+        val failures = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val requested = sections.filter { refresh > 0 || it !in results }
         try {
             kotlinx.coroutines.coroutineScope {
-                sections.filter { refresh > 0 || it !in results }.forEach { section ->
+                requested.forEach { section ->
                     launch {
-                        val response = SeerrClient.discover(instance, section)
-                        results[section] = response
+                        try {
+                            val response = SeerrClient.discover(instance, section)
+                            results[section] = response
+                            if (response.error != null) failures.add("$section: ${response.error}")
+                        } catch (error: Exception) {
+                            failures.add("$section: ${error.message ?: error.javaClass.simpleName}")
+                        }
                     }
                 }
             }
             if (searching && query.trim().length >= 2) {
-                searchResult = SeerrClient.discover(instance, "Search", query)
+                val response = SeerrClient.discover(instance, "Search", query)
+                searchResult = response
+                if (response.error != null) failures.add("Search: ${response.error}")
+            }
+            if (refresh > 0) {
+                val elapsed = android.os.SystemClock.elapsedRealtime() - startedAt
+                android.util.Log.i("BastionSeerrRefresh",
+                    "Discover refresh: ${requested.size} sections requested in ${elapsed}ms; errors=${failures.joinToString()}")
+                onRefreshFeedback(if (failures.isEmpty()) "Discover refreshed • ${requested.size} sections • ${elapsed} ms"
+                    else "Discover refresh: ${failures.size} request(s) failed")
             }
         } finally {
             onRefreshingChange(false)
@@ -1448,6 +1467,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     settingsSection: String, onSettingsSectionChange: (String) -> Unit,
     searching: Boolean, onSearchingChange: (Boolean) -> Unit,
     discoverRefresh: Int, onDiscoverRefreshingChange: (Boolean) -> Unit,
+    onDiscoverRefreshFeedback: (String) -> Unit,
     onRequestClick: (SeerrRecentRequest) -> Unit) {
     var page by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
     var filter by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
@@ -1491,7 +1511,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
         if (destination == 0) {
             SeerrDiscoverScreen(instance, discoverResults, searching, onSearchingChange,
-                discoverRefresh, onDiscoverRefreshingChange, onRequestClick)
+                discoverRefresh, onDiscoverRefreshingChange, onDiscoverRefreshFeedback, onRequestClick)
         } else if (destination == 2) {
             SeerrIssuesScreen(instance)
         } else if (destination == 3) {
