@@ -859,48 +859,43 @@ private fun BastionApp() {
                 }
             }
             }
-            AnimatedVisibility(modifier = Modifier.align(Alignment.BottomCenter), visible = openSeerrRequest == null && (!hideNavOnScroll || navVisible),
-                enter = androidx.compose.animation.slideInVertically { it } + fadeIn(),
-                exit = androidx.compose.animation.slideOutVertically { it } + fadeOut()) {
-            if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
-                BastionBottomNavigation(
-                    destinations = listOf("Discover", "Requests", "Issues", "Users", "Settings")
-                        .mapIndexed { index, label ->
-                            BastionNavDestination(
-                                label = label,
-                                icon = when (index) {
-                                    0 -> Icons.Default.Explore
-                                    1 -> Icons.Default.ListAlt
-                                    2 -> Icons.Default.ReportProblem
-                                    3 -> Icons.Default.People
-                                    else -> Icons.Default.Settings
-                                },
-                                selected = seerrTab == index,
-                                onClick = { seerrTab = index },
-                            )
+            val activeTabs = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
+                seerrLabels.mapIndexed { index, label ->
+                    BastionNavDestination(
+                        label = label,
+                        icon = when (index) {
+                            0 -> Icons.Default.Explore
+                            1 -> Icons.Default.ListAlt
+                            2 -> Icons.Default.ReportProblem
+                            3 -> Icons.Default.People
+                            else -> Icons.Default.Settings
                         },
-                    showAllLabels = showAllNavLabels,
-                )
+                        selected = seerrTab == index,
+                        onClick = { seerrTab = index },
+                    )
+                }
             } else if (selectedMediaId == null && (tab != 2 || settingsPage == "Settings")) {
-                BastionBottomNavigation(
-                    destinations = labels.mapIndexed { index, label ->
-                        BastionNavDestination(
-                            label = label,
-                            icon = icons[index],
-                            selected = tab == index,
-                            onClick = {
-                                tab = index
-                                selectedMediaId = null
-                                settingsPage = "Settings"
-                                settingsHistory.clear()
-                                lastExitBackAt = 0L
-                            },
-                        )
-                    },
-                    showAllLabels = showAllNavLabels,
-                )
-            }
-            }
+                labels.mapIndexed { index, label ->
+                    BastionNavDestination(
+                        label = label,
+                        icon = icons[index],
+                        selected = tab == index,
+                        onClick = {
+                            tab = index
+                            selectedMediaId = null
+                            settingsPage = "Settings"
+                            settingsHistory.clear()
+                            lastExitBackAt = 0L
+                        },
+                    )
+                }
+            } else emptyList()
+            BastionShellBottomBar(
+                visible = activeTabs.isNotEmpty() && openSeerrRequest == null && (!hideNavOnScroll || navVisible),
+                destinations = activeTabs,
+                showAllLabels = showAllNavLabels,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
         }
     }
