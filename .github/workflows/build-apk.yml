@@ -9,7 +9,6 @@ on:
 jobs:
   build:
     # Stable/develop build on push; feature branches build only when explicitly requested.
-    # Batch 4 regression build: verify coroutine cancellation handling.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.ref_name == 'main' ||
