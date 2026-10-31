@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     # Stable/develop build on push; feature branches build only when explicitly requested.
+    # Batch 4 validation: build is explicitly requested by the commit message.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.ref_name == 'main' ||
