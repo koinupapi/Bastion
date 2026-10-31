@@ -1659,8 +1659,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             "Plex Watchlist", 1, overridePath = "/discover/watchlist?") else null
     }
     LaunchedEffect(instance, showRecentlyAdded, refresh) {
-        recentlyAddedFeed = if (showRecentlyAdded) SeerrBrowseClient.browse(instance,
-            "Recently Added", 1, overridePath = "/discover/movies?sortBy=primaryReleaseDate.desc&") else null
+        recentlyAddedFeed = if (showRecentlyAdded) SeerrBrowsePage(error = "Recently Added requires a library-specific feed; Seerr discovery does not provide library addition dates.") else null
     }
 
     LaunchedEffect(instance.id) {
