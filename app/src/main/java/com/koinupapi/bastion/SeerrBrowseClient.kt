@@ -137,6 +137,21 @@ object SeerrBrowseClient {
         }
     }
 
+    /** Searchable keyword picker data; use real IDs instead of asking users to type them. */
+    suspend fun searchKeywords(config: ServiceConfig, query: String): Result<List<SeerrBrowseOption>> = runCatching {
+        if (query.isBlank()) emptyList() else {
+            val data = JSONObject(get(config, "/api/v1/search/keyword?query=${encode(query)}&page=1"))
+            val results = data.optJSONArray("results") ?: JSONArray()
+            (0 until results.length()).mapNotNull { index ->
+                results.optJSONObject(index)?.let { item ->
+                    val id = item.optInt("id")
+                    val name = item.optString("name")
+                    if (id > 0 && name.isNotBlank()) SeerrBrowseOption(id, name) else null
+                }
+            }
+        }
+    }
+
     /**
      * Advanced discovery via Seerr's main discover endpoints. The criteria are
      * applied server-side, so page counts and results remain accurate.
