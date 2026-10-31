@@ -72,10 +72,11 @@ internal fun SeerrDiscoverFilters.toQueryParameters(mediaType: SeerrDiscoverMedi
     put("watchProviders", providerIds.filter { it > 0 }.sorted()
         .takeIf { it.isNotEmpty() }?.joinToString("|"))
     put("certification", certification)
+    if (!certification.isNullOrBlank()) put("certificationMode", "exact")
     put("certificationCountry", certificationCountry)
     put("keywords", ids(keywordIds))
     put("excludeKeywords", ids(excludedKeywordIds))
-    // Seerr main TV discover endpoint does not document a status parameter.
+    if (mediaType == SeerrDiscoverMediaType.TV) put("status", tvStatus)
     return result
 }
 
