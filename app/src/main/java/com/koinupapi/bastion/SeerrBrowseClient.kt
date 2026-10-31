@@ -8,6 +8,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
+data class SeerrNamedChoice(val code: String, val label: String)
+
 data class SeerrBrowseOption(val id: Int, val name: String)
 data class SeerrBrowsePage(
     val items: List<SeerrRelatedTitle> = emptyList(),
@@ -64,7 +66,7 @@ internal fun SeerrDiscoverFilters.toQueryParameters(mediaType: SeerrDiscoverMedi
     votesTo?.let { result["voteCountLte"] = it.toString() }
     runtimeFrom?.let { result["withRuntimeGte"] = it.toString() }
     runtimeTo?.let { result["withRuntimeLte"] = it.toString() }
-    put("originalLanguage", originalLanguage)
+    // The main Discover API language parameter controls localization, not original language.
     put("watchRegion", watchRegion)
     // Seerr/TMDB accept provider IDs separated by pipes (OR semantics).
     put("watchProviders", providerIds.filter { it > 0 }.sorted()
@@ -121,6 +123,32 @@ object SeerrBrowseClient {
                 val id = item.optInt("id")
                 val name = item.optString("name")
                 if (id > 0 && name.isNotBlank()) SeerrBrowseOption(id, name) else null
+            }
+        }
+    }
+
+    suspend fun namedChoices(config: ServiceConfig, path: String, codeField: String): Result<List<SeerrNamedChoice>> = runCatching {
+        val array = JSONArray(get(config, "/api/v1/$path"))
+        (0 until array.length()).mapNotNull { index ->
+            array.optJSONObject(index)?.let { item ->
+                val code = item.optString(codeField)
+                val label = item.optString("english_name").ifBlank { item.optString("name") }
+                if (code.isNotBlank() && label.isNotBlank()) SeerrNamedChoice(code, label) else null
+            }
+        }.sortedBy { it.label }
+    }
+
+    suspend fun watchProviders(config: ServiceConfig, mediaType: SeerrDiscoverMediaType, region: String): Result<List<SeerrBrowseOption>> =
+        options(config, "watchproviders/${if (mediaType == SeerrDiscoverMediaType.MOVIE) "movies" else "tv"}?watchRegion=${encode(region)}")
+
+    suspend fun certifications(config: ServiceConfig, mediaType: SeerrDiscoverMediaType): Result<Map<String, List<String>>> = runCatching {
+        val kind = if (mediaType == SeerrDiscoverMediaType.MOVIE) "movie" else "tv"
+        val countries = JSONObject(get(config, "/api/v1/certifications/$kind"))
+            .getJSONObject("certifications")
+        countries.keys().asSequence().associateWith { country ->
+            val items = countries.optJSONArray(country) ?: JSONArray()
+            (0 until items.length()).mapNotNull { i ->
+                items.optJSONObject(i)?.optString("certification")?.takeIf { it.isNotBlank() }
             }
         }
     }
