@@ -393,6 +393,12 @@ private fun BastionApp() {
                 },
             )
             BastionNavigationHost(destination = activeDestination, modifier = Modifier.fillMaxSize()) { destination ->
+                // AnimatedContent keeps outgoing destinations composed during their exit.
+                // Capture the media for THIS destination so popping the live stack does
+                // not turn the outgoing details screen into Discover mid-transition.
+                val destinationMedia = remember(destination.page) {
+                    if (destination.page.startsWith("media:")) openSeerrRequest else null
+                }
                 val scrollKey = if (destination.page.startsWith("media:")) destination.page
                     else "main-${destination.serviceId ?: "bastion"}-${destination.tab}-${destination.page}"
                 val screenScroll = seerrScrollStates.getOrPut(scrollKey) {
@@ -420,10 +426,10 @@ private fun BastionApp() {
                                 onFilterChange = { seerrBrowseFilter = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
                                 onMediaClick = { seerrMediaStack.add(it) })
                         }
-                        else if (destination.page.startsWith("media:") && openSeerrRequest != null) item { SeerrRequestDetails(service, openSeerrRequest!!,
+                        else if (destination.page.startsWith("media:") && destinationMedia != null) item { SeerrRequestDetails(service, destinationMedia,
                             cache = seerrMediaCache,
                             carouselScrollStates = seerrCarouselScrollStates,
-                            navigationDepth = seerrMediaStack.size,
+                            navigationDepth = destination.depth,
                             onBack = { popSeerrMedia() },
                             onRelatedClick = { seerrMediaStack.add(it) },
                             onRequestSubmitted = { tmdbId, isTv ->
