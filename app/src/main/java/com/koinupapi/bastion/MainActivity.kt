@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 
 private val services = listOf("Sonarr", "Radarr", "qBittorrent", "Seerr", "Plex", "Docker")
 private data class Integration(val name: String, val category: String)
+private data class SeerrBrowseDestination(val kind: String, val title: String, val id: Int = 0, val page: Int = 1)
 private val integrationCatalog = listOf(
     Integration("Docker", "Infrastructure"),
     Integration("Uptime Kuma", "Infrastructure"),
@@ -128,6 +129,9 @@ private fun BastionApp() {
         var seerrTab by remember(selectedMediaId) { mutableIntStateOf(0) }
         var seerrSettingsSection by remember(selectedMediaId) { mutableStateOf("root") }
         var seerrSearching by remember(selectedMediaId) { mutableStateOf(false) }
+        var seerrBrowse by remember(selectedMediaId) { mutableStateOf<SeerrBrowseDestination?>(null) }
+        var seerrBrowseFilter by remember(selectedMediaId) { mutableStateOf("all") }
+        val seerrBrowsePageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrBrowsePage>() }
         val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
         val seerrMediaCache = remember { mutableStateMapOf<String, SeerrMediaDetails>() }
         val seerrScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.lazy.LazyListState>() }
@@ -186,6 +190,7 @@ private fun BastionApp() {
         BackHandler {
             when {
                 openSeerrRequest != null -> popSeerrMedia()
+                seerrBrowse != null && selectedMediaId != null && seerrTab == 0 -> seerrBrowse = null
                 selectedMediaId != null -> {
                     if (seerrTab == 4 && seerrSettingsSection != "root") {
                         seerrSettingsSection = when (seerrSettingsSection) {
@@ -236,6 +241,7 @@ private fun BastionApp() {
         val nestedSeerrSettings = serviceScreen && seerrTab == 4 && seerrSettingsSection != "root"
         val headerTitle = when {
             openSeerrRequest != null -> openSeerrRequest.title
+            seerrBrowse != null && serviceScreen && seerrTab == 0 -> seerrBrowse!!.title
             nestedSeerrSettings -> seerrSettingsSection
             serviceScreen -> seerrLabels[seerrTab]
             nestedBastionSettings -> if (settingsPage == "Service detail") selectedIntegration else settingsPage
@@ -243,7 +249,7 @@ private fun BastionApp() {
             else -> if (tab == 1) "Calendar" else "Settings"
         }
         val headerContext = if (serviceScreen && showInstanceSubtitle) savedInstances.firstOrNull { it.id == selectedMediaId }?.name else null
-        val headerBack = openSeerrRequest != null || nestedSeerrSettings || nestedBastionSettings
+        val headerBack = openSeerrRequest != null || (seerrBrowse != null && serviceScreen && seerrTab == 0) || nestedSeerrSettings || nestedBastionSettings
         val topBarScrollBehavior = if (hideHeaderOnScroll) TopAppBarDefaults.enterAlwaysScrollBehavior() else TopAppBarDefaults.pinnedScrollBehavior()
         val icons = listOf(Icons.Default.Home, Icons.Default.CalendarMonth, Icons.Default.Settings)
         ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
@@ -342,6 +348,7 @@ private fun BastionApp() {
             onNavigationClick = {
                         when {
                             openSeerrRequest != null -> popSeerrMedia()
+                            seerrBrowse != null && serviceScreen && seerrTab == 0 -> seerrBrowse = null
                             nestedSeerrSettings -> seerrSettingsSection = when (seerrSettingsSection) {
                                 "Plex", "Radarr", "Sonarr", "Override Rules" -> "Media Services"
                                 "Logs", "Scheduled Jobs", "Cache Management" -> "Maintenance & Diagnostics"
@@ -367,12 +374,14 @@ private fun BastionApp() {
                 tab = if (selectedMediaId == null) tab else seerrTab,
                 page = when {
                     openSeerrRequest != null -> "media:${seerrMediaStack.size}:${openSeerrRequest.tmdbId}"
+                    selectedMediaId != null && seerrTab == 0 && seerrBrowse != null -> "browse:${seerrBrowse!!.kind}:${seerrBrowse!!.id}:${seerrBrowse!!.page}:${seerrBrowseFilter}"
                     selectedMediaId != null && seerrTab == 4 -> seerrSettingsSection
                     selectedMediaId == null && tab == 2 -> settingsPage
                     else -> "root"
                 },
                 depth = when {
-                    openSeerrRequest != null -> seerrMediaStack.size
+                    openSeerrRequest != null -> seerrMediaStack.size + if (seerrBrowse != null) 1 else 0
+                    selectedMediaId != null && seerrTab == 0 && seerrBrowse != null -> 1
                     selectedMediaId != null && seerrTab == 4 -> when (seerrSettingsSection) {
                         "root" -> 0
                         "Plex", "Radarr", "Sonarr", "Override Rules",
@@ -384,6 +393,12 @@ private fun BastionApp() {
                 },
             )
             BastionNavigationHost(destination = activeDestination, modifier = Modifier.fillMaxSize()) { destination ->
+                // AnimatedContent keeps outgoing destinations composed during their exit.
+                // Capture the media for THIS destination so popping the live stack does
+                // not turn the outgoing details screen into Discover mid-transition.
+                val destinationMedia = remember(destination.page) {
+                    if (destination.page.startsWith("media:")) openSeerrRequest else null
+                }
                 val scrollKey = if (destination.page.startsWith("media:")) destination.page
                     else "main-${destination.serviceId ?: "bastion"}-${destination.tab}-${destination.page}"
                 val screenScroll = seerrScrollStates.getOrPut(scrollKey) {
@@ -405,10 +420,16 @@ private fun BastionApp() {
                 if (destination.serviceId != null) {
                     val service = savedInstances.firstOrNull { it.id == destination.serviceId }
                     if (service?.type == "Seerr") {
-                        if (destination.page.startsWith("media:") && openSeerrRequest != null) item { SeerrRequestDetails(service, openSeerrRequest!!,
+                        if (destination.page.startsWith("browse:") && seerrBrowse != null) item {
+                            SeerrBrowseScreen(service, seerrBrowse!!, seerrBrowseFilter, seerrBrowsePageCache,
+                                onPageChange = { seerrBrowse = seerrBrowse?.copy(page = it) },
+                                onFilterChange = { seerrBrowseFilter = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
+                                onMediaClick = { seerrMediaStack.add(it) })
+                        }
+                        else if (destination.page.startsWith("media:") && destinationMedia != null) item { SeerrRequestDetails(service, destinationMedia,
                             cache = seerrMediaCache,
                             carouselScrollStates = seerrCarouselScrollStates,
-                            navigationDepth = seerrMediaStack.size,
+                            navigationDepth = destination.depth,
                             onBack = { popSeerrMedia() },
                             onRelatedClick = { seerrMediaStack.add(it) },
                             onRequestSubmitted = { tmdbId, isTv ->
@@ -429,7 +450,8 @@ private fun BastionApp() {
                                         destination.page, { seerrSettingsSection = it },
                                         seerrSearching, { seerrSearching = it }, seerrDiscoverRefresh,
                                         { seerrDiscoverRefreshing = it },
-                                        onDiscoverRefreshFeedback = { message -> scope.launch { snackbarHostState.showSnackbar(message) } }) {
+                                        onDiscoverRefreshFeedback = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
+                                        onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all" }) {
                                         seerrMediaStack.add(it)
                                     }
                                 }
@@ -1194,11 +1216,89 @@ private fun SettingsEntry(
 }
 
 @Composable
+private fun SeerrBrowseScreen(
+    instance: ServiceConfig,
+    destination: SeerrBrowseDestination,
+    filter: String,
+    pageCache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrBrowsePage>,
+    onPageChange: (Int) -> Unit,
+    onFilterChange: (String) -> Unit,
+    onMediaClick: (SeerrRecentRequest) -> Unit
+) {
+    // Keep the full list composed when returning from media details. Otherwise the
+    // transient empty/loading view shrinks the parent LazyColumn and clamps its scroll
+    // position to zero before the network request finishes.
+    val cacheKey = "${instance.id}:${destination.kind}:${destination.id}:${destination.page}:${filter}"
+    val result = pageCache[cacheKey]
+    var loading by remember(cacheKey) { mutableStateOf(result == null) }
+    LaunchedEffect(instance, cacheKey) {
+        if (pageCache[cacheKey] != null) {
+            loading = false
+            return@LaunchedEffect
+        }
+        loading = true
+        val response = SeerrBrowseClient.browse(instance, destination.kind, destination.page, filter, destination.id)
+        pageCache[cacheKey] = response
+        loading = false
+    }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (destination.kind == "Trending") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("all" to "All", "movie" to "Movies", "tv" to "TV Shows").forEach { (value, label) ->
+                    FilterChip(selected = filter == value, onClick = { onFilterChange(value) },
+                        label = { Text(label) })
+                }
+            }
+        }
+        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        result?.error?.let { BastionErrorState(it) }
+        result?.takeIf { it.error == null }?.let { page ->
+            if (page.items.isEmpty()) Text("No titles found")
+            page.items.forEach { title ->
+                Row(Modifier.fillMaxWidth().clickable {
+                    onMediaClick(SeerrRecentRequest(title = title.title, status = "",
+                        posterUrl = title.posterUrl, year = title.year,
+                        requestedBy = null, isTv = title.isTv, tmdbId = title.tmdbId))
+                }.padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Surface(Modifier.size(width = 58.dp, height = 86.dp),
+                        shape = RoundedCornerShape(12.dp)) {
+                        if (title.posterUrl != null) AsyncImage(model = title.posterUrl,
+                            contentDescription = title.title, contentScale = ContentScale.Crop)
+                        else Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Movie, contentDescription = null)
+                        }
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(title.title, style = MaterialTheme.typography.titleMedium)
+                        Text(listOf(if (title.isTv) "TV" else "Movie", title.year)
+                            .filter { it.isNotBlank() }.joinToString(" • "),
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                    Icon(Icons.Default.ChevronRight, contentDescription = null)
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { onPageChange(destination.page - 1) },
+                    enabled = destination.page > 1 && !loading) { Text("Previous") }
+                Text("Page ${page.page} of ${page.totalPages}")
+                TextButton(onClick = { onPageChange(destination.page + 1) },
+                    enabled = destination.page < page.totalPages && !loading) { Text("Next") }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SeerrDiscoverScreen(instance: ServiceConfig,
     results: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
     searching: Boolean, onSearchingChange: (Boolean) -> Unit,
     refresh: Int, onRefreshingChange: (Boolean) -> Unit,
     onRefreshFeedback: (String) -> Unit,
+    onBrowse: (SeerrBrowseDestination) -> Unit,
     onMediaClick: (SeerrRecentRequest) -> Unit) {
     val sections = remember { listOf("Trending", "Popular Movies", "Popular TV Shows",
         "Upcoming Movies", "Upcoming TV Shows") }
@@ -1206,22 +1306,11 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     var query by remember(instance.id) { mutableStateOf("") }
     var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
     var searchLoading by remember(instance.id) { mutableStateOf(false) }
-    var browseKind by remember(instance.id) { mutableStateOf<String?>(null) }
-    var browseTitle by remember(instance.id) { mutableStateOf("") }
-    var browseId by remember(instance.id) { mutableIntStateOf(0) }
-    var browsePage by remember(instance.id) { mutableIntStateOf(1) }
-    var browseResult by remember(instance.id) { mutableStateOf<SeerrBrowsePage?>(null) }
-    var browseLoading by remember(instance.id) { mutableStateOf(false) }
     var studioQuery by remember(instance.id) { mutableStateOf("") }
     var studioOptions by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var movieGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var tvGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var browseError by remember(instance.id) { mutableStateOf<String?>(null) }
-    val browseFilter = if (browseKind == "Trending") when (category) {
-        "Movies" -> "movie"
-        "TV Shows" -> "tv"
-        else -> "all"
-    } else "all"
     LaunchedEffect(instance.id) {
         val movies = SeerrBrowseClient.options(instance, "genres/movie")
         val tv = SeerrBrowseClient.options(instance, "genres/tv")
@@ -1234,14 +1323,6 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         kotlinx.coroutines.delay(350)
         studioOptions = SeerrBrowseClient.searchStudios(instance, studioQuery.trim()).getOrDefault(emptyList())
     }
-    LaunchedEffect(instance.id, browseKind, browseId, browsePage, browseFilter, refresh) {
-        val kind = browseKind ?: return@LaunchedEffect
-        browseLoading = true
-        browseResult = SeerrBrowseClient.browse(instance, kind, browsePage,
-            if (kind == "Trending") browseFilter else "all", browseId)
-        browseLoading = false
-    }
-
     LaunchedEffect(instance, searching, query) {
         if (!searching || query.trim().length < 2) {
             searchResult = null
@@ -1287,65 +1368,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             onRefreshingChange(false)
         }
     }
-    if (browseKind != null) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            TextButton(onClick = { browseKind = null; browsePage = 1 }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Back to Discover")
-            }
-            Text(browseTitle, style = MaterialTheme.typography.headlineSmall)
-            if (browseKind == "Trending") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("All", "Movies", "TV Shows").forEach { option ->
-                        FilterChip(selected = category == option,
-                            onClick = { category = option; browsePage = 1 },
-                            label = { Text(option) })
-                    }
-                }
-            }
-            if (browseLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-            browseResult?.error?.let { BastionErrorState(it) }
-            browseResult?.takeIf { it.error == null }?.let { page ->
-                if (page.items.isEmpty()) Text("No titles found")
-                page.items.forEach { title ->
-                    Row(Modifier.fillMaxWidth().clickable {
-                        onMediaClick(SeerrRecentRequest(title = title.title, status = "",
-                            posterUrl = title.posterUrl, year = title.year,
-                            requestedBy = null, isTv = title.isTv, tmdbId = title.tmdbId))
-                    }.padding(vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Surface(Modifier.size(width = 58.dp, height = 86.dp),
-                            shape = RoundedCornerShape(12.dp)) {
-                            if (title.posterUrl != null) AsyncImage(model = title.posterUrl,
-                                contentDescription = title.title, contentScale = ContentScale.Crop)
-                            else Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Movie, contentDescription = null)
-                            }
-                        }
-                        Column(Modifier.weight(1f)) {
-                            Text(title.title, style = MaterialTheme.typography.titleMedium)
-                            Text(listOf(if (title.isTv) "TV" else "Movie", title.year)
-                                .filter { it.isNotBlank() }.joinToString(" • "),
-                                style = MaterialTheme.typography.bodySmall)
-                        }
-                        Icon(Icons.Default.ChevronRight, contentDescription = null)
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { browsePage-- }, enabled = browsePage > 1 && !browseLoading) {
-                        Text("Previous")
-                    }
-                    Text("Page ${page.page} of ${page.totalPages}")
-                    TextButton(onClick = { browsePage++ },
-                        enabled = browsePage < page.totalPages && !browseLoading) { Text("Next") }
-                }
-            }
-        }
-    } else Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         BastionReveal(visible = searching) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
@@ -1419,8 +1442,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 movieGenres.forEach { option ->
                     AssistChip(onClick = {
-                        browseKind = "Movie genre"; browseTitle = "${option.name} Movies"
-                        browseId = option.id; browsePage = 1
+                        onBrowse(SeerrBrowseDestination("Movie genre", "${option.name} Movies", option.id))
                     }, label = { Text(option.name) })
                 }
             }
@@ -1429,8 +1451,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 tvGenres.forEach { option ->
                     AssistChip(onClick = {
-                        browseKind = "TV genre"; browseTitle = "${option.name} TV Shows"
-                        browseId = option.id; browsePage = 1
+                        onBrowse(SeerrBrowseDestination("TV genre", "${option.name} TV Shows", option.id))
                     }, label = { Text(option.name) })
                 }
             }
@@ -1440,8 +1461,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 modifier = Modifier.fillMaxWidth())
             studioOptions.take(8).forEach { option ->
                 TextButton(onClick = {
-                    browseKind = "Studio"; browseTitle = "${option.name} Movies"
-                    browseId = option.id; browsePage = 1
+                    onBrowse(SeerrBrowseDestination("Studio", "${option.name} Movies", option.id))
                 }) { Text(option.name) }
             }
             Text("Browse TV by network", style = MaterialTheme.typography.titleSmall)
@@ -1451,8 +1471,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     SeerrBrowseOption(2739, "Disney+"), SeerrBrowseOption(2552, "Apple TV+"),
                     SeerrBrowseOption(1024, "Amazon")).forEach { option ->
                     AssistChip(onClick = {
-                        browseKind = "Network"; browseTitle = "${option.name} TV Shows"
-                        browseId = option.id; browsePage = 1
+                        onBrowse(SeerrBrowseDestination("Network", "${option.name} TV Shows", option.id))
                     }, label = { Text(option.name) })
                 }
             }
@@ -1468,8 +1487,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     verticalAlignment = Alignment.CenterVertically) {
                     Text(section, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     TextButton(onClick = {
-                        browseKind = section; browseTitle = section
-                        browsePage = 1; browseId = 0
+                        onBrowse(SeerrBrowseDestination(section, section))
                     }) { Text("View all") }
                 }
                 val result = results[section]
@@ -1616,6 +1634,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     searching: Boolean, onSearchingChange: (Boolean) -> Unit,
     discoverRefresh: Int, onDiscoverRefreshingChange: (Boolean) -> Unit,
     onDiscoverRefreshFeedback: (String) -> Unit,
+    onBrowse: (SeerrBrowseDestination) -> Unit,
     onRequestClick: (SeerrRecentRequest) -> Unit) {
     var page by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
     var filter by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
@@ -1659,7 +1678,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
         if (destination == 0) {
             SeerrDiscoverScreen(instance, discoverResults, searching, onSearchingChange,
-                discoverRefresh, onDiscoverRefreshingChange, onDiscoverRefreshFeedback, onRequestClick)
+                discoverRefresh, onDiscoverRefreshingChange, onDiscoverRefreshFeedback, onBrowse, onRequestClick)
         } else if (destination == 2) {
             SeerrIssuesScreen(instance)
         } else if (destination == 3) {
