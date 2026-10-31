@@ -32,7 +32,6 @@ fun SeerrSettingsScreen(instance: ServiceConfig, section: String, onSectionChang
     }
 
     var showWatchlist by remember(instance.id) { mutableStateOf(preferences.getBoolean("discover_watchlist_${instance.id}", true)) }
-    var showRecentlyAdded by remember(instance.id) { mutableStateOf(preferences.getBoolean("discover_recently_added_${instance.id}", false)) }
     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
 
         when (section) {
@@ -108,13 +107,7 @@ fun SeerrSettingsScreen(instance: ServiceConfig, section: String, onSectionChang
                                 showWatchlist = it
                                 preferences.edit().putBoolean("discover_watchlist_${instance.id}", it).apply()
                             }) })
-                        HorizontalDivider()
-                        ListItem(headlineContent = { Text("Show Recently Added") },
-                            supportingContent = { Text("Show recently available media in Discover") },
-                            trailingContent = { Switch(checked = showRecentlyAdded, onCheckedChange = {
-                                showRecentlyAdded = it
-                                preferences.edit().putBoolean("discover_recently_added_${instance.id}", it).apply()
-                            }) })
+
                     }
                 }
                 Text("Recent requests remain in the Requests tab.",
