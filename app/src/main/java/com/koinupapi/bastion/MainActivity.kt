@@ -365,6 +365,7 @@ private fun BastionApp() {
             onNavigationClick = {
                         when {
                             openSeerrRequest != null -> popSeerrMedia()
+                            seerrSearching && serviceScreen && seerrTab == 0 -> seerrSearching = false
                             seerrBrowse != null && serviceScreen && seerrTab == 0 -> seerrBrowse = null
                             nestedSeerrSettings -> seerrSettingsSection = when (seerrSettingsSection) {
                                 "Plex", "Radarr", "Sonarr", "Override Rules" -> "Media Services"
@@ -1657,10 +1658,10 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     val movieGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }
     val tvGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }
     val searchExpanded by remember(scrollState) { derivedStateOf { !scrollState.canScrollBackward || (!scrollState.isScrollInProgress && scrollState.lastScrolledBackward) } }
-    var query by remember(instance.id) { mutableStateOf("") }
+    var query by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("") }
     var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
     var searchLoading by remember(instance.id) { mutableStateOf(false) }
-    var studioQuery by remember(instance.id) { mutableStateOf("") }
+    var studioQuery by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("") }
     var studioOptions by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var movieGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var tvGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
