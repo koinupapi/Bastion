@@ -67,6 +67,56 @@ import androidx.compose.ui.unit.dp
 private val services = listOf("Sonarr", "Radarr", "qBittorrent", "Seerr", "Plex", "Docker")
 private data class Integration(val name: String, val category: String)
 private data class SeerrBrowseDestination(val kind: String, val title: String, val id: Int = 0, val page: Int = 1)
+private val seerrMediaStackSaver = androidx.compose.runtime.saveable.Saver<
+    androidx.compose.runtime.snapshots.SnapshotStateList<SeerrRecentRequest>, String>(
+    save = { stack ->
+        org.json.JSONArray().apply {
+            stack.forEach { item ->
+                put(org.json.JSONObject().apply {
+                    put("title", item.title)
+                    put("status", item.status)
+                    put("posterUrl", item.posterUrl)
+                    put("year", item.year)
+                    put("requestedBy", item.requestedBy)
+                    put("overview", item.overview)
+                    put("releaseDate", item.releaseDate)
+                    put("isTv", item.isTv)
+                    put("seasons", org.json.JSONArray(item.seasons))
+                    put("tmdbId", item.tmdbId)
+                    put("requestId", item.requestId)
+                    put("requestStatus", item.requestStatus)
+                    put("mediaStatus", item.mediaStatus)
+                })
+            }
+        }.toString()
+    },
+    restore = { saved ->
+        val result = mutableStateListOf<SeerrRecentRequest>()
+        val array = org.json.JSONArray(saved)
+        for (index in 0 until array.length()) {
+            val item = array.getJSONObject(index)
+            fun optional(key: String): String? = if (item.isNull(key)) null else item.optString(key)
+            val seasons = item.optJSONArray("seasons")
+            result.add(SeerrRecentRequest(
+                title = item.optString("title"),
+                status = item.optString("status"),
+                posterUrl = optional("posterUrl"),
+                year = optional("year"),
+                requestedBy = optional("requestedBy"),
+                overview = optional("overview"),
+                releaseDate = optional("releaseDate"),
+                isTv = item.optBoolean("isTv"),
+                seasons = if (seasons == null) emptyList() else (0 until seasons.length()).map { seasons.optInt(it) },
+                tmdbId = item.optInt("tmdbId"),
+                requestId = item.optInt("requestId"),
+                requestStatus = item.optString("requestStatus"),
+                mediaStatus = optional("mediaStatus")
+            ))
+        }
+        result
+    }
+)
+
 private val seerrFiltersSaver = androidx.compose.runtime.saveable.Saver<MutableState<SeerrDiscoverFilters>, String>(
     save = { state ->
         val f = state.value
@@ -200,7 +250,7 @@ private fun BastionApp() {
         var seerrTrendingPeriod by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("week") }
         var seerrAppliedFilters by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId, saver = seerrFiltersSaver) { mutableStateOf(SeerrDiscoverFilters()) }
         val seerrBrowsePageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrBrowsePage>() }
-        val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
+        val seerrMediaStack = androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId, saver = seerrMediaStackSaver) { mutableStateListOf<SeerrRecentRequest>() }
         val seerrMediaCache = remember { mutableStateMapOf<String, SeerrMediaDetails>() }
         val seerrScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.lazy.LazyListState>() }
         val seerrCarouselScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.ScrollState>() }
