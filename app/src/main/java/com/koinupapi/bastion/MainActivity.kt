@@ -1551,21 +1551,28 @@ private fun SeerrBrowseScreen(
             }
         }
         if (destination.kind == "Trending") {
-            Text("Media type", style = MaterialTheme.typography.titleSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("all" to "All", "movie" to "Movies", "tv" to "TV Shows").forEach { (value, label) ->
-                    FilterChip(selected = filter == value, onClick = { onFilterChange(value) },
-                        label = { Text(label) })
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    listOf("all" to "All", "movie" to "Movies", "tv" to "TV Shows").forEach { (value, label) ->
+                        FilterChip(selected = filter == value, onClick = { onFilterChange(value) },
+                            label = { Text(label) })
+                    }
                 }
-            }
-            Text("Trending period", style = MaterialTheme.typography.titleSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("day" to "Today", "week" to "This week").forEach { (value, label) ->
-                    FilterChip(selected = trendingWindow == value,
-                        onClick = {
-                            onTrendingWindowChange(value)
-                            onPageChange(1)
-                        }, label = { Text(label) })
+                Spacer(Modifier.width(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    listOf("day" to "Today", "week" to "This week").forEach { (value, label) ->
+                        FilterChip(selected = trendingWindow == value,
+                            onClick = {
+                                onTrendingWindowChange(value)
+                                onPageChange(1)
+                            }, label = { Text(label) })
+                    }
                 }
             }
         }
