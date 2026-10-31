@@ -1593,9 +1593,9 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     onRefreshFeedback: (String) -> Unit,
     onBrowse: (SeerrBrowseDestination) -> Unit,
     onMediaClick: (SeerrRecentRequest) -> Unit) {
-    val sections = remember { listOf("Trending", "Popular Movies", "Popular TV Shows",
-        "Upcoming Movies", "Upcoming TV Shows") }
-    var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
+    val sections = remember { listOf("Trending", "Popular Movies", "Upcoming Movies",
+        "Popular TV Shows", "Upcoming TV Shows") }
+    var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("For You") }
     var query by remember(instance.id) { mutableStateOf("") }
     var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
     var searchLoading by remember(instance.id) { mutableStateOf(false) }
@@ -1712,12 +1712,24 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             }
         }
         if (!searching) {
-        Text("Find something worth watching", modifier = Modifier.padding(horizontal = 16.dp),
+        Text("Find your next favorite", modifier = Modifier.padding(horizontal = 16.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium)
+        Surface(onClick = { onSearchingChange(true) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            Row(Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Search, contentDescription = null)
+                Text("Search movies and TV shows",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
-            listOf("All", "Movies", "TV Shows").forEach { choice ->
+            listOf("For You", "Movies", "TV Shows").forEach { choice ->
                 FilterChip(selected = category == choice, onClick = { category = choice },
                     label = { Text(choice) },
                     leadingIcon = if (category == choice) {
@@ -1770,7 +1782,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             }
         }
         sections.filter { section ->
-            category == "All" || section == "Trending" ||
+            category == "For You" || section == "Trending" ||
                 (category == "Movies" && section.contains("Movies")) ||
                 (category == "TV Shows" && section.contains("TV"))
         }.forEach { section ->
@@ -1785,7 +1797,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 }
                 val result = results[section]
                 val visibleItems = result?.items?.filter {
-                    section != "Trending" || category == "All" ||
+                    section != "Trending" || category == "For You" ||
                         (category == "Movies" && !it.isTv) ||
                         (category == "TV Shows" && it.isTv)
                 }.orEmpty()
