@@ -1330,11 +1330,10 @@ private fun SeerrDiscoverFilterDialog(
         certificationCountry.isNotBlank() || certification.isNotBlank() ||
         includedKeywords.isNotEmpty() || excludedKeywords.isNotEmpty() || tvStatus.isNotBlank()
     )
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Sort & filter") },
-        text = {
-            Column(Modifier.fillMaxWidth().heightIn(max = 480.dp)
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text("Sort & filter", Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.headlineSmall)
+            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).heightIn(max = 500.dp)
                 .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Sort by", style = MaterialTheme.typography.titleSmall)
@@ -1427,9 +1426,10 @@ private fun SeerrDiscoverFilterDialog(
                 }
 
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(onClick = { onApply(SeerrDiscoverFilters()) }) { Text("Reset all") }
+            Button(onClick = {
                 fun date(value: String, end: Boolean): String? =
                     value.toIntOrNull()?.takeIf { it in 1900..2100 }
                         ?.let { "%04d-%s".format(it, if (end) "12-31" else "01-01") }
@@ -1451,11 +1451,8 @@ private fun SeerrDiscoverFilterDialog(
                     tvStatus = tvStatus.trim().ifBlank { null }
                 ))
             }, enabled = !languageConflicts) { Text("Apply") }
-        },
-        dismissButton = {
-            TextButton(onClick = { onApply(SeerrDiscoverFilters()) }) { Text("Reset all") }
         }
-    )
+    }
 }
 
 @Composable
