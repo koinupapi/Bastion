@@ -1747,9 +1747,20 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             Row(Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 movieGenres.forEach { option ->
-                    AssistChip(onClick = {
+                    Surface(onClick = {
                         onBrowse(SeerrBrowseDestination("Movie genre", "${option.name} Movies", option.id))
-                    }, label = { Text(option.name) })
+                    }, modifier = Modifier.width(156.dp).height(94.dp),
+                        shape = RoundedCornerShape(22.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer) {
+                        Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.secondaryContainer,
+                            MaterialTheme.colorScheme.tertiaryContainer)))) {
+                            Text(option.name, Modifier.align(Alignment.BottomStart).padding(12.dp),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
             }
