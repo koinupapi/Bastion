@@ -1599,6 +1599,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     val sections = remember { listOf("Trending", "Popular Movies", "Upcoming Movies",
         "Popular TV Shows", "Upcoming TV Shows") }
     var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("For You") }
+    val searchExpanded by remember(scrollState) { derivedStateOf { !scrollState.canScrollBackward || scrollState.lastScrolledBackward } }
     var query by remember(instance.id) { mutableStateOf("") }
     var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
     var searchLoading by remember(instance.id) { mutableStateOf(false) }
@@ -1718,6 +1719,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         Text("Find your next favorite", modifier = Modifier.padding(horizontal = 16.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium)
+        AnimatedVisibility(visible = searchExpanded) {
         Surface(onClick = { onSearchingChange(true) },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             shape = RoundedCornerShape(28.dp),
@@ -1729,6 +1731,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 Text("Search movies and TV shows",
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
