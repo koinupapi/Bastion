@@ -1598,6 +1598,26 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     scrollState: androidx.compose.foundation.lazy.LazyListState) {
     val sections = remember { listOf("Trending", "Popular Movies", "Upcoming Movies",
         "Popular TV Shows", "Upcoming TV Shows") }
+    val localContext = LocalContext.current
+    val discoverPrefs = remember(localContext) {
+        localContext.getSharedPreferences("bastion_seerr_local", android.content.Context.MODE_PRIVATE)
+    }
+    var showWatchlist by remember(instance.id) {
+        mutableStateOf(discoverPrefs.getBoolean("discover_watchlist_${instance.id}", true))
+    }
+    var showRecentlyAdded by remember(instance.id) {
+        mutableStateOf(discoverPrefs.getBoolean("discover_recently_added_${instance.id}", false))
+    }
+    DisposableEffect(instance.id) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+            if (key == "discover_watchlist_${instance.id}")
+                showWatchlist = prefs.getBoolean(key, true)
+            if (key == "discover_recently_added_${instance.id}")
+                showRecentlyAdded = prefs.getBoolean(key, false)
+        }
+        discoverPrefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { discoverPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("For You") }
     val searchExpanded by remember(scrollState) { derivedStateOf { !scrollState.canScrollBackward || scrollState.lastScrolledBackward } }
     var query by remember(instance.id) { mutableStateOf("") }
