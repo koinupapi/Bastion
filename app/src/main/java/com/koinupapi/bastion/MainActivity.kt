@@ -194,6 +194,7 @@ private fun BastionApp() {
         BackHandler {
             when {
                 openSeerrRequest != null -> popSeerrMedia()
+                seerrSearching && selectedMediaId != null && seerrTab == 0 -> seerrSearching = false
                 seerrBrowse != null && selectedMediaId != null && seerrTab == 0 -> seerrBrowse = null
                 selectedMediaId != null -> {
                     if (seerrTab == 4 && seerrSettingsSection != "root") {
