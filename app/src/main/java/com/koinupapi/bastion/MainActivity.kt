@@ -1775,8 +1775,19 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     var query by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("") }
     // Closing Search ends its session; opening media details does not, because
     // the parent keeps searching=true while the detail destination is on top.
+    var discoverScrollIndex by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
+    var discoverScrollOffset by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
+    var previousSearching by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf(false) }
     LaunchedEffect(searching) {
-        if (!searching) query = ""
+        if (searching && !previousSearching) {
+            discoverScrollIndex = scrollState.firstVisibleItemIndex
+            discoverScrollOffset = scrollState.firstVisibleItemScrollOffset
+        } else if (!searching && previousSearching) {
+            query = ""
+            androidx.compose.runtime.withFrameNanos { }
+            scrollState.scrollToItem(discoverScrollIndex, discoverScrollOffset)
+        }
+        previousSearching = searching
     }
     var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
     var searchLoading by remember(instance.id) { mutableStateOf(false) }
