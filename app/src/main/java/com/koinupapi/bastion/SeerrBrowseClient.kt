@@ -1,5 +1,6 @@
 package com.koinupapi.bastion
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -110,6 +111,7 @@ object SeerrBrowseClient {
                     return@withContext connection.inputStream.bufferedReader().use { it.readText() }
                 } finally { connection.disconnect() }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 failures.add("$label: ${e.message ?: e.javaClass.simpleName}")
                 if (e.message == "HTTP 401" || e.message == "HTTP 403") break
             }
@@ -255,6 +257,7 @@ object SeerrBrowseClient {
         SeerrBrowsePage(items, data.optInt("page", page),
             data.optInt("totalPages", 1).coerceAtLeast(1))
     } catch (e: Exception) {
+        if (e is CancellationException) throw e
         SeerrBrowsePage(page = page, error = e.message ?: e.javaClass.simpleName)
     }
 }
