@@ -1,0 +1,66 @@
+package com.koinupapi.bastion
+
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+
+/**
+ * One native Compose scaffold for Bastion and all service destinations.
+ * The caller supplies actions and content; the shared shell owns the chrome.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BastionAppShell(
+    title: String,
+    subtitle: String?,
+    isBack: Boolean,
+    immersive: Boolean = false,
+    onNavigationClick: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior,
+    modifier: Modifier = Modifier,
+    actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
+    snackbarHost: @Composable () -> Unit = {},
+    content: @Composable (PaddingValues) -> Unit,
+) {
+    Scaffold(
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            if (!immersive) BastionPageHeader(
+                title = title,
+                subtitle = subtitle,
+                isBack = isBack,
+                onNavigationClick = onNavigationClick,
+                scrollBehavior = scrollBehavior,
+                actions = actions,
+            )
+        },
+        snackbarHost = snackbarHost,
+        contentWindowInsets = if (immersive) WindowInsets(0, 0, 0, 0) else androidx.compose.material3.ScaffoldDefaults.contentWindowInsets,
+        containerColor = MaterialTheme.colorScheme.background,
+        content = content,
+    )
+}
+
+/** Consistent bottom-bar visibility motion, independent of the service's tabs. */
+@Composable
+fun BastionShellBottomBar(
+    visible: Boolean,
+    destinations: List<BastionNavDestination>,
+    showAllLabels: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter = androidx.compose.animation.slideInVertically { it } + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.slideOutVertically { it } + androidx.compose.animation.fadeOut(),
+    ) {
+        BastionBottomNavigation(destinations, showAllLabels)
+    }
+}

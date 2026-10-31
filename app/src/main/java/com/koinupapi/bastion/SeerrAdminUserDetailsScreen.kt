@@ -85,7 +85,7 @@ fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: ()
             .onFailure { permissionContext = null; contextError = it.message ?: "Cannot verify permission restrictions" }
         loading = false
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
         TextButton(onClick = onBack) { Text("Back to users") }
         Text("User details", style = MaterialTheme.typography.headlineSmall)
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -219,7 +219,7 @@ fun SeerrAdminUserDetailsScreen(instance: ServiceConfig, userId: Int, onBack: ()
 @Composable
 private fun QuotaSummary(label: String, quota: SeerrAdminQuota) {
     ElevatedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(BastionSpacing.xSmall)) {
             Text(label, style = MaterialTheme.typography.titleMedium)
             Text(if (quota.restricted) "Restricted" else "Not restricted")
             Text("Used: ${quota.used} · Remaining: ${quota.remaining}")

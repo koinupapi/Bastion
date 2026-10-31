@@ -56,9 +56,9 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
     }
     ModalBottomSheet(onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) {
+        shape = BottomSheetDefaults.ExpandedShape) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.86f)
-            .padding(horizontal = 24.dp).padding(bottom = 24.dp),
+            .padding(horizontal = BastionSheetDefaults.horizontalPadding).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("${issue.type} issue", style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold)
@@ -73,7 +73,7 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
             if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                 if (issue.comments.isEmpty()) Text("No comments yet.")
                 issue.commentEntries.forEachIndexed { index, comment ->
                     val ownComment = currentUser?.id != null && currentUser!!.id > 0 &&
@@ -86,7 +86,7 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
                     val isMine = ownComment && comment.userId > 0
                     Row(Modifier.fillMaxWidth(),
                         horizontalArrangement = if (isMine) Arrangement.End else Arrangement.Start) {
-                    Surface(shape = RoundedCornerShape(20.dp),
+                    Surface(shape = MaterialTheme.shapes.large,
                         modifier = Modifier.fillMaxWidth(0.88f),
                         color = if (isMine) MaterialTheme.colorScheme.primaryContainer
                             else MaterialTheme.colorScheme.surfaceContainerHigh) {
@@ -109,7 +109,7 @@ fun SeerrIssueManagementSheet(instance: ServiceConfig, initial: SeerrIssue,
                                         else MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             if (mayEdit || mayDelete) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                                     if (mayEdit) TextButton(enabled = !busy, onClick = {
                                         editingComment = comment
                                         editText = comment.message

@@ -1,6 +1,7 @@
 package com.koinupapi.bastion
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -85,11 +86,13 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BastionApp() {
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("bastion_settings", android.content.Context.MODE_PRIVATE) }
     var hideNavOnScroll by remember { mutableStateOf(preferences.getBoolean("hide_nav_on_scroll", false)) }
+    var hideHeaderOnScroll by remember { mutableStateOf(preferences.getBoolean("hide_header_on_scroll", false)) }
     var navVisible by remember { mutableStateOf(true) }
     val navigationScrollConnection = remember(hideNavOnScroll) {
         object : NestedScrollConnection {
@@ -104,12 +107,11 @@ private fun BastionApp() {
     }
     var dark by remember { mutableStateOf(preferences.getBoolean("dark_theme", false)) }
     var dynamic by remember { mutableStateOf(preferences.getBoolean("dynamic_colors", true)) }
+    var themeSeed by remember { mutableIntStateOf(preferences.getInt("theme_seed", 0xFF326FD3.toInt())) }
     var showAllNavLabels by remember { mutableStateOf(preferences.getBoolean("show_all_nav_labels", true)) }
+    var showInstanceSubtitle by remember { mutableStateOf(preferences.getBoolean("show_instance_subtitle", true)) }
     var returnToDashboard by remember { mutableStateOf(preferences.getBoolean("return_to_dashboard", true)) }
     var doubleBackToExit by remember { mutableStateOf(preferences.getBoolean("double_back_exit", true)) }
-    val colors = if (dynamic && android.os.Build.VERSION.SDK_INT >= 31) {
-        if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else if (dark) darkColorScheme() else lightColorScheme()
     val activity = context as ComponentActivity
     SideEffect {
         activity.enableEdgeToEdge(
@@ -119,16 +121,21 @@ private fun BastionApp() {
         @Suppress("DEPRECATION")
         activity.window.isNavigationBarContrastEnforced = false
     }
-    MaterialTheme(colorScheme = colors) {
+    BastionTheme(dark = dark, dynamic = dynamic, seed = themeSeed) {
         var tab by remember { mutableIntStateOf(0) }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         var selectedMediaId by remember { mutableStateOf<String?>(null) }
         var seerrTab by remember(selectedMediaId) { mutableIntStateOf(0) }
+        var seerrSettingsSection by remember(selectedMediaId) { mutableStateOf("root") }
+        var seerrSearching by remember(selectedMediaId) { mutableStateOf(false) }
         val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
         val seerrMediaCache = remember { mutableStateMapOf<String, SeerrMediaDetails>() }
         val seerrScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.lazy.LazyListState>() }
         val seerrCarouselScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.ScrollState>() }
         val seerrDiscoverCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrDiscoverResult>() }
+        var seerrDiscoverRefresh by remember(selectedMediaId) { mutableIntStateOf(0) }
+        var seerrDiscoverRefreshing by remember(selectedMediaId) { mutableStateOf(false) }
+        val seerrRefreshDiscover: () -> Unit = { seerrDiscoverRefresh++ }
         val seerrPageStateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
         val openSeerrRequest = seerrMediaStack.lastOrNull()
         val popSeerrMedia = { if (seerrMediaStack.isNotEmpty()) seerrMediaStack.removeAt(seerrMediaStack.lastIndex) }
@@ -180,6 +187,13 @@ private fun BastionApp() {
             when {
                 openSeerrRequest != null -> popSeerrMedia()
                 selectedMediaId != null -> {
+                    if (seerrTab == 4 && seerrSettingsSection != "root") {
+                        seerrSettingsSection = when (seerrSettingsSection) {
+                            "Plex", "Radarr", "Sonarr", "Override Rules" -> "Media Services"
+                            "Logs", "Scheduled Jobs", "Cache Management" -> "Maintenance & Diagnostics"
+                            else -> "root"
+                        }
+                    } else {
                     // Back from a Seerr service tab returns to its home (Discover),
                     // not the global Bastion dashboard. Nested Settings back is
                     // handled by SeerrSettingsScreen while a subpage is open.
@@ -189,6 +203,7 @@ private fun BastionApp() {
                         tab = 0
                         settingsHistory.clear()
                         settingsPage = "Settings"
+                    }
                     }
                 }
                 tab == 2 && settingsPage != "Settings" -> goBackSettings()
@@ -215,9 +230,24 @@ private fun BastionApp() {
             }
         }
         val labels = listOf("Dash", "Calendar", "Settings")
+        val seerrLabels = listOf("Discover", "Requests", "Issues", "Users", "Settings")
+        val serviceScreen = selectedMediaId != null
+        val nestedBastionSettings = !serviceScreen && tab == 2 && settingsPage != "Settings"
+        val nestedSeerrSettings = serviceScreen && seerrTab == 4 && seerrSettingsSection != "root"
+        val headerTitle = when {
+            openSeerrRequest != null -> openSeerrRequest.title
+            nestedSeerrSettings -> seerrSettingsSection
+            serviceScreen -> seerrLabels[seerrTab]
+            nestedBastionSettings -> if (settingsPage == "Service detail") selectedIntegration else settingsPage
+            tab == 0 -> "Bastion"
+            else -> if (tab == 1) "Calendar" else "Settings"
+        }
+        val headerContext = if (serviceScreen && showInstanceSubtitle) savedInstances.firstOrNull { it.id == selectedMediaId }?.name else null
+        val headerBack = openSeerrRequest != null || nestedSeerrSettings || nestedBastionSettings
+        val topBarScrollBehavior = if (hideHeaderOnScroll) TopAppBarDefaults.enterAlwaysScrollBehavior() else TopAppBarDefaults.pinnedScrollBehavior()
         val icons = listOf(Icons.Default.Home, Icons.Default.CalendarMonth, Icons.Default.Settings)
         ModalNavigationDrawer(drawerState = drawerState, drawerContent = {
-            ModalDrawerSheet {
+            BastionNavigationDrawerSheet {
                 Column(Modifier.fillMaxHeight().padding(horizontal = 12.dp)) {
                     Row(Modifier.fillMaxWidth().padding(start = 12.dp, top = 24.dp, bottom = 12.dp),
                         verticalAlignment = Alignment.CenterVertically) {
@@ -236,7 +266,7 @@ private fun BastionApp() {
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary)
                     Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                         val categories = savedInstances.groupBy { config ->
                             integrationCatalog.firstOrNull { it.name == config.type }?.category ?: "Other services"
                         }
@@ -303,82 +333,111 @@ private fun BastionApp() {
             }
         }) {
         LaunchedEffect(tab, selectedMediaId, seerrTab, settingsPage, hideNavOnScroll) { navVisible = true }
-        Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) },
-            containerColor = MaterialTheme.colorScheme.background) { insets ->
+        BastionAppShell(
+            title = headerTitle,
+            subtitle = headerContext,
+            isBack = headerBack,
+            immersive = openSeerrRequest != null,
+            scrollBehavior = topBarScrollBehavior,
+            onNavigationClick = {
+                        when {
+                            openSeerrRequest != null -> popSeerrMedia()
+                            nestedSeerrSettings -> seerrSettingsSection = when (seerrSettingsSection) {
+                                "Plex", "Radarr", "Sonarr", "Override Rules" -> "Media Services"
+                                "Logs", "Scheduled Jobs", "Cache Management" -> "Maintenance & Diagnostics"
+                                else -> "root"
+                            }
+                            nestedBastionSettings -> goBackSettings()
+                            else -> scope.launch { drawerState.open() }
+                        }
+            },
+            actions = {
+                        if (serviceScreen && seerrTab == 0 && openSeerrRequest == null) {
+                            IconButton(onClick = { seerrSearching = !seerrSearching }) {
+                                Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
+                                    contentDescription = if (seerrSearching) "Close search" else "Search movies and TV")
+                            }
+                        }
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+        ) { insets ->
             Box(Modifier.fillMaxSize()) {
-            val scrollKey = if (openSeerrRequest != null)
-                "media-${seerrMediaStack.size}-${openSeerrRequest.tmdbId}-${openSeerrRequest.isTv}"
-                else "main-${selectedMediaId ?: "bastion"}-${if (selectedMediaId == null) tab else seerrTab}"
-            val screenScroll = seerrScrollStates.getOrPut(scrollKey) {
-                androidx.compose.foundation.lazy.LazyListState()
-            }
+            val activeDestination = BastionScreenDestination(
+                serviceId = selectedMediaId,
+                tab = if (selectedMediaId == null) tab else seerrTab,
+                page = when {
+                    openSeerrRequest != null -> "media:${seerrMediaStack.size}:${openSeerrRequest.tmdbId}"
+                    selectedMediaId != null && seerrTab == 4 -> seerrSettingsSection
+                    selectedMediaId == null && tab == 2 -> settingsPage
+                    else -> "root"
+                },
+                depth = when {
+                    openSeerrRequest != null -> seerrMediaStack.size
+                    selectedMediaId != null && seerrTab == 4 -> when (seerrSettingsSection) {
+                        "root" -> 0
+                        "Plex", "Radarr", "Sonarr", "Override Rules",
+                        "Logs", "Scheduled Jobs", "Cache Management" -> 2
+                        else -> 1
+                    }
+                    selectedMediaId == null && tab == 2 -> settingsHistory.size
+                    else -> 0
+                },
+            )
+            BastionNavigationHost(destination = activeDestination, modifier = Modifier.fillMaxSize()) { destination ->
+                val scrollKey = if (destination.page.startsWith("media:")) destination.page
+                    else "main-${destination.serviceId ?: "bastion"}-${destination.tab}-${destination.page}"
+                val screenScroll = seerrScrollStates.getOrPut(scrollKey) {
+                    androidx.compose.foundation.lazy.LazyListState()
+                }
+            val screenContent: @Composable () -> Unit = {
             LazyColumn(
                 state = screenScroll,
-                modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).padding(insets),
+                overscrollEffect = rememberOverscrollEffect(),
+                modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).then(
+                    if (destination.serviceId != null && destination.tab == 0 && !destination.page.startsWith("media:") &&
+                        savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) Modifier else Modifier.padding(insets)
+                ),
                 contentPadding = PaddingValues(start = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp, top = if (openSeerrRequest != null) 0.dp else 16.dp, end = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp,
                     bottom = if (openSeerrRequest != null) 28.dp else if (!hideNavOnScroll || navVisible) 100.dp else 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)
             ) {
-                if (openSeerrRequest == null) item {
-                    val nestedSettings = selectedMediaId == null && tab == 2 && settingsPage != "Settings"
-                    val serviceScreen = selectedMediaId != null
-                    Row(verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = if (selectedMediaId != null) 16.dp else 0.dp)) {
-                        IconButton(onClick = {
-                            when {
-                                nestedSettings -> goBackSettings()
-                                else -> scope.launch { drawerState.open() }
-                            }
-                        }) {
-                            Icon(if (nestedSettings) Icons.Default.ArrowBack
-                                else Icons.Default.Menu,
-                                contentDescription = if (nestedSettings) "Navigate back"
-                                    else "Open services")
-                        }
-                        Column(Modifier.weight(1f)) {
-                            if (!nestedSettings && !serviceScreen && tab == 0)
-                                Text("YOUR HOMELAB", style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary)
-                            Text(
-                                when {
-                                    serviceScreen -> savedInstances.firstOrNull { it.id == selectedMediaId }?.name ?: "Service"
-                                    nestedSettings -> if (settingsPage == "Service detail") selectedIntegration else settingsPage
-                                    tab == 0 -> "Bastion"
-                                    else -> labels[tab]
-                                },
-                                style = if (nestedSettings || serviceScreen)
-                                    MaterialTheme.typography.headlineMedium
-                                else MaterialTheme.typography.headlineLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        if (!nestedSettings && !serviceScreen)
-                            Icon(Icons.Default.Shield, contentDescription = "Bastion",
-                                tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
-                if (selectedMediaId == null && tab == 0) item { DemoNotice() }
-                if (selectedMediaId != null) {
-                    val service = savedInstances.firstOrNull { it.id == selectedMediaId }
+                if (destination.serviceId == null && destination.tab == 0) item { DemoNotice() }
+                if (destination.serviceId != null) {
+                    val service = savedInstances.firstOrNull { it.id == destination.serviceId }
                     if (service?.type == "Seerr") {
-                        if (openSeerrRequest != null) item { SeerrRequestDetails(service, openSeerrRequest!!,
+                        if (destination.page.startsWith("media:") && openSeerrRequest != null) item { SeerrRequestDetails(service, openSeerrRequest!!,
                             cache = seerrMediaCache,
                             carouselScrollStates = seerrCarouselScrollStates,
                             navigationDepth = seerrMediaStack.size,
                             onBack = { popSeerrMedia() },
-                            onRelatedClick = { seerrMediaStack.add(it) }) }
-                        else item {
-                            seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${seerrTab}") {
-                                Box(Modifier.fillMaxWidth().then(if (seerrTab == 0) Modifier else Modifier.padding(horizontal = 16.dp))) {
-                                SeerrManagementScreen(service, seerrTab, seerrDiscoverCache) {
-                                    seerrMediaStack.add(it)
+                            onRelatedClick = { seerrMediaStack.add(it) },
+                            onRequestSubmitted = { tmdbId, isTv ->
+                                seerrDiscoverCache.keys.toList().forEach { section ->
+                                    val previous = seerrDiscoverCache[section] ?: return@forEach
+                                    seerrDiscoverCache[section] = previous.copy(items = previous.items.map { title ->
+                                        if (title.tmdbId == tmdbId && title.isTv == isTv &&
+                                            title.mediaStatus !in listOf(2, 3, 4, 5))
+                                            title.copy(mediaStatus = 2) else title
+                                    })
                                 }
+                                seerrDiscoverRefresh++
+                            }) }
+                        else item {
+                            seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${destination.tab}-${destination.page}") {
+                                Box(Modifier.fillMaxWidth().then(if (destination.tab == 0) Modifier else Modifier.padding(horizontal = 16.dp))) {
+                                    SeerrManagementScreen(service, destination.tab, seerrDiscoverCache,
+                                        destination.page, { seerrSettingsSection = it },
+                                        seerrSearching, { seerrSearching = it }, seerrDiscoverRefresh,
+                                        { seerrDiscoverRefreshing = it },
+                                        onDiscoverRefreshFeedback = { message -> scope.launch { snackbarHostState.showSnackbar(message) } }) {
+                                        seerrMediaStack.add(it)
+                                    }
                                 }
                             }
                         }
                     }
                     else item { Text("Service management coming soon.") }
-                } else when (tab) {
+                } else when (destination.tab) {
                     0 -> {
                         item { ServerWidget() }
                         item { DownloadsWidget() }
@@ -389,129 +448,195 @@ private fun BastionApp() {
                     }
                     1 -> { item { UnifiedCalendarScreen() } }
                     else -> {
-                        if (settingsPage == "Settings") {
+                        if (destination.page == "Settings") {
                             item { Text("Customize Bastion and manage your integrations",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             item {
-                                SettingsEntry("Appearance", "Theme, dynamic colors and display", Icons.Default.Palette) {
-                                    openSettingsPage("Appearance")
+                                BastionGroupedSettings {
+                                    BastionSettingsDestination("Appearance", "Theme, dynamic colors and display",
+                                        Icons.Default.Palette, index = 0, count = 2) {
+                                        openSettingsPage("Appearance")
+                                    }
+                                    BastionSettingsDestination("Behavior", "Navigation and exit preferences",
+                                        Icons.Default.Tune, index = 1, count = 2) {
+                                        openSettingsPage("Behavior")
+                                    }
                                 }
                             }
                             item {
-                                SettingsEntry("Services", "Manage homelab service connections", Icons.Default.Widgets) {
-                                    openSettingsPage("Services")
+                                BastionGroupedSettings {
+                                    BastionSettingsDestination("Services", "Manage homelab integrations",
+                                        Icons.Default.Widgets, index = 0, count = 2) {
+                                        openSettingsPage("Services")
+                                    }
+                                    BastionSettingsDestination("Notifications", "Alerts and notification preferences",
+                                        Icons.Default.Notifications, index = 1, count = 2) {
+                                        openSettingsPage("Notifications")
+                                    }
                                 }
                             }
                             item {
-                                SettingsEntry("Behavior", "Back navigation and exit confirmation", Icons.Default.Tune) {
-                                    openSettingsPage("Behavior")
-                                }
-                            }
-                            item {
-                                SettingsEntry("About", "Version and preview information", Icons.Default.Info) {
-                                    openSettingsPage("About")
+                                BastionGroupedSettings {
+                                    BastionSettingsDestination("About & Updates", "App version, updates and release information",
+                                        Icons.Default.Info, index = 0, count = 1) {
+                                        openSettingsPage("About & Updates")
+                                    }
                                 }
                             }
                         } else {
-                            when (settingsPage) {
-                                "About" -> item { BastionUpdateSettings() }
+                            when (destination.page) {
+                                "About & Updates" -> item {
+                                    BastionAboutScreen(openUpdates = { openSettingsPage("Check for updates") })
+                                }
+                                "Check for updates" -> item {
+                                    BastionUpdateSettings()
+                                }
+                                "Notifications" -> item {
+                                    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
+                                        Text("Notifications", style = MaterialTheme.typography.headlineSmall)
+                                        Text("Notification preferences are not available yet. This section will house alert and notification controls as integrations gain support.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
                                 "Appearance" -> item {
-                                    Card(shape = MaterialTheme.shapes.extraLarge) {
-                                        Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("Dark theme", Modifier.weight(1f))
-                                                Switch(checked = dark, onCheckedChange = { dark = it; preferences.edit().putBoolean("dark_theme", it).apply() })
-                                            }
-                                            HorizontalDivider()
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("Dynamic colors", Modifier.weight(1f))
-                                                Switch(checked = dynamic, onCheckedChange = { dynamic = it; preferences.edit().putBoolean("dynamic_colors", it).apply() })
-                                            }
-                                            HorizontalDivider()
-                                            Row(verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.padding(top = 12.dp)) {
-                                                Column(Modifier.weight(1f)) {
-                                                    Text("Hide navigation while scrolling",
-                                                        style = MaterialTheme.typography.titleMedium)
-                                                    Text("Scroll down to hide the bottom bar; scroll up to show it.",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
+                                    BastionGroupedSettings {
+                                        BastionSwitchSetting(
+                                            title = "Dark theme",
+                                            checked = dark,
+                                            onCheckedChange = {
+                                                dark = it
+                                                preferences.edit().putBoolean("dark_theme", it).apply()
+                                            },
+                                            index = 0, count = 4,
+                                        )
+                                        BastionSwitchSetting(
+                                            title = "Dynamic colors",
+                                            checked = dynamic,
+                                            onCheckedChange = {
+                                                dynamic = it
+                                                preferences.edit().putBoolean("dynamic_colors", it).apply()
+                                            },
+                                            index = 1, count = 4,
+                                        )
+                                        BastionSwitchSetting(
+                                            title = "Show instance name in top bar",
+                                            description = "Display the selected service instance below the page title.",
+                                            checked = showInstanceSubtitle,
+                                            onCheckedChange = {
+                                                showInstanceSubtitle = it
+                                                preferences.edit().putBoolean("show_instance_subtitle", it).apply()
+                                            },
+                                            index = 2, count = 4,
+                                        )
+                                        BastionSettingsContent(
+                                            index = 3, count = 4,
+                                            content = {
+                                                Column(Modifier.fillMaxWidth()) {
+                                                Text("Navigation labels", style = MaterialTheme.typography.titleMedium)
+                                                Text("Choose which destination names appear in the bottom bar.",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                SingleChoiceSegmentedButtonRow(
+                                                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                                                ) {
+                                                    SegmentedButton(
+                                                        selected = showAllNavLabels,
+                                                        onClick = {
+                                                            showAllNavLabels = true
+                                                            preferences.edit().putBoolean("show_all_nav_labels", true).apply()
+                                                        },
+                                                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                                                    ) { Text("All labels") }
+                                                    SegmentedButton(
+                                                        selected = !showAllNavLabels,
+                                                        onClick = {
+                                                            showAllNavLabels = false
+                                                            preferences.edit().putBoolean("show_all_nav_labels", false).apply()
+                                                        },
+                                                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                                                    ) { Text("Selected only") }
                                                 }
-                                                Switch(checked = hideNavOnScroll,
-                                                    onCheckedChange = { hideNavOnScroll = it; preferences.edit().putBoolean("hide_nav_on_scroll", it).apply() })
-                                            }
-                                            HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                                            Text("Navigation labels", style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
-                                            Text("Choose which destination names appear in the bottom bar.",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            SingleChoiceSegmentedButtonRow(
-                                                modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
-                                            ) {
-                                                SegmentedButton(
-                                                    selected = showAllNavLabels,
-                                                    onClick = { showAllNavLabels = true; preferences.edit().putBoolean("show_all_nav_labels", true).apply() },
-                                                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                                                ) { Text("All labels") }
-                                                SegmentedButton(
-                                                    selected = !showAllNavLabels,
-                                                    onClick = { showAllNavLabels = false; preferences.edit().putBoolean("show_all_nav_labels", false).apply() },
-                                                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                                                ) { Text("Selected only") }
-                                            }
-                                        }
+                                                }
+                                            },
+                                        )
+                                    }
+                                    BastionPaletteSettings(
+                                        dynamic = dynamic,
+                                        selectedSeed = themeSeed,
+                                        onSeedChange = {
+                                            themeSeed = it
+                                            preferences.edit().putInt("theme_seed", it).apply()
+                                        },
+                                    )
                                     }
                                 }
                                 "Behavior" -> item {
-                                    Card(shape = MaterialTheme.shapes.extraLarge) {
-                                        Column(Modifier.fillMaxWidth().padding(20.dp),
-                                            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                            Text("Back button behavior", style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.SemiBold)
-                                            Text("When you press Back from a main navigation tab:",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                RadioButton(selected = !returnToDashboard, onClick = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
+                                        Text("Back button behavior", style = MaterialTheme.typography.titleMedium)
+                                        Text("When you press Back from a main navigation tab:",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        BastionGroupedSettings {
+                                            BastionChoiceSetting(
+                                                title = "Exit from current tab",
+                                                description = "Back initiates exiting Bastion.",
+                                                selected = !returnToDashboard,
+                                                index = 0, count = 2,
+                                                onClick = {
                                                     returnToDashboard = false
                                                     preferences.edit().putBoolean("return_to_dashboard", false).apply()
-                                                })
-                                                Column(Modifier.weight(1f)) {
-                                                    Text("Exit from current tab")
-                                                    Text("Back initiates exiting Bastion.",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                }
-                                            }
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                RadioButton(selected = returnToDashboard, onClick = {
+                                                },
+                                            )
+                                            BastionChoiceSetting(
+                                                title = "Return to Dashboard",
+                                                description = "Go Home first from Servers, Media, or Settings.",
+                                                selected = returnToDashboard,
+                                                index = 1, count = 2,
+                                                onClick = {
                                                     returnToDashboard = true
                                                     preferences.edit().putBoolean("return_to_dashboard", true).apply()
-                                                })
-                                                Column(Modifier.weight(1f)) {
-                                                    Text("Return to Dashboard")
-                                                    Text("Go Home first from Servers, Media, or Settings.",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                }
-                                            }
-                                            HorizontalDivider()
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Column(Modifier.weight(1f)) {
-                                                    Text("Double Back to exit", style = MaterialTheme.typography.titleMedium)
-                                                    Text("Press Back twice within 2 seconds to exit.",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                }
-                                                Switch(checked = doubleBackToExit, onCheckedChange = {
+                                                },
+                                            )
+                                        }
+                                        BastionGroupedSettings {
+                                            BastionSwitchSetting(
+                                                title = "Double Back to exit",
+                                                description = "Press Back twice within 2 seconds to exit.",
+                                                checked = doubleBackToExit,
+                                                onCheckedChange = {
                                                     doubleBackToExit = it
                                                     preferences.edit().putBoolean("double_back_exit", it).apply()
-                                                })
-                                            }
+                                                },
+                                                index = 0, count = 1,
+                                            )
                                         }
+                                        Text("Scrolling behavior", style = MaterialTheme.typography.titleMedium)
+                                        BastionGroupedSettings {
+                                        BastionSwitchSetting(
+                                            title = "Hide bottom bar while scrolling",
+                                            description = "Scroll down to hide the bottom bar; scroll up to show it.",
+                                            checked = hideNavOnScroll,
+                                            onCheckedChange = {
+                                                hideNavOnScroll = it
+                                                preferences.edit().putBoolean("hide_nav_on_scroll", it).apply()
+                                            },
+                                            index = 0, count = 2,
+                                        )
+                                        BastionSwitchSetting(
+                                            title = "Hide top bar while scrolling",
+                                            description = "Scroll down to hide the page header; scroll up to show it.",
+                                            checked = hideHeaderOnScroll,
+                                            onCheckedChange = {
+                                                hideHeaderOnScroll = it
+                                                preferences.edit().putBoolean("hide_header_on_scroll", it).apply()
+                                            },
+                                            index = 1, count = 2,
+                                        )
+                                        }
+
                                     }
                                 }
                                 "Services" -> {
@@ -526,20 +651,12 @@ private fun BastionApp() {
                                             openSettingsPage("Add service")
                                         }
                                     }
-                                    if (savedInstances.any { it.type == "Seerr" }) {
-                                        item {
-                                            SettingsEntry("Create Seerr user", "Add a local account to Seerr",
-                                                Icons.Default.PersonAdd) {
-                                                openSettingsPage("Create Seerr user")
-                                            }
-                                        }
-                                    }
                                     item { SectionTitle("Your services") }
                                     if (savedInstances.isEmpty()) {
                                         item {
                                             Card(shape = MaterialTheme.shapes.extraLarge) {
                                                 Column(Modifier.fillMaxWidth().padding(24.dp),
-                                                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    verticalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                                                     Icon(Icons.Default.Extension, contentDescription = null,
                                                         tint = MaterialTheme.colorScheme.primary)
                                                     Text("No services configured yet", style = MaterialTheme.typography.titleMedium)
@@ -560,23 +677,13 @@ private fun BastionApp() {
                                                     instances.forEachIndexed { index, instance ->
                                                         SettingsEntry(instance.name, instance.type + " • Configured",
                                                             Icons.Default.Dns,
-                                                            shape = connectedServiceShape(index, instances.size)) {
+                                                            index = index, count = instances.size) {
                                                             editService(instance)
                                                             openSettingsPage("Service detail")
                                                         }
                                                     }
                                                 }
                                             }
-                                        }
-                                    }
-                                }
-                                "Create Seerr user" -> {
-                                    val seerrInstances = savedInstances.filter { it.type == "Seerr" }
-                                    if (seerrInstances.isEmpty()) {
-                                        item { Text("Configure a Seerr service first.") }
-                                    } else {
-                                        seerrInstances.forEach { seerr ->
-                                            item { SeerrCreateLocalUserSettings(seerr) }
                                         }
                                     }
                                 }
@@ -596,7 +703,7 @@ private fun BastionApp() {
                                             it.category.contains(serviceSearch.trim(), ignoreCase = true)
                                     }
                                     if (filtered.isEmpty()) {
-                                        item { Text("No matching integrations found.") }
+                                        item { BastionNoSearchResults(serviceSearch) }
                                     }
                                     listOf("Infrastructure", "Media management", "Media servers", "Other services").forEach { category ->
                                         val matches = filtered.filter { it.category == category }
@@ -617,19 +724,33 @@ private fun BastionApp() {
                                     if (selectedIntegration != "Seerr") {
                                         Card(shape = MaterialTheme.shapes.extraLarge) {
                                             Column(Modifier.fillMaxWidth().padding(20.dp),
-                                                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                                                 Text("Coming soon", style = MaterialTheme.typography.titleLarge)
                                                 Text("Real connections for ${selectedIntegration} aren't implemented yet. Seerr is our first integration.")
                                             }
                                         }
                                     } else {
-                                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                            Card(shape = MaterialTheme.shapes.extraLarge) {
-                                                Column(Modifier.fillMaxWidth().padding(20.dp),
-                                                    verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                                    Text("Seerr connection", style = MaterialTheme.typography.titleLarge)
+                                        Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
+                                            Column(Modifier.fillMaxWidth(),
+                                                verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
+                                                    Text("SERVICE", style = MaterialTheme.typography.labelLarge,
+                                                        color = MaterialTheme.colorScheme.primary)
+                                                    BastionSettingsContent(index = 0, count = 1) {
+                                                        Row(verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
+                                                            Icon(Icons.Default.Dns, contentDescription = null,
+                                                                tint = MaterialTheme.colorScheme.primary)
+                                                            Column {
+                                                                Text("Seerr", style = MaterialTheme.typography.titleMedium)
+                                                                Text("Media requests", style = MaterialTheme.typography.bodySmall,
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                            }
+                                                        }
+                                                    }
                                                     OutlinedTextField(value = previewName, onValueChange = { previewName = it },
                                                         label = { Text("Display name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                                                    Text("CONNECTION", style = MaterialTheme.typography.labelLarge,
+                                                        color = MaterialTheme.colorScheme.primary)
                                                     OutlinedTextField(value = localUrl, onValueChange = { localUrl = it },
                                                         label = { Text("Local URL (HTTP or HTTPS)") },
                                                         placeholder = { Text("http://192.168.1.100:5055") },
@@ -638,17 +759,21 @@ private fun BastionApp() {
                                                         label = { Text("Remote URL (HTTPS)") },
                                                         placeholder = { Text("https://seerr.example.com") },
                                                         modifier = Modifier.fillMaxWidth(), singleLine = true)
-                                                    Text("Authentication", style = MaterialTheme.typography.titleMedium)
-                                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                        listOf("API key", "Local user").forEach { method ->
-                                                            FilterChip(selected = seerrAuthMethod == method,
+                                                    Text("AUTHENTICATION", style = MaterialTheme.typography.labelLarge,
+                                                        color = MaterialTheme.colorScheme.primary)
+                                                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                                        listOf("API key", "Local user").forEachIndexed { index, method ->
+                                                            SegmentedButton(
+                                                                selected = seerrAuthMethod == method,
                                                                 onClick = {
                                                                     if (seerrAuthMethod != method) {
                                                                         seerrAuthMethod = method
                                                                         apiKey = ""
                                                                         testResult = ""
                                                                     }
-                                                                }, label = { Text(method) })
+                                                                },
+                                                                shape = SegmentedButtonDefaults.itemShape(index = index, count = 2)
+                                                            ) { Text(method) }
                                                         }
                                                     }
                                                     if (seerrAuthMethod == "API key") {
@@ -687,7 +812,8 @@ private fun BastionApp() {
                                                             Text(if (loggingIn) "Signing in…" else "Sign in to Seerr")
                                                         }
                                                     }
-                                                    Text("Connection preference", style = MaterialTheme.typography.titleMedium)
+                                                    Text("CONNECTION PREFERENCE", style = MaterialTheme.typography.labelLarge,
+                                                        color = MaterialTheme.colorScheme.primary)
                                                     listOf("Automatic", "Local only", "Remote only").forEach { mode ->
                                                         Row(verticalAlignment = Alignment.CenterVertically,
                                                             modifier = Modifier.fillMaxWidth().clickable { connectionMode = mode }) {
@@ -739,7 +865,6 @@ private fun BastionApp() {
                                                     }, modifier = Modifier.fillMaxWidth()) {
                                                         Text(if (editingId == null) "Save service" else "Save changes")
                                                     }
-                                                }
                                             }
                                             if (editingId != null) {
                                                 OutlinedButton(onClick = { deleteConfirmation = true },
@@ -753,20 +878,21 @@ private fun BastionApp() {
                                             }
                                         }
                                         if (deleteConfirmation) {
-                                            AlertDialog(onDismissRequest = { deleteConfirmation = false },
-                                                title = { Text("Remove ${previewName}?") },
-                                                text = { Text("This removes the Bastion connection and its saved API key. Your Seerr server and media will not be changed.") },
-                                                confirmButton = {
-                                                    TextButton(onClick = {
-                                                        savedInstances.removeAll { it.id == editingId }
-                                                        persistServices()
-                                                        deleteConfirmation = false
-                                                        settingsHistory.clear()
-                                                        settingsHistory.add("Settings")
-                                                        settingsPage = "Services"
-                                                    }) { Text("Remove", color = MaterialTheme.colorScheme.error) }
+                                            BastionConfirmDialog(
+                                                title = "Remove ${previewName}?",
+                                                message = "This removes the Bastion connection and its saved API key. Your Seerr server and media will not be changed.",
+                                                confirmLabel = "Remove",
+                                                destructive = true,
+                                                onDismiss = { deleteConfirmation = false },
+                                                onConfirm = {
+                                                    savedInstances.removeAll { it.id == editingId }
+                                                    persistServices()
+                                                    deleteConfirmation = false
+                                                    settingsHistory.clear()
+                                                    settingsHistory.add("Settings")
+                                                    settingsPage = "Services"
                                                 },
-                                                dismissButton = { TextButton(onClick = { deleteConfirmation = false }) { Text("Cancel") } })
+                                            )
                                         }
                                     }
                                 }
@@ -776,36 +902,57 @@ private fun BastionApp() {
                     }
                 }
             }
-            AnimatedVisibility(modifier = Modifier.align(Alignment.BottomCenter), visible = openSeerrRequest == null && (!hideNavOnScroll || navVisible),
-                enter = androidx.compose.animation.slideInVertically { it } + fadeIn(),
-                exit = androidx.compose.animation.slideOutVertically { it } + fadeOut()) {
-            if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
-                NavigationBar {
-                    listOf("Discover", "Requests", "Issues", "Settings").forEachIndexed { index, label ->
-                        val icon = when (index) {
+            }
+                val discoverVisible = destination.serviceId != null && destination.tab == 0 &&
+                    !destination.page.startsWith("media:") &&
+                    savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }
+                if (discoverVisible) {
+                    Box(Modifier.fillMaxSize().padding(insets)) {
+                    BastionDiscoverRefresh(isRefreshing = seerrDiscoverRefreshing,
+                        onRefresh = {
+                            seerrDiscoverRefreshing = true
+                            seerrRefreshDiscover()
+                        }) { screenContent() }
+                    }
+                } else screenContent()
+            }
+            val activeTabs = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
+                seerrLabels.mapIndexed { index, label ->
+                    BastionNavDestination(
+                        label = label,
+                        icon = when (index) {
                             0 -> Icons.Default.Explore
                             1 -> Icons.Default.ListAlt
                             2 -> Icons.Default.ReportProblem
+                            3 -> Icons.Default.People
                             else -> Icons.Default.Settings
-                        }
-                        NavigationBarItem(selected = seerrTab == index,
-                            onClick = { seerrTab = index },
-                            icon = { Icon(icon, contentDescription = null) },
-                            label = { Text(label) }, alwaysShowLabel = showAllNavLabels)
-                    }
-                }
-            } else if (selectedMediaId == null && (tab != 2 || settingsPage == "Settings")) NavigationBar {
-                labels.forEachIndexed { index, label ->
-                    NavigationBarItem(
-                        selected = tab == index,
-                        onClick = { tab = index; selectedMediaId = null; settingsPage = "Settings"; settingsHistory.clear(); lastExitBackAt = 0L },
-                        icon = { Icon(icons[index], contentDescription = null) },
-                        label = { Text(label) },
-                        alwaysShowLabel = showAllNavLabels
+                        },
+                        selected = seerrTab == index,
+                        onClick = { seerrTab = index },
                     )
                 }
-            }
-            }
+            } else if (selectedMediaId == null && (tab != 2 || settingsPage == "Settings")) {
+                labels.mapIndexed { index, label ->
+                    BastionNavDestination(
+                        label = label,
+                        icon = icons[index],
+                        selected = tab == index,
+                        onClick = {
+                            tab = index
+                            selectedMediaId = null
+                            settingsPage = "Settings"
+                            settingsHistory.clear()
+                            lastExitBackAt = 0L
+                        },
+                    )
+                }
+            } else emptyList()
+            BastionShellBottomBar(
+                visible = activeTabs.isNotEmpty() && openSeerrRequest == null && (!hideNavOnScroll || navVisible),
+                destinations = activeTabs,
+                showAllLabels = showAllNavLabels,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
         }
     }
@@ -833,18 +980,15 @@ private fun SectionTitle(title: String) {
 private fun WidgetCard(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector,
     trailing: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit) {
-    Card(shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(10.dp))
-                Text(title, style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                trailing?.invoke()
-            }
-            content()
+    BastionContentCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(10.dp))
+            Text(title, style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            trailing?.invoke()
         }
+        content()
     }
 }
 
@@ -853,7 +997,7 @@ private fun ServerWidget() {
     WidgetCard("Home Server", Icons.Default.Dns) {
         Text("● Online  •  Uptime 12 days", color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.labelMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
             Metric("CPU", "18%", 0.18f, Modifier.weight(1f))
             Metric("Memory", "6.8 / 16 GB", 0.425f, Modifier.weight(1f))
         }
@@ -867,7 +1011,7 @@ private fun Metric(label: String, value: String, progress: Float, modifier: Modi
     Column(modifier, verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium)
         Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+        BastionTransferProgress(progress = progress, state = BastionTransferState.Stopped, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -890,7 +1034,7 @@ private fun DownloadLine(name: String, progress: Float) {
             Spacer(Modifier.width(8.dp))
             Text("${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
         }
-        LinearWavyProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+        BastionTransferProgress(progress = progress, state = BastionTransferState.Active, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -940,11 +1084,11 @@ private fun RequestsWidget(instances: List<ServiceConfig>) {
                         Text(result.error, color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall)
                     } else {
-                        if (result.requests.isEmpty()) Text("No requests yet.")
+                        if (result.requests.isEmpty()) BastionEmptyState("All caught up!", "There are no recent requests to show.")
                         result.requests.forEachIndexed { index, request ->
                             if (index > 0) Spacer(Modifier.height(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                                 Surface(shape = RoundedCornerShape(12.dp),
                                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                     modifier = Modifier.width(58.dp).height(86.dp)) {
@@ -1035,39 +1179,69 @@ private fun SettingsEntry(
     title: String,
     subtitle: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    shape: androidx.compose.ui.graphics.Shape = MaterialTheme.shapes.extraLarge,
-    onClick: () -> Unit
+    index: Int = 0,
+    count: Int = 1,
+    onClick: () -> Unit,
 ) {
-    Card(onClick = onClick, shape = shape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.secondaryContainer) {
-                Icon(icon, contentDescription = null, modifier = Modifier.padding(12.dp),
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer)
-            }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Icon(Icons.Default.ChevronRight, contentDescription = null)
-        }
-    }
+    BastionSettingsDestination(
+        title = title,
+        description = subtitle,
+        icon = icon,
+        index = index,
+        count = count,
+        onClick = onClick,
+    )
 }
 
 @Composable
 private fun SeerrDiscoverScreen(instance: ServiceConfig,
     results: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
+    searching: Boolean, onSearchingChange: (Boolean) -> Unit,
+    refresh: Int, onRefreshingChange: (Boolean) -> Unit,
+    onRefreshFeedback: (String) -> Unit,
     onMediaClick: (SeerrRecentRequest) -> Unit) {
     val sections = remember { listOf("Trending", "Popular Movies", "Popular TV Shows",
         "Upcoming Movies", "Upcoming TV Shows") }
     var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
-    var searching by remember(instance.id) { mutableStateOf(false) }
     var query by remember(instance.id) { mutableStateOf("") }
     var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
     var searchLoading by remember(instance.id) { mutableStateOf(false) }
+    var browseKind by remember(instance.id) { mutableStateOf<String?>(null) }
+    var browseTitle by remember(instance.id) { mutableStateOf("") }
+    var browseId by remember(instance.id) { mutableIntStateOf(0) }
+    var browsePage by remember(instance.id) { mutableIntStateOf(1) }
+    var browseResult by remember(instance.id) { mutableStateOf<SeerrBrowsePage?>(null) }
+    var browseLoading by remember(instance.id) { mutableStateOf(false) }
+    var studioQuery by remember(instance.id) { mutableStateOf("") }
+    var studioOptions by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
+    var movieGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
+    var tvGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
+    var browseError by remember(instance.id) { mutableStateOf<String?>(null) }
+    val browseFilter = if (browseKind == "Trending") when (category) {
+        "Movies" -> "movie"
+        "TV Shows" -> "tv"
+        else -> "all"
+    } else "all"
+    LaunchedEffect(instance.id) {
+        val movies = SeerrBrowseClient.options(instance, "genres/movie")
+        val tv = SeerrBrowseClient.options(instance, "genres/tv")
+        movieGenres = movies.getOrDefault(emptyList())
+        tvGenres = tv.getOrDefault(emptyList())
+        browseError = movies.exceptionOrNull()?.message ?: tv.exceptionOrNull()?.message
+    }
+    LaunchedEffect(instance.id, studioQuery) {
+        if (studioQuery.trim().length < 2) { studioOptions = emptyList(); return@LaunchedEffect }
+        kotlinx.coroutines.delay(350)
+        studioOptions = SeerrBrowseClient.searchStudios(instance, studioQuery.trim()).getOrDefault(emptyList())
+    }
+    LaunchedEffect(instance.id, browseKind, browseId, browsePage, browseFilter, refresh) {
+        val kind = browseKind ?: return@LaunchedEffect
+        browseLoading = true
+        browseResult = SeerrBrowseClient.browse(instance, kind, browsePage,
+            if (kind == "Trending") browseFilter else "all", browseId)
+        browseLoading = false
+    }
+
     LaunchedEffect(instance, searching, query) {
         if (!searching || query.trim().length < 2) {
             searchResult = null
@@ -1079,42 +1253,104 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             searchLoading = false
         }
     }
-    LaunchedEffect(instance) {
-        kotlinx.coroutines.coroutineScope {
-            sections.filter { it !in results }.forEach { section ->
-                launch {
-                    val response = SeerrClient.discover(instance, section)
-                    results[section] = response
+    LaunchedEffect(instance, refresh) {
+        val startedAt = android.os.SystemClock.elapsedRealtime()
+        val failures = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val requested = sections.filter { refresh > 0 || it !in results }
+        try {
+            kotlinx.coroutines.coroutineScope {
+                requested.forEach { section ->
+                    launch {
+                        try {
+                            val response = SeerrClient.discover(instance, section)
+                            results[section] = response
+                            if (response.error != null) failures.add("$section: ${response.error}")
+                        } catch (error: Exception) {
+                            failures.add("$section: ${error.message ?: error.javaClass.simpleName}")
+                        }
+                    }
+                }
+            }
+            if (searching && query.trim().length >= 2) {
+                val response = SeerrClient.discover(instance, "Search", query)
+                searchResult = response
+                if (response.error != null) failures.add("Search: ${response.error}")
+            }
+            if (refresh > 0) {
+                val elapsed = android.os.SystemClock.elapsedRealtime() - startedAt
+                android.util.Log.i("BastionSeerrRefresh",
+                    "Discover refresh: ${requested.size} sections requested in ${elapsed}ms; errors=${failures.joinToString()}")
+                onRefreshFeedback(if (failures.isEmpty()) "Discover refreshed • ${requested.size} sections • ${elapsed} ms"
+                    else "Discover refresh: ${failures.size} request(s) failed")
+            }
+        } finally {
+            onRefreshingChange(false)
+        }
+    }
+    if (browseKind != null) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            TextButton(onClick = { browseKind = null; browsePage = 1 }) {
+                Icon(Icons.Default.ArrowBack, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Back to Discover")
+            }
+            Text(browseTitle, style = MaterialTheme.typography.headlineSmall)
+            if (browseKind == "Trending") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("All", "Movies", "TV Shows").forEach { option ->
+                        FilterChip(selected = category == option,
+                            onClick = { category = option; browsePage = 1 },
+                            label = { Text(option) })
+                    }
+                }
+            }
+            if (browseLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            browseResult?.error?.let { BastionErrorState(it) }
+            browseResult?.takeIf { it.error == null }?.let { page ->
+                if (page.items.isEmpty()) Text("No titles found")
+                page.items.forEach { title ->
+                    Row(Modifier.fillMaxWidth().clickable {
+                        onMediaClick(SeerrRecentRequest(title = title.title, status = "",
+                            posterUrl = title.posterUrl, year = title.year,
+                            requestedBy = null, isTv = title.isTv, tmdbId = title.tmdbId))
+                    }.padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Surface(Modifier.size(width = 58.dp, height = 86.dp),
+                            shape = RoundedCornerShape(12.dp)) {
+                            if (title.posterUrl != null) AsyncImage(model = title.posterUrl,
+                                contentDescription = title.title, contentScale = ContentScale.Crop)
+                            else Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Movie, contentDescription = null)
+                            }
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(title.title, style = MaterialTheme.typography.titleMedium)
+                            Text(listOf(if (title.isTv) "TV" else "Movie", title.year)
+                                .filter { it.isNotBlank() }.joinToString(" • "),
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = null)
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { browsePage-- }, enabled = browsePage > 1 && !browseLoading) {
+                        Text("Previous")
+                    }
+                    Text("Page ${page.page} of ${page.totalPages}")
+                    TextButton(onClick = { browsePage++ },
+                        enabled = browsePage < page.totalPages && !browseLoading) { Text("Next") }
                 }
             }
         }
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Text("Discover", modifier = Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold)
-            IconButton(onClick = {
-                searching = !searching
-                if (!searching) query = ""
-            }) {
-                Icon(if (searching) Icons.Default.Close else Icons.Default.Search,
-                    contentDescription = if (searching) "Close search" else "Search movies and TV")
-            }
-        }
-        AnimatedVisibility(visible = searching, enter = fadeIn(), exit = fadeOut()) {
+    } else Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        BastionReveal(visible = searching) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = query, onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    shape = RoundedCornerShape(28.dp),
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = if (query.isNotEmpty()) {
-                        { IconButton(onClick = { query = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear search")
-                        } }
-                    } else null,
-                    placeholder = { Text("Search movies and TV shows") })
+                verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
+                BastionSearchField(value = query, onValueChange = { query = it },
+                    placeholder = "Search movies and TV shows")
                 if (query.trim().length < 2) {
                     Text("Enter at least two characters to search Seerr.",
                         style = MaterialTheme.typography.bodySmall,
@@ -1122,10 +1358,9 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 } else if (searchLoading) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 } else if (searchResult?.error != null) {
-                    Text(searchResult?.error.orEmpty(), color = MaterialTheme.colorScheme.error)
+                    BastionErrorState(searchResult?.error.orEmpty())
                 } else if (searchResult != null && searchResult?.items.isNullOrEmpty()) {
-                    Text("No matching movies or TV shows.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    BastionNoSearchResults(query)
                 } else {
                     searchResult?.items?.take(20)?.forEach { title ->
                         Row(Modifier.fillMaxWidth().clickable {
@@ -1165,7 +1400,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium)
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
             listOf("All", "Movies", "TV Shows").forEach { choice ->
                 FilterChip(selected = category == choice, onClick = { category = choice },
                     label = { Text(choice) },
@@ -1175,14 +1410,68 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     } else null)
             }
         }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Browse by genre", style = MaterialTheme.typography.titleLarge)
+            browseError?.let { Text("Genres: $it", color = MaterialTheme.colorScheme.error) }
+            Text("Movie genres", style = MaterialTheme.typography.titleSmall)
+            Row(Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                movieGenres.forEach { option ->
+                    AssistChip(onClick = {
+                        browseKind = "Movie genre"; browseTitle = "${option.name} Movies"
+                        browseId = option.id; browsePage = 1
+                    }, label = { Text(option.name) })
+                }
+            }
+            Text("TV genres", style = MaterialTheme.typography.titleSmall)
+            Row(Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                tvGenres.forEach { option ->
+                    AssistChip(onClick = {
+                        browseKind = "TV genre"; browseTitle = "${option.name} TV Shows"
+                        browseId = option.id; browsePage = 1
+                    }, label = { Text(option.name) })
+                }
+            }
+            Text("Browse by studio", style = MaterialTheme.typography.titleSmall)
+            OutlinedTextField(value = studioQuery, onValueChange = { studioQuery = it },
+                label = { Text("Search movie studios") }, singleLine = true,
+                modifier = Modifier.fillMaxWidth())
+            studioOptions.take(8).forEach { option ->
+                TextButton(onClick = {
+                    browseKind = "Studio"; browseTitle = "${option.name} Movies"
+                    browseId = option.id; browsePage = 1
+                }) { Text(option.name) }
+            }
+            Text("Browse TV by network", style = MaterialTheme.typography.titleSmall)
+            Row(Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(SeerrBrowseOption(213, "Netflix"), SeerrBrowseOption(49, "HBO"),
+                    SeerrBrowseOption(2739, "Disney+"), SeerrBrowseOption(2552, "Apple TV+"),
+                    SeerrBrowseOption(1024, "Amazon")).forEach { option ->
+                    AssistChip(onClick = {
+                        browseKind = "Network"; browseTitle = "${option.name} TV Shows"
+                        browseId = option.id; browsePage = 1
+                    }, label = { Text(option.name) })
+                }
+            }
+        }
         sections.filter { section ->
             category == "All" || section == "Trending" ||
                 (category == "Movies" && section.contains("Movies")) ||
                 (category == "TV Shows" && section.contains("TV"))
         }.forEach { section ->
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(section, modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold)
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(section, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    TextButton(onClick = {
+                        browseKind = section; browseTitle = section
+                        browsePage = 1; browseId = 0
+                    }) { Text("View all") }
+                }
                 val result = results[section]
                 val visibleItems = result?.items?.filter {
                     section != "Trending" || category == "All" ||
@@ -1198,7 +1487,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     Text("No titles found", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium),
                         contentPadding = PaddingValues(horizontal = 16.dp)) {
                         items(visibleItems, key = { "${it.tmdbId}-${it.isTv}" }) { title ->
                             Column(Modifier.width(124.dp).clickable {
@@ -1228,17 +1517,17 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                                     }
                                     if (badge != null) {
                                         val tint = when (title.mediaStatus) {
-                                            5 -> Color(0xFF167D48)
-                                            4 -> Color(0xFF8460B3)
-                                            3 -> Color(0xFF246BB1)
-                                            else -> Color(0xFFAD741C)
+                                            5 -> MaterialTheme.colorScheme.primary
+                                            4 -> MaterialTheme.colorScheme.tertiary
+                                            3 -> MaterialTheme.colorScheme.secondary
+                                            else -> MaterialTheme.colorScheme.tertiary
                                         }
                                         Surface(modifier = Modifier.align(Alignment.TopEnd).padding(5.dp),
                                             shape = RoundedCornerShape(50),
                                             color = tint) {
                                             Text(badge, Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = Color.White, maxLines = 1)
+                                                color = MaterialTheme.colorScheme.onPrimary, maxLines = 1)
                                         }
                                     }
                                 }
@@ -1272,11 +1561,10 @@ private fun SeerrIssuesScreen(instance: ServiceConfig) {
         result = null
         result = SeerrClient.issuePage(instance, 20, page * 20, filter)
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Issues", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
         Text("Reported media problems • Manage issues",
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
             listOf("open", "resolved", "all").forEach { option ->
                 FilterChip(selected = filter == option,
                     onClick = { filter = option; page = 0 },
@@ -1292,7 +1580,7 @@ private fun SeerrIssuesScreen(instance: ServiceConfig) {
         }
         if (result == null) LinearProgressIndicator(Modifier.fillMaxWidth())
         result?.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        if (result?.issues?.isEmpty() == true) Text("No matching issues.")
+        if (result?.issues?.isEmpty() == true) BastionEmptyState("No issues to show", "Everything looks clear here.")
         result?.issues?.forEach { issue ->
             ElevatedCard(onClick = { selected = issue }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1324,6 +1612,10 @@ private fun SeerrIssuesScreen(instance: ServiceConfig) {
 @Composable
 private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     discoverResults: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
+    settingsSection: String, onSettingsSectionChange: (String) -> Unit,
+    searching: Boolean, onSearchingChange: (Boolean) -> Unit,
+    discoverRefresh: Int, onDiscoverRefreshingChange: (Boolean) -> Unit,
+    onDiscoverRefreshFeedback: (String) -> Unit,
     onRequestClick: (SeerrRecentRequest) -> Unit) {
     var page by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
     var filter by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
@@ -1343,6 +1635,17 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
         mutableIntStateOf(pagePreferences.getInt("requests_page_size_${instance.id}", 25)
             .takeIf { it in listOf(25, 50, 100) } ?: 25)
     }
+    DisposableEffect(instance.id) {
+        val key = "requests_page_size_${instance.id}"
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, changed ->
+            if (changed == key) {
+                pageSize = prefs.getInt(key, 25).takeIf { it in listOf(25, 50, 100) } ?: 25
+                page = 0
+            }
+        }
+        pagePreferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { pagePreferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     LaunchedEffect(instance, destination, page, pageSize, filter, mediaType, sortOrder, sortDirection, refresh) {
         if (destination != 1) return@LaunchedEffect
         loading = true
@@ -1353,18 +1656,20 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     LaunchedEffect(instance, destination, refresh) {
         if (destination == 1) counts = SeerrClient.requestCounts(instance).getOrNull()
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
         if (destination == 0) {
-            SeerrDiscoverScreen(instance, discoverResults, onRequestClick)
+            SeerrDiscoverScreen(instance, discoverResults, searching, onSearchingChange,
+                discoverRefresh, onDiscoverRefreshingChange, onDiscoverRefreshFeedback, onRequestClick)
         } else if (destination == 2) {
             SeerrIssuesScreen(instance)
         } else if (destination == 3) {
-            SeerrSettingsScreen(instance)
+            SeerrUserDirectoryScreen(instance)
+        } else if (destination == 4) {
+            SeerrSettingsScreen(instance, settingsSection, onSettingsSectionChange)
         } else {
-        Text("Requests", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Browse and manage Seerr requests", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
             var typeExpanded by remember { mutableStateOf(false) }
             Box(Modifier.weight(1f)) {
                 OutlinedButton(onClick = { typeExpanded = true }, modifier = Modifier.fillMaxWidth()) {
@@ -1397,29 +1702,6 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
                 Icon(if (sortDirection == "desc") Icons.Default.ArrowDownward
                     else Icons.Default.ArrowUpward, contentDescription =
                     if (sortDirection == "desc") "Sort descending" else "Sort ascending")
-            }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically) {
-            Text("Requests per page", style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.width(8.dp))
-            var sizeExpanded by remember { mutableStateOf(false) }
-            Box {
-                OutlinedButton(onClick = { sizeExpanded = true }) {
-                    Text(pageSize.toString())
-                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                }
-                DropdownMenu(expanded = sizeExpanded, onDismissRequest = { sizeExpanded = false }) {
-                    listOf(25, 50, 100).forEach { amount ->
-                        DropdownMenuItem(text = { Text(amount.toString()) }, onClick = {
-                            pageSize = amount
-                            page = 0
-                            pagePreferences.edit().putInt("requests_page_size_${instance.id}", amount).apply()
-                            sizeExpanded = false
-                        })
-                    }
-                }
             }
         }
         counts?.let { summary ->
@@ -1496,7 +1778,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
         else {
             result?.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            if (result?.error == null && result?.requests?.isEmpty() == true) Text("No matching requests.")
+            if (result?.error == null && result?.requests?.isEmpty() == true) BastionEmptyState("No requests found", "Try another filter or check back later.")
             result?.requests?.forEach { request ->
                 key(request.title, request.requestedBy, request.releaseDate) {
                     val interaction = remember { MutableInteractionSource() }
@@ -1516,14 +1798,14 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
                                 scaleX = cardScale
                                 scaleY = cardScale
                             },
-                        shape = RoundedCornerShape(24.dp),
+                        shape = MaterialTheme.shapes.extraLarge,
                         colors = CardDefaults.elevatedCardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
                     ) {
                         Row(Modifier.fillMaxWidth().padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            horizontalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
                             Surface(shape = RoundedCornerShape(16.dp),
                                 modifier = Modifier.width(88.dp).height(132.dp),
                                 color = MaterialTheme.colorScheme.surfaceContainerHighest) {
@@ -1538,16 +1820,16 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
                                 }
                             }
                             Column(Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                verticalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                                 Text(request.title + (request.year?.let { " ($it)" } ?: ""),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold)
                                 val statusColor = when (request.status.lowercase()) {
-                                    "available" -> Color(0xFF176B43)
-                                    "processing" -> Color(0xFF245DA3)
-                                    "pending" -> Color(0xFF996000)
+                                    "available" -> MaterialTheme.colorScheme.primary
+                                    "processing" -> MaterialTheme.colorScheme.secondary
+                                    "pending" -> MaterialTheme.colorScheme.tertiary
                                     "declined", "failed" -> MaterialTheme.colorScheme.error
-                                    "partially available" -> Color(0xFF7652A2)
+                                    "partially available" -> MaterialTheme.colorScheme.tertiary
                                     else -> MaterialTheme.colorScheme.secondary
                                 }
                                 Surface(shape = RoundedCornerShape(50),
@@ -1635,14 +1917,12 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
             it.id == server.defaultRoot
         }?.name ?: server?.roots?.firstOrNull()?.name.orEmpty()
     }
-    ModalBottomSheet(onDismissRequest = { if (!submitting) { if (submitted) onSubmitted() else onDismiss() } },
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)) {
+    BastionBottomSheet(onDismiss = { if (!submitting) { if (submitted) onSubmitted() else onDismiss() } }) {
         Column(Modifier.fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = BastionSheetDefaults.horizontalPadding)
             .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
             AnimatedVisibility(visible = submitted, enter = fadeIn(), exit = fadeOut()) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -1671,16 +1951,16 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center)
                     Button(onClick = onSubmitted, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                        shape = RoundedCornerShape(24.dp)) {
+                        shape = MaterialTheme.shapes.extraLarge) {
                         Text("Done")
                     }
                 }
             }
             AnimatedVisibility(visible = !submitted, enter = fadeIn(), exit = fadeOut()) {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
             Row(verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Surface(shape = RoundedCornerShape(20.dp),
+                Surface(shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.secondaryContainer) {
                     Icon(Icons.Default.Movie, contentDescription = null,
                         modifier = Modifier.padding(16.dp).size(28.dp),
@@ -1741,11 +2021,11 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
                             else selectedSeasons.add(season.number)
                         }
                     }, enabled = !unavailable && !forced,
-                        shape = RoundedCornerShape(20.dp),
+                        shape = MaterialTheme.shapes.large,
                         color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                         Row(Modifier.fillMaxWidth().padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                             Checkbox(checked = season.number in selectedSeasons || forced,
                                 onCheckedChange = null, enabled = !unavailable && !forced)
                             Column(Modifier.weight(1f)) {
@@ -1762,7 +2042,7 @@ private fun SeerrMovieRequestSheet(instance: ServiceConfig, tmdbId: Int,
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                shape = RoundedCornerShape(24.dp),
+                shape = MaterialTheme.shapes.extraLarge,
                 enabled = server != null && profileId >= 0 && rootPath.isNotBlank() && !submitting &&
                     (!isTv || (seasons.any { it.number > 0 && it.status !in listOf(2, 3, 4, 5) } &&
                         (partialEnabled == false || selectedSeasons.isNotEmpty()))),
@@ -1819,7 +2099,7 @@ private fun SeerrRequestDropdown(label: String, selected: String,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Row(Modifier.padding(horizontal = 18.dp, vertical = 17.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                     Icon(leadingIcon, contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary)
                     Text(selected, modifier = Modifier.weight(1f),
@@ -1848,7 +2128,8 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
     cache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrMediaDetails>,
     carouselScrollStates: MutableMap<String, androidx.compose.foundation.ScrollState>,
     navigationDepth: Int,
-    onBack: () -> Unit, onRelatedClick: (SeerrRecentRequest) -> Unit) {
+    onBack: () -> Unit, onRelatedClick: (SeerrRecentRequest) -> Unit,
+    onRequestSubmitted: (Int, Boolean) -> Unit) {
     var showRequestSheet by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
     var requestSubmitted by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
     var showIssueSheet by remember(request.tmdbId, request.isTv) { mutableStateOf(false) }
@@ -1917,6 +2198,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                 knownRequestedSeasons = knownRequestedSeasons.orEmpty() + confirmedSeasons
                 protectConfirmedSeasons(confirmedSeasons)
                 requestSubmitted = true
+                onRequestSubmitted(request.tmdbId, request.isTv)
             },
             onSubmitted = { showRequestSheet = false })
     }
@@ -1951,15 +2233,17 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                     0.60f to pageColor.copy(alpha = 0.70f),
                     0.88f to pageColor,
                     1f to pageColor)))
+                BastionStatusBarScrim(Modifier.align(Alignment.TopCenter))
             }
             FilledTonalIconButton(onClick = onBack,
-                modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
+                modifier = Modifier.align(Alignment.TopStart)
+                    .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp, start = 16.dp)) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Back to requests")
             }
             Row(Modifier.align(Alignment.BottomStart).fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                horizontalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
                 val poster = media?.posterUrl ?: request.posterUrl
                 Surface(shape = RoundedCornerShape(18.dp), shadowElevation = 8.dp,
                     modifier = Modifier.width(122.dp).height(183.dp)) {
@@ -2000,7 +2284,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             Row(Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                if (displayedStatus != null && displayedStatus != "Available") Surface(shape = RoundedCornerShape(24.dp),
+                if (displayedStatus != null && displayedStatus != "Available") Surface(shape = MaterialTheme.shapes.extraLarge,
                     color = MaterialTheme.colorScheme.secondaryContainer) {
                     Text(displayedStatus, Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
                         style = MaterialTheme.typography.labelLarge,
@@ -2014,7 +2298,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             }
         if (media?.seerrMediaId != null && media.seerrMediaId > 0 &&
             displayedStatus in listOf("Available", "Partially available")) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(BastionSpacing.xSmall)) {
                 Surface(modifier = Modifier.weight(1f).heightIn(min = 54.dp),
                     shape = RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp,
                         topEnd = 8.dp, bottomEnd = 8.dp),
@@ -2057,8 +2341,8 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
             style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (!media?.genres.isNullOrEmpty()) {
             androidx.compose.foundation.layout.FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small),
+                verticalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                 media!!.genres.forEach { genre ->
                     Surface(shape = RoundedCornerShape(50),
                         color = MaterialTheme.colorScheme.tertiaryContainer) {
@@ -2071,11 +2355,11 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
         }
         val overview = media?.overview ?: request.overview
         if (!overview.isNullOrBlank()) {
-            ElevatedCard(shape = RoundedCornerShape(24.dp),
+            ElevatedCard(shape = MaterialTheme.shapes.extraLarge,
                 colors = CardDefaults.elevatedCardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 Column(Modifier.fillMaxWidth().padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    verticalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                     Text("Overview", style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold)
                     Text(overview, maxLines = if (expanded) Int.MAX_VALUE else 4,
@@ -2094,7 +2378,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
         if (media != null && media.cast.isNotEmpty()) {
             Text("Cast", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                 media.cast.forEach { actor ->
                     Column(Modifier.width(92.dp), horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -2129,9 +2413,9 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                 Text(if (request.isTv) "Series details" else "Movie details",
                     style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Column(Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
                     facts.chunked(2).forEach { pair ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
                             pair.forEach { (label, value) ->
                                 Column(Modifier.weight(1f),
                                     verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -2167,7 +2451,7 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                                 }
                             }
                             .horizontalScroll(carouselScroll),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                             Spacer(Modifier.width(20.dp))
                             titles.forEach { title ->
                                 Column(Modifier.width(125.dp)
@@ -2204,15 +2488,19 @@ private fun SeerrRequestDetails(instance: ServiceConfig, request: SeerrRecentReq
                                             Surface(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
                                                 shape = RoundedCornerShape(12.dp),
                                             color = when (title.mediaStatus) {
-                                                2 -> Color(0xFFE3A008)
-                                                3 -> Color(0xFF247AC0)
-                                                4 -> Color(0xFF8E56C8)
-                                                else -> Color(0xFF168A55)
+                                                2 -> MaterialTheme.colorScheme.tertiary
+                                                3 -> MaterialTheme.colorScheme.secondary
+                                                4 -> MaterialTheme.colorScheme.tertiary
+                                                else -> MaterialTheme.colorScheme.primary
                                             }) {
                                             Text(relatedBadge,
                                                 Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = Color.White)
+                                                color = when (title.mediaStatus) {
+                                                     2, 4 -> MaterialTheme.colorScheme.onTertiary
+                                                     3 -> MaterialTheme.colorScheme.onSecondary
+                                                     else -> MaterialTheme.colorScheme.onPrimary
+                                                 })
                                         }
                                     }
                                     }
@@ -2241,11 +2529,11 @@ private fun UnifiedCalendarScreen() {
     var selected by remember { mutableStateOf(today) }
     var hideDownloaded by remember { mutableStateOf(false) }
     val sources = listOf("Sonarr", "Radarr", "Bindery")
-    val sourceColors = listOf(Color(0xFF448DD6), Color(0xFF51B86B), Color(0xFFB18CE6))
+    val sourceColors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.tertiary)
     var enabledSources by remember { mutableStateOf(setOf("Sonarr", "Radarr", "Bindery")) }
 
-    Column(Modifier.fillMaxWidth().animateContentSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.fillMaxWidth().animateContentSize(), verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(BastionSpacing.xSmall)) {
             Column(Modifier.weight(1f)) {
                 Text(month.year.toString(), style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2352,14 +2640,14 @@ private fun UnifiedCalendarScreen() {
         HorizontalDivider()
         AnimatedContent(targetState = selected, label = "Selected day agenda",
             transitionSpec = { fadeIn().togetherWith(fadeOut()) }) { date ->
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                 Text(date.format(java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d")),
                     style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                Surface(shape = RoundedCornerShape(24.dp),
+                Surface(shape = MaterialTheme.shapes.extraLarge,
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        horizontalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
                         Icon(Icons.Default.EventNote, contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary)
                         Column {

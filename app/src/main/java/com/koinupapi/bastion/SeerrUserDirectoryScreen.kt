@@ -47,9 +47,8 @@ fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
             .onFailure { error = it.message ?: "Unable to load Seerr users"; directory = null }
         loading = false
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Users", style = MaterialTheme.typography.headlineSmall)
+    Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             IconButton(onClick = { refresh++ }, enabled = !loading) {
                 Icon(Icons.Default.Refresh, contentDescription = "Refresh users")
             }
@@ -80,7 +79,7 @@ fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
             plexError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             if (!plexLoading && plexError == null && plexCandidates.isEmpty()) Text("No Plex users available to import.")
             plexCandidates.forEach { candidate ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                     Checkbox(checked = candidate.id in plexSelected, enabled = !plexImporting,
                         onCheckedChange = { checked ->
                             plexSelected = if (checked) plexSelected + candidate.id else plexSelected - candidate.id
@@ -105,7 +104,7 @@ fun SeerrUserDirectoryScreen(instance: ServiceConfig) {
             Text("${data.total} users", style = MaterialTheme.typography.titleMedium)
             data.users.forEach { user ->
                 ElevatedCard(onClick = { selectedUser = user.id }, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(BastionSpacing.xSmall)) {
                         Text(user.displayName.ifBlank { user.username.ifBlank { "User #${user.id}" } },
                             style = MaterialTheme.typography.titleMedium)
                         if (user.email.isNotBlank()) Text(user.email, style = MaterialTheme.typography.bodySmall)

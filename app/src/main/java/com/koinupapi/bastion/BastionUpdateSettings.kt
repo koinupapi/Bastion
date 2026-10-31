@@ -68,7 +68,7 @@ fun BastionUpdateSettings() {
     LaunchedEffect(branch) { update = null; message = "Tap Check for updates to check " + branch + "." }
     Card(shape = RoundedCornerShape(28.dp)) {
         Column(Modifier.fillMaxWidth().padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)) {
             Text("Bastion updates", style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold)
             Text("Version $versionName", style = MaterialTheme.typography.titleMedium)
@@ -77,7 +77,7 @@ fun BastionUpdateSettings() {
             Text("Signed APK updates are published through the selected GitHub release feed. Android will ask you to confirm installation.",
                 style = MaterialTheme.typography.bodyMedium)
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
                 Text("Update channel", modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleMedium)
                 TextButton(onClick = { channelRefreshRequest++ },
@@ -139,7 +139,7 @@ fun BastionUpdateSettings() {
                     }
                 }, enabled = !downloading && !checking,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                    shape = RoundedCornerShape(24.dp)) {
+                    shape = MaterialTheme.shapes.extraLarge) {
                     Icon(Icons.Default.SystemUpdate, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text("Download and install build ${candidate.versionCode}")
