@@ -1219,9 +1219,43 @@ private fun SettingsEntry(
 }
 
 @Composable
+private fun SeerrChoicePicker(
+    label: String,
+    choices: List<Pair<String, String>>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    allowClear: Boolean = false
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var search by remember { mutableStateOf("") }
+    val selectedLabel = choices.firstOrNull { it.first == selected }?.second ?: selected
+    OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+        Text("$label: ${selectedLabel.ifBlank { "Any" }}")
+    }
+    if (expanded) AlertDialog(
+        onDismissRequest = { expanded = false },
+        title = { Text(label) },
+        text = {
+            Column(Modifier.heightIn(max = 360.dp)) {
+                OutlinedTextField(search, { search = it }, label = { Text("Search") }, singleLine = true)
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    if (allowClear) TextButton(onClick = { onSelect(""); expanded = false }) { Text("Any") }
+                    choices.filter { search.isBlank() || it.second.contains(search, ignoreCase = true) ||
+                        it.first.contains(search, ignoreCase = true) }.forEach { (code, name) ->
+                        TextButton(onClick = { onSelect(code); expanded = false }) { Text(name) }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { expanded = false }) { Text("Close") } }
+    )
+}
+
+@Composable
 private fun SeerrDiscoverFilterDialog(
     instance: ServiceConfig,
     applied: SeerrDiscoverFilters,
+    mediaType: SeerrDiscoverMediaType,
     onDismiss: () -> Unit,
     onApply: (SeerrDiscoverFilters) -> Unit
 ) {
@@ -1267,6 +1301,24 @@ private fun SeerrDiscoverFilterDialog(
         }
     }
     var tvStatus by remember(applied) { mutableStateOf(applied.tvStatus.orEmpty()) }
+    var languages by remember(instance) { mutableStateOf<List<SeerrNamedChoice>>(emptyList()) }
+    var regions by remember(instance) { mutableStateOf<List<SeerrNamedChoice>>(emptyList()) }
+    var providers by remember(instance, mediaType, region) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
+    var certificationMap by remember(instance, mediaType) { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
+    var optionsError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(instance, mediaType) {
+        SeerrBrowseClient.namedChoices(instance, "languages", "iso_639_1")
+            .onSuccess { languages = it }.onFailure { optionsError = it.message }
+        SeerrBrowseClient.namedChoices(instance, "watchproviders/regions", "iso_3166_1")
+            .onSuccess { regions = it }.onFailure { optionsError = it.message }
+        SeerrBrowseClient.certifications(instance, mediaType)
+            .onSuccess { certificationMap = it }.onFailure { optionsError = it.message }
+    }
+    LaunchedEffect(instance, mediaType, region) {
+        providers = emptyList()
+        if (region.isNotBlank()) SeerrBrowseClient.watchProviders(instance, mediaType, region)
+            .onSuccess { providers = it }.onFailure { optionsError = it.message }
+    }
     fun parseIds(value: String): Set<Int> = value.split(",").mapNotNull { it.trim().toIntOrNull() }
         .filter { it > 0 }.toSet()
     AlertDialog(
@@ -1295,11 +1347,34 @@ private fun SeerrDiscoverFilterDialog(
                 OutlinedTextField(maxVotes, { maxVotes = it }, label = { Text("Maximum vote count") }, singleLine = true)
                 OutlinedTextField(minRuntime, { minRuntime = it }, label = { Text("Minimum runtime (minutes)") }, singleLine = true)
                 OutlinedTextField(maxRuntime, { maxRuntime = it }, label = { Text("Maximum runtime (minutes)") }, singleLine = true)
-                OutlinedTextField(language, { language = it }, label = { Text("Language code (e.g. en)") }, singleLine = true)
-                OutlinedTextField(region, { region = it }, label = { Text("Watch region (e.g. US)") }, singleLine = true)
-                OutlinedTextField(providerIds, { providerIds = it }, label = { Text("Provider IDs, comma separated") }, singleLine = true)
-                OutlinedTextField(certificationCountry, { certificationCountry = it }, label = { Text("Certification country (e.g. US)") }, singleLine = true)
-                OutlinedTextField(certification, { certification = it }, label = { Text("Certification (e.g. PG-13)") }, singleLine = true)
+                optionsError?.let { Text("Filter options: $it", color = MaterialTheme.colorScheme.error) }
+                Text("Original language", style = MaterialTheme.typography.titleSmall)
+                SeerrChoicePicker("Original language", languages.map { it.code to it.label },
+                    language, { language = it }, allowClear = true)
+                Text("Watch region", style = MaterialTheme.typography.titleSmall)
+                SeerrChoicePicker("Watch region", regions.map { it.code to it.label },
+                    region, { region = it; providerIds = "" }, allowClear = true)
+                Text("Streaming providers", style = MaterialTheme.typography.titleSmall)
+                if (region.isBlank()) Text("Select a watch region to see providers.")
+                else {
+                    val selectedProviders = parseIds(providerIds)
+                    providers.forEach { provider ->
+                        FilterChip(selected = provider.id in selectedProviders,
+                            onClick = {
+                                val next = if (provider.id in selectedProviders) selectedProviders - provider.id else selectedProviders + provider.id
+                                providerIds = next.joinToString(",")
+                            }, label = { Text(provider.name) })
+                    }
+                    if (providers.isEmpty()) Text("No providers loaded for this region.")
+                }
+                Text("Certification", style = MaterialTheme.typography.titleSmall)
+                SeerrChoicePicker("Certification country",
+                    certificationMap.keys.sorted().map { it to (regions.firstOrNull { region -> region.code == it }?.label ?: it) },
+                    certificationCountry, { certificationCountry = it; certification = "" }, allowClear = true)
+                if (certificationCountry.isNotBlank()) {
+                    SeerrChoicePicker("Certification", certificationMap[certificationCountry].orEmpty().map { it to it },
+                        certification, { certification = it }, allowClear = true)
+                }
                 Text("Keywords", style = MaterialTheme.typography.titleSmall)
                 Text("Search for a keyword, then include or exclude it.", style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(keywordQuery, { keywordQuery = it },
@@ -1333,9 +1408,13 @@ private fun SeerrDiscoverFilterDialog(
                         }) { Text("Remove") }
                     }
                 }
-                OutlinedTextField(tvStatus, { tvStatus = it }, label = { Text("TV status codes (TV only)") }, singleLine = true)
-                Text("Advanced fields currently use Seerr/TMDB IDs.",
-                    style = MaterialTheme.typography.bodySmall)
+                if (mediaType == SeerrDiscoverMediaType.TV) {
+                    Text("TV status", style = MaterialTheme.typography.titleSmall)
+                    SeerrChoicePicker("TV status",
+                        listOf("0" to "Returning Series", "1" to "Planned", "2" to "In Production",
+                            "3" to "Ended", "4" to "Canceled", "5" to "Pilot"),
+                        tvStatus, { tvStatus = it }, allowClear = true)
+                }
             }
         },
         confirmButton = {
@@ -1412,7 +1491,7 @@ private fun SeerrBrowseScreen(
         "Popular Movies", "Popular TV Shows", "Movie genre", "TV genre", "Studio", "Network")
     var filterDialogOpen by remember { mutableStateOf(false) }
     if (filterDialogOpen && supportsAdvanced) {
-        SeerrDiscoverFilterDialog(instance, appliedFilters,
+        SeerrDiscoverFilterDialog(instance, appliedFilters, mediaType = if (destination.kind in listOf("Popular TV Shows", "TV genre", "Network")) SeerrDiscoverMediaType.TV else SeerrDiscoverMediaType.MOVIE,
             onDismiss = { filterDialogOpen = false },
             onApply = { onFiltersApplied(it); filterDialogOpen = false })
     }
