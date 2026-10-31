@@ -132,7 +132,19 @@ private fun BastionApp() {
         var seerrTab by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableIntStateOf(0) }
         var seerrSettingsSection by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("root") }
         var seerrSearching by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf(false) }
-        var seerrBrowse by remember(selectedMediaId) { mutableStateOf<SeerrBrowseDestination?>(null) }
+        var savedBrowseKind by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf<String?>(null) }
+    var savedBrowseTitle by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("") }
+    var savedBrowseId by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableIntStateOf(0) }
+    var savedBrowsePage by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableIntStateOf(1) }
+    var seerrBrowse by remember(selectedMediaId) {
+        mutableStateOf(savedBrowseKind?.let { SeerrBrowseDestination(it, savedBrowseTitle, savedBrowseId, savedBrowsePage) })
+    }
+    LaunchedEffect(seerrBrowse) {
+        savedBrowseKind = seerrBrowse?.kind
+        savedBrowseTitle = seerrBrowse?.title.orEmpty()
+        savedBrowseId = seerrBrowse?.id ?: 0
+        savedBrowsePage = seerrBrowse?.page ?: 1
+    }
         var seerrBrowseFilter by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("all") }
         var seerrAppliedFilters by remember(selectedMediaId) { mutableStateOf(SeerrDiscoverFilters()) }
         val seerrBrowsePageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrBrowsePage>() }
