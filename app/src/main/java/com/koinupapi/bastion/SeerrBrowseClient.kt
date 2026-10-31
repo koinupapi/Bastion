@@ -149,7 +149,7 @@ object SeerrBrowseClient {
         genreId: Int = 0,
         studioOrNetworkId: Int = 0
     ): SeerrBrowsePage {
-        val params = linkedMapOf("page" to page.coerceAtLeast(1).toString())
+        val params = linkedMapOf<String, String>()
         if (genreId > 0) params["genre"] = genreId.toString()
         if (studioOrNetworkId > 0) params[
             if (mediaType == SeerrDiscoverMediaType.MOVIE) "studio" else "network"
