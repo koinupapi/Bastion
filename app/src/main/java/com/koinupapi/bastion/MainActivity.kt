@@ -131,6 +131,7 @@ private fun BastionApp() {
         var seerrSearching by remember(selectedMediaId) { mutableStateOf(false) }
         var seerrBrowse by remember(selectedMediaId) { mutableStateOf<SeerrBrowseDestination?>(null) }
         var seerrBrowseFilter by remember(selectedMediaId) { mutableStateOf("all") }
+        val seerrBrowsePageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrBrowsePage>() }
         val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
         val seerrMediaCache = remember { mutableStateMapOf<String, SeerrMediaDetails>() }
         val seerrScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.lazy.LazyListState>() }
@@ -414,7 +415,7 @@ private fun BastionApp() {
                     val service = savedInstances.firstOrNull { it.id == destination.serviceId }
                     if (service?.type == "Seerr") {
                         if (destination.page.startsWith("browse:") && seerrBrowse != null) item {
-                            SeerrBrowseScreen(service, seerrBrowse!!, seerrBrowseFilter,
+                            SeerrBrowseScreen(service, seerrBrowse!!, seerrBrowseFilter, seerrBrowsePageCache,
                                 onPageChange = { seerrBrowse = seerrBrowse?.copy(page = it) },
                                 onFilterChange = { seerrBrowseFilter = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
                                 onMediaClick = { seerrMediaStack.add(it) })
@@ -1213,19 +1214,25 @@ private fun SeerrBrowseScreen(
     instance: ServiceConfig,
     destination: SeerrBrowseDestination,
     filter: String,
+    pageCache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrBrowsePage>,
     onPageChange: (Int) -> Unit,
     onFilterChange: (String) -> Unit,
     onMediaClick: (SeerrRecentRequest) -> Unit
 ) {
-    var result by remember(instance.id, destination.kind, destination.id, destination.page, filter) {
-        mutableStateOf<SeerrBrowsePage?>(null)
-    }
-    var loading by remember(instance.id, destination.kind, destination.id, destination.page, filter) {
-        mutableStateOf(true)
-    }
-    LaunchedEffect(instance, destination, filter) {
+    // Keep the full list composed when returning from media details. Otherwise the
+    // transient empty/loading view shrinks the parent LazyColumn and clamps its scroll
+    // position to zero before the network request finishes.
+    val cacheKey = "${instance.id}:${destination.kind}:${destination.id}:${destination.page}:${filter}"
+    val result = pageCache[cacheKey]
+    var loading by remember(cacheKey) { mutableStateOf(result == null) }
+    LaunchedEffect(instance, cacheKey) {
+        if (pageCache[cacheKey] != null) {
+            loading = false
+            return@LaunchedEffect
+        }
         loading = true
-        result = SeerrBrowseClient.browse(instance, destination.kind, destination.page, filter, destination.id)
+        val response = SeerrBrowseClient.browse(instance, destination.kind, destination.page, filter, destination.id)
+        pageCache[cacheKey] = response
         loading = false
     }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
