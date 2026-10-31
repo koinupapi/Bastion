@@ -1257,6 +1257,7 @@ private fun SeerrDiscoverFilterDialog(
     applied: SeerrDiscoverFilters,
     mediaType: SeerrDiscoverMediaType,
     isScopedDestination: Boolean,
+    keywordNames: androidx.compose.runtime.snapshots.SnapshotStateMap<Int, String>,
     onDismiss: () -> Unit,
     onApply: (SeerrDiscoverFilters) -> Unit
 ) {
@@ -1280,7 +1281,6 @@ private fun SeerrDiscoverFilterDialog(
     var keywordResults by remember { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var keywordError by remember { mutableStateOf<String?>(null) }
     var keywordLoading by remember { mutableStateOf(false) }
-    val keywordNames = remember { mutableStateMapOf<Int, String>() }
     LaunchedEffect(instance, keywordQuery) {
         if (keywordQuery.trim().length < 2) {
             keywordResults = emptyList()
@@ -1501,9 +1501,11 @@ private fun SeerrBrowseScreen(
     val supportsAdvanced = destination.kind in listOf(
         "Popular Movies", "Popular TV Shows", "Movie genre", "TV genre", "Studio", "Network")
     var filterDialogOpen by remember { mutableStateOf(false) }
+    val keywordNames = remember(instance.id) { mutableStateMapOf<Int, String>() }
     if (filterDialogOpen && supportsAdvanced) {
         SeerrDiscoverFilterDialog(instance, appliedFilters, mediaType = if (destination.kind in listOf("Popular TV Shows", "TV genre", "Network")) SeerrDiscoverMediaType.TV else SeerrDiscoverMediaType.MOVIE,
             isScopedDestination = destination.kind in listOf("Movie genre", "TV genre", "Studio", "Network"),
+            keywordNames = keywordNames,
             onDismiss = { filterDialogOpen = false },
             onApply = { onFiltersApplied(it); filterDialogOpen = false })
     }
