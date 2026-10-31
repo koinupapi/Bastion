@@ -1729,7 +1729,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
-            listOf("For You", "Movies", "TV Shows").forEach { choice ->
+            listOf("For You", "Movies", "TV Shows", "Genres", "Studios", "Networks").forEach { choice ->
                 FilterChip(selected = category == choice, onClick = { category = choice },
                     label = { Text(choice) },
                     leadingIcon = if (category == choice) {
@@ -1742,6 +1742,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Browse by genre", style = MaterialTheme.typography.titleLarge)
             browseError?.let { Text("Genres: $it", color = MaterialTheme.colorScheme.error) }
+            if (category in listOf("For You", "Movies", "Genres")) {
             Text("Movie genres", style = MaterialTheme.typography.titleSmall)
             Row(Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1751,6 +1752,8 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     }, label = { Text(option.name) })
                 }
             }
+            }
+            if (category in listOf("For You", "TV Shows", "Genres")) {
             Text("TV genres", style = MaterialTheme.typography.titleSmall)
             Row(Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1760,6 +1763,8 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     }, label = { Text(option.name) })
                 }
             }
+            }
+            if (category == "Studios") {
             Text("Browse by studio", style = MaterialTheme.typography.titleSmall)
             OutlinedTextField(value = studioQuery, onValueChange = { studioQuery = it },
                 label = { Text("Search movie studios") }, singleLine = true,
@@ -1769,6 +1774,8 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     onBrowse(SeerrBrowseDestination("Studio", "${option.name} Movies", option.id))
                 }) { Text(option.name) }
             }
+            }
+            if (category == "Networks") {
             Text("Browse TV by network", style = MaterialTheme.typography.titleSmall)
             Row(Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1781,11 +1788,13 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 }
             }
         }
+        }
         sections.filter { section ->
             category == "For You" || section == "Trending" ||
                 (category == "Movies" && section.contains("Movies")) ||
                 (category == "TV Shows" && section.contains("TV"))
-        }.forEach { section ->
+        }.filter { category !in listOf("Genres", "Studios", "Networks") }
+            .forEach { section ->
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
