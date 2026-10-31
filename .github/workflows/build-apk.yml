@@ -8,6 +8,12 @@ on:
       - 'feature/**'
 jobs:
   build:
+    # Stable/develop build on push; feature branches build only when explicitly requested.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref_name == 'main' ||
+      github.ref_name == 'develop' ||
+      contains(github.event.head_commit.message, '[build]')
     runs-on: ubuntu-latest
     permissions:
       contents: write
