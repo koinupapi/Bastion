@@ -1351,6 +1351,7 @@ private fun SeerrDiscoverFilterDialog(
                 Text("Original language", style = MaterialTheme.typography.titleSmall)
                 SeerrChoicePicker("Original language", languages.map { it.code to it.label },
                     language, { language = it }, allowClear = true)
+                if (language.isNotBlank()) Text("Seerr supports original language as a separate discovery category. Clear other filters before applying.", style = MaterialTheme.typography.bodySmall)
                 Text("Watch region", style = MaterialTheme.typography.titleSmall)
                 SeerrChoicePicker("Watch region", regions.map { it.code to it.label },
                     region, { region = it; providerIds = "" }, allowClear = true)
@@ -1408,13 +1409,10 @@ private fun SeerrDiscoverFilterDialog(
                         }) { Text("Remove") }
                     }
                 }
-                if (mediaType == SeerrDiscoverMediaType.TV) {
-                    Text("TV status", style = MaterialTheme.typography.titleSmall)
-                    SeerrChoicePicker("TV status",
-                        listOf("0" to "Returning Series", "1" to "Planned", "2" to "In Production",
-                            "3" to "Ended", "4" to "Canceled", "5" to "Pilot"),
-                        tvStatus, { tvStatus = it }, allowClear = true)
-                }
+                if (mediaType == SeerrDiscoverMediaType.TV)
+                    Text("TV status filtering is not exposed by this Seerr Discover API.",
+                        style = MaterialTheme.typography.bodySmall)
+
             }
         },
         confirmButton = {
@@ -1437,7 +1435,7 @@ private fun SeerrDiscoverFilterDialog(
                     certificationCountry = certificationCountry.trim().ifBlank { null },
                     keywordIds = includedKeywords,
                     excludedKeywordIds = excludedKeywords,
-                    tvStatus = tvStatus.trim().ifBlank { null }
+                    tvStatus = null
                 ))
             }) { Text("Apply") }
         },
