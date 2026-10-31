@@ -58,6 +58,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -248,6 +250,7 @@ private fun BastionApp() {
     ) { mutableStateOf<SeerrBrowseDestination?>(null) }
         var seerrBrowseFilter by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("all") }
         var seerrTrendingPeriod by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("week") }
+        var discoverSearchBarVisible by remember(selectedMediaId) { mutableStateOf(true) }
         var seerrAppliedFilters by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId, saver = seerrFiltersSaver) { mutableStateOf(SeerrDiscoverFilters()) }
         val seerrBrowsePageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrBrowsePage>() }
         val seerrMediaStack = androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId, saver = seerrMediaStackSaver) { mutableStateListOf<SeerrRecentRequest>() }
@@ -481,8 +484,7 @@ private fun BastionApp() {
             actions = {
                         val discoverScroll = seerrScrollStates["main-${selectedMediaId}-0-root"]
                         val showTopSearch = seerrBrowse != null || seerrSearching ||
-                            (discoverScroll?.canScrollBackward == true &&
-                                (discoverScroll.isScrollInProgress || !discoverScroll.lastScrolledBackward))
+                            (discoverScroll?.canScrollBackward == true && !discoverSearchBarVisible)
                         if (serviceScreen && seerrTab == 0 && openSeerrRequest == null && showTopSearch) {
                             IconButton(onClick = { seerrSearching = !seerrSearching }) {
                                 Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
@@ -582,7 +584,8 @@ private fun BastionApp() {
                                         onDiscoverRefreshFeedback = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
                                         onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all"; seerrAppliedFilters = SeerrDiscoverFilters() },
                                         onRequestClick = { seerrMediaStack.add(it) },
-                                        scrollState = screenScroll)
+                                        scrollState = screenScroll,
+                                        onSearchBarVisibilityChange = { visible -> discoverSearchBarVisible = visible })
                                 }
                             }
                         }
@@ -1750,7 +1753,8 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     onRefreshFeedback: (String) -> Unit,
     onBrowse: (SeerrBrowseDestination) -> Unit,
     onMediaClick: (SeerrRecentRequest) -> Unit,
-    scrollState: androidx.compose.foundation.lazy.LazyListState) {
+    scrollState: androidx.compose.foundation.lazy.LazyListState,
+    onSearchBarVisibilityChange: (Boolean) -> Unit) {
     val sections = remember { listOf("Trending", "Popular Movies", "Upcoming Movies",
         "Popular TV Shows", "Upcoming TV Shows") }
     val localContext = LocalContext.current
@@ -1771,7 +1775,6 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("For You") }
     val movieGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }
     val tvGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }
-    val searchExpanded by remember(scrollState) { derivedStateOf { !scrollState.canScrollBackward || (!scrollState.isScrollInProgress && scrollState.lastScrolledBackward) } }
     var query by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("") }
     // Closing Search ends its session; opening media details does not, because
     // the parent keeps searching=true while the detail destination is on top.
@@ -1912,9 +1915,11 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         Text("Find your next favorite", modifier = Modifier.padding(horizontal = 16.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium)
-        AnimatedVisibility(visible = searchExpanded) {
         Surface(onClick = { onSearchingChange(true) },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                .onGloballyPositioned { coordinates ->
+                    onSearchBarVisibilityChange(coordinates.boundsInWindow().bottom > 0f)
+                },
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh) {
             Row(Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
@@ -1924,7 +1929,6 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 Text("Search movies and TV shows",
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
@@ -2155,7 +2159,8 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     onDiscoverRefreshFeedback: (String) -> Unit,
     onBrowse: (SeerrBrowseDestination) -> Unit,
     onRequestClick: (SeerrRecentRequest) -> Unit,
-    scrollState: androidx.compose.foundation.lazy.LazyListState) {
+    scrollState: androidx.compose.foundation.lazy.LazyListState,
+    onSearchBarVisibilityChange: (Boolean) -> Unit) {
     var page by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
     var filter by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
     var mediaType by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("all") }
@@ -2199,7 +2204,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
         if (destination == 0) {
             SeerrDiscoverScreen(instance, discoverResults, searching, onSearchingChange,
                 discoverRefresh, onDiscoverRefreshingChange, onDiscoverRefreshFeedback, onBrowse, onRequestClick,
-                scrollState)
+                scrollState, onSearchBarVisibilityChange)
         } else if (destination == 2) {
             SeerrIssuesScreen(instance)
         } else if (destination == 3) {
