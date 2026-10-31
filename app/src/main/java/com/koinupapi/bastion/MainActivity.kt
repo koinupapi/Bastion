@@ -1321,6 +1321,14 @@ private fun SeerrDiscoverFilterDialog(
     }
     fun parseIds(value: String): Set<Int> = value.split(",").mapNotNull { it.trim().toIntOrNull() }
         .filter { it > 0 }.toSet()
+    val languageConflicts = language.isNotBlank() && (
+        draft.sortBy != null || minYear.isNotBlank() || maxYear.isNotBlank() ||
+        minRating.isNotBlank() || maxRating.isNotBlank() || minVotes.isNotBlank() ||
+        maxVotes.isNotBlank() || minRuntime.isNotBlank() || maxRuntime.isNotBlank() ||
+        region.isNotBlank() || parseIds(providerIds).isNotEmpty() ||
+        certificationCountry.isNotBlank() || certification.isNotBlank() ||
+        includedKeywords.isNotEmpty() || excludedKeywords.isNotEmpty() || tvStatus.isNotBlank()
+    )
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Sort & filter") },
@@ -1351,7 +1359,7 @@ private fun SeerrDiscoverFilterDialog(
                 Text("Original language", style = MaterialTheme.typography.titleSmall)
                 SeerrChoicePicker("Original language", languages.map { it.code to it.label },
                     language, { language = it }, allowClear = true)
-                if (language.isNotBlank()) Text("Seerr supports original language as a separate discovery category. Clear other filters before applying.", style = MaterialTheme.typography.bodySmall)
+                if (language.isNotBlank()) Text("Original language uses a separate Seerr discovery category. Other filters cannot be combined with it.", style = MaterialTheme.typography.bodySmall)
                 Text("Watch region", style = MaterialTheme.typography.titleSmall)
                 SeerrChoicePicker("Watch region", regions.map { it.code to it.label },
                     region, { region = it; providerIds = "" }, allowClear = true)
@@ -1441,7 +1449,7 @@ private fun SeerrDiscoverFilterDialog(
                     excludedKeywordIds = excludedKeywords,
                     tvStatus = tvStatus.trim().ifBlank { null }
                 ))
-            }) { Text("Apply") }
+            }, enabled = !languageConflicts) { Text("Apply") }
         },
         dismissButton = {
             TextButton(onClick = { onApply(SeerrDiscoverFilters()) }) { Text("Reset all") }
