@@ -1642,6 +1642,8 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         onDispose { discoverPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("For You") }
+    val movieGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }
+    val tvGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }
     val searchExpanded by remember(scrollState) { derivedStateOf { !scrollState.canScrollBackward || (!scrollState.isScrollInProgress && scrollState.lastScrolledBackward) } }
     var query by remember(instance.id) { mutableStateOf("") }
     var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
@@ -1800,7 +1802,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 browseError?.let { Text("Genres: $it", color = MaterialTheme.colorScheme.error) }
             if (category in listOf("For You", "Movies", "Genres")) {
             Text("Movie genres", style = MaterialTheme.typography.titleSmall)
-            Row(Modifier.horizontalScroll(rememberScrollState()),
+            Row(Modifier.horizontalScroll(movieGenreScroll),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 movieGenres.forEach { option ->
                     BastionGenreCard(option.name, isTv = false) {
@@ -1811,7 +1813,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             }
             if (category in listOf("For You", "TV Shows", "Genres")) {
             Text("TV genres", style = MaterialTheme.typography.titleSmall)
-            Row(Modifier.horizontalScroll(rememberScrollState()),
+            Row(Modifier.horizontalScroll(tvGenreScroll),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 tvGenres.forEach { option ->
                     BastionGenreCard(option.name, isTv = true) {
