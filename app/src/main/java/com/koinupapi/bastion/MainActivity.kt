@@ -427,7 +427,7 @@ private fun BastionApp() {
                                 onFiltersApplied = { seerrAppliedFilters = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
                                 onPageChange = { seerrBrowse = seerrBrowse?.copy(page = it) },
                                 onFilterChange = { seerrBrowseFilter = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
-                                onMediaClick = { seerrMediaStack.add(it) })
+                                onMediaClick = { seerrMediaStack.add(it) }, scrollState = screenScroll)
                         }
                         else if (destination.page.startsWith("media:") && destinationMedia != null) item { SeerrRequestDetails(service, destinationMedia,
                             cache = seerrMediaCache,
@@ -454,7 +454,8 @@ private fun BastionApp() {
                                         seerrSearching, { seerrSearching = it }, seerrDiscoverRefresh,
                                         { seerrDiscoverRefreshing = it },
                                         onDiscoverRefreshFeedback = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
-                                        onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all"; seerrAppliedFilters = SeerrDiscoverFilters() }) {
+                                        onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all"; seerrAppliedFilters = SeerrDiscoverFilters() },
+                                        scrollState = screenScroll) {
                                         seerrMediaStack.add(it)
                                     }
                                 }
@@ -1465,7 +1466,8 @@ private fun SeerrBrowseScreen(
     onPageChange: (Int) -> Unit,
     onFiltersApplied: (SeerrDiscoverFilters) -> Unit,
     onFilterChange: (String) -> Unit,
-    onMediaClick: (SeerrRecentRequest) -> Unit
+    onMediaClick: (SeerrRecentRequest) -> Unit,
+    scrollState: androidx.compose.foundation.lazy.LazyListState
 ) {
     // Keep the full list composed when returning from media details. Otherwise the
     // transient empty/loading view shrinks the parent LazyColumn and clamps its scroll
@@ -1589,7 +1591,8 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     refresh: Int, onRefreshingChange: (Boolean) -> Unit,
     onRefreshFeedback: (String) -> Unit,
     onBrowse: (SeerrBrowseDestination) -> Unit,
-    onMediaClick: (SeerrRecentRequest) -> Unit) {
+    onMediaClick: (SeerrRecentRequest) -> Unit,
+    scrollState: androidx.compose.foundation.lazy.LazyListState) {
     val sections = remember { listOf("Trending", "Popular Movies", "Upcoming Movies",
         "Popular TV Shows", "Upcoming TV Shows") }
     var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("For You") }
@@ -1968,7 +1971,8 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     discoverRefresh: Int, onDiscoverRefreshingChange: (Boolean) -> Unit,
     onDiscoverRefreshFeedback: (String) -> Unit,
     onBrowse: (SeerrBrowseDestination) -> Unit,
-    onRequestClick: (SeerrRecentRequest) -> Unit) {
+    onRequestClick: (SeerrRecentRequest) -> Unit,
+    scrollState: androidx.compose.foundation.lazy.LazyListState) {
     var page by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
     var filter by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
     var mediaType by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("all") }
@@ -2011,7 +2015,8 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
         if (destination == 0) {
             SeerrDiscoverScreen(instance, discoverResults, searching, onSearchingChange,
-                discoverRefresh, onDiscoverRefreshingChange, onDiscoverRefreshFeedback, onBrowse, onRequestClick)
+                discoverRefresh, onDiscoverRefreshingChange, onDiscoverRefreshFeedback, onBrowse, onRequestClick,
+                scrollState)
         } else if (destination == 2) {
             SeerrIssuesScreen(instance)
         } else if (destination == 3) {
