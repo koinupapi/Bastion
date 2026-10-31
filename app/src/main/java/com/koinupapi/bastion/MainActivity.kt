@@ -1630,15 +1630,10 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     var showWatchlist by remember(instance.id) {
         mutableStateOf(discoverPrefs.getBoolean("discover_watchlist_${instance.id}", true))
     }
-    var showRecentlyAdded by remember(instance.id) {
-        mutableStateOf(discoverPrefs.getBoolean("discover_recently_added_${instance.id}", false))
-    }
     DisposableEffect(instance.id) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
             if (key == "discover_watchlist_${instance.id}")
                 showWatchlist = prefs.getBoolean(key, true)
-            if (key == "discover_recently_added_${instance.id}")
-                showRecentlyAdded = prefs.getBoolean(key, false)
         }
         discoverPrefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { discoverPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
@@ -1847,8 +1842,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             }
         }
         }
-        (sections + listOfNotNull("Plex Watchlist".takeIf { showWatchlist },
-            null)).filter { section ->
+        (sections + listOfNotNull("Plex Watchlist".takeIf { showWatchlist })).filter { section ->
             category == "For You" || section == "Trending" ||
                 (category == "Movies" && section.contains("Movies")) ||
                 (category == "TV Shows" && section.contains("TV"))
