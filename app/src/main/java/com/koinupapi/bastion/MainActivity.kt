@@ -1227,12 +1227,15 @@ private fun SeerrDiscoverFilterDialog(
     var minYear by remember(applied) { mutableStateOf(applied.dateFrom?.take(4).orEmpty()) }
     var maxYear by remember(applied) { mutableStateOf(applied.dateTo?.take(4).orEmpty()) }
     var minRating by remember(applied) { mutableStateOf(applied.ratingFrom?.toString().orEmpty()) }
+    var maxRating by remember(applied) { mutableStateOf(applied.ratingTo?.toString().orEmpty()) }
     var minVotes by remember(applied) { mutableStateOf(applied.votesFrom?.toString().orEmpty()) }
+    var maxVotes by remember(applied) { mutableStateOf(applied.votesTo?.toString().orEmpty()) }
     var minRuntime by remember(applied) { mutableStateOf(applied.runtimeFrom?.toString().orEmpty()) }
     var maxRuntime by remember(applied) { mutableStateOf(applied.runtimeTo?.toString().orEmpty()) }
     var language by remember(applied) { mutableStateOf(applied.originalLanguage.orEmpty()) }
     var region by remember(applied) { mutableStateOf(applied.watchRegion.orEmpty()) }
     var providerIds by remember(applied) { mutableStateOf(applied.providerIds.joinToString(",")) }
+    var certificationCountry by remember(applied) { mutableStateOf(applied.certificationCountry.orEmpty()) }
     var certification by remember(applied) { mutableStateOf(applied.certification.orEmpty()) }
     var keywordIds by remember(applied) { mutableStateOf(applied.keywordIds.joinToString(",")) }
     var excludedIds by remember(applied) { mutableStateOf(applied.excludedKeywordIds.joinToString(",")) }
@@ -1260,12 +1263,15 @@ private fun SeerrDiscoverFilterDialog(
                 OutlinedTextField(minYear, { minYear = it }, label = { Text("From year") }, singleLine = true)
                 OutlinedTextField(maxYear, { maxYear = it }, label = { Text("Through year") }, singleLine = true)
                 OutlinedTextField(minRating, { minRating = it }, label = { Text("Minimum TMDB rating (0–10)") }, singleLine = true)
+                OutlinedTextField(maxRating, { maxRating = it }, label = { Text("Maximum rating (0–10)") }, singleLine = true)
                 OutlinedTextField(minVotes, { minVotes = it }, label = { Text("Minimum vote count") }, singleLine = true)
+                OutlinedTextField(maxVotes, { maxVotes = it }, label = { Text("Maximum vote count") }, singleLine = true)
                 OutlinedTextField(minRuntime, { minRuntime = it }, label = { Text("Minimum runtime (minutes)") }, singleLine = true)
                 OutlinedTextField(maxRuntime, { maxRuntime = it }, label = { Text("Maximum runtime (minutes)") }, singleLine = true)
                 OutlinedTextField(language, { language = it }, label = { Text("Language code (e.g. en)") }, singleLine = true)
                 OutlinedTextField(region, { region = it }, label = { Text("Watch region (e.g. US)") }, singleLine = true)
                 OutlinedTextField(providerIds, { providerIds = it }, label = { Text("Provider IDs, comma separated") }, singleLine = true)
+                OutlinedTextField(certificationCountry, { certificationCountry = it }, label = { Text("Certification country (e.g. US)") }, singleLine = true)
                 OutlinedTextField(certification, { certification = it }, label = { Text("Certification (e.g. PG-13)") }, singleLine = true)
                 OutlinedTextField(keywordIds, { keywordIds = it }, label = { Text("Include keyword IDs") }, singleLine = true)
                 OutlinedTextField(excludedIds, { excludedIds = it }, label = { Text("Exclude keyword IDs") }, singleLine = true)
@@ -1282,13 +1288,16 @@ private fun SeerrDiscoverFilterDialog(
                 onApply(draft.copy(
                     dateFrom = date(minYear, false), dateTo = date(maxYear, true),
                     ratingFrom = minRating.toDoubleOrNull()?.takeIf { it in 0.0..10.0 },
+                    ratingTo = maxRating.toDoubleOrNull()?.takeIf { it in 0.0..10.0 },
                     votesFrom = minVotes.toIntOrNull()?.takeIf { it >= 0 },
+                    votesTo = maxVotes.toIntOrNull()?.takeIf { it >= 0 },
                     runtimeFrom = minRuntime.toIntOrNull()?.takeIf { it >= 0 },
                     runtimeTo = maxRuntime.toIntOrNull()?.takeIf { it >= 0 },
                     originalLanguage = language.trim().ifBlank { null },
                     watchRegion = region.trim().ifBlank { null },
                     providerIds = parseIds(providerIds),
                     certification = certification.trim().ifBlank { null },
+                    certificationCountry = certificationCountry.trim().ifBlank { null },
                     keywordIds = parseIds(keywordIds),
                     excludedKeywordIds = parseIds(excludedIds),
                     tvStatus = tvStatus.trim().ifBlank { null }
