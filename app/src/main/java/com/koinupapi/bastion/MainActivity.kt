@@ -461,9 +461,8 @@ private fun BastionApp() {
                                         { seerrDiscoverRefreshing = it },
                                         onDiscoverRefreshFeedback = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
                                         onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all"; seerrAppliedFilters = SeerrDiscoverFilters() },
-                                        scrollState = screenScroll) {
-                                        seerrMediaStack.add(it)
-                                    }
+                                        onRequestClick = { seerrMediaStack.add(it) },
+                                        scrollState = screenScroll)
                                 }
                             }
                         }
@@ -1258,6 +1257,7 @@ private fun SeerrChoicePicker(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SeerrDiscoverFilterDialog(
     instance: ServiceConfig,
