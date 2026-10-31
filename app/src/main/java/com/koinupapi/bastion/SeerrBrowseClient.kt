@@ -75,7 +75,7 @@ internal fun SeerrDiscoverFilters.toQueryParameters(mediaType: SeerrDiscoverMedi
     put("certificationCountry", certificationCountry)
     put("keywords", ids(keywordIds))
     put("excludeKeywords", ids(excludedKeywordIds))
-    if (mediaType == SeerrDiscoverMediaType.TV) put("status", tvStatus)
+    // Seerr main TV discover endpoint does not document a status parameter.
     return result
 }
 
@@ -197,6 +197,13 @@ object SeerrBrowseClient {
         if (studioOrNetworkId > 0) params[
             if (mediaType == SeerrDiscoverMediaType.MOVIE) "studio" else "network"
         ] = studioOrNetworkId.toString()
+        if (!filters.originalLanguage.isNullOrBlank()) {
+            if (!filters.copy(originalLanguage = null).isEmpty() || genreId > 0 || studioOrNetworkId > 0)
+                return SeerrBrowsePage(page = page, error = "Original-language discovery cannot be combined with other filters in Seerr.")
+            val kind = if (mediaType == SeerrDiscoverMediaType.MOVIE) "movies" else "tv"
+            return browse(config, if (mediaType == SeerrDiscoverMediaType.MOVIE) "Popular Movies" else "Popular TV Shows",
+                page, overridePath = "/discover/$kind/language/${encode(filters.originalLanguage)}?")
+        }
         params.putAll(filters.toQueryParameters(mediaType))
         val path = if (mediaType == SeerrDiscoverMediaType.MOVIE) "movies" else "tv"
         val query = params.entries.joinToString("&") { (key, value) -> "${encode(key)}=${encode(value)}" }
