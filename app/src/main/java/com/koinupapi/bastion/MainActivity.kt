@@ -1319,7 +1319,8 @@ private fun SeerrBrowseScreen(
     val cacheKey = "${instance.id}:${destination.kind}:${destination.id}:${destination.page}:${filter}:${appliedFilters}"
     val result = pageCache[cacheKey]
     var loading by remember(cacheKey) { mutableStateOf(result == null) }
-    LaunchedEffect(instance, cacheKey) {
+    var retryCount by remember(cacheKey) { mutableIntStateOf(0) }
+    LaunchedEffect(instance, cacheKey, retryCount) {
         if (pageCache[cacheKey] != null) {
             loading = false
             return@LaunchedEffect
@@ -1370,7 +1371,7 @@ private fun SeerrBrowseScreen(
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
         result?.error?.let { error ->
             BastionErrorState(error)
-            TextButton(onClick = { pageCache.remove(cacheKey) }) { Text("Retry") }
+            TextButton(onClick = { pageCache.remove(cacheKey); retryCount++ }) { Text("Retry") }
         }
         result?.takeIf { it.error == null }?.let { page ->
             if (page.items.isEmpty()) Text("No titles found")
