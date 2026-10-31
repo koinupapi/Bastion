@@ -1773,6 +1773,11 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     val tvGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }
     val searchExpanded by remember(scrollState) { derivedStateOf { !scrollState.canScrollBackward || (!scrollState.isScrollInProgress && scrollState.lastScrolledBackward) } }
     var query by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("") }
+    // Closing Search ends its session; opening media details does not, because
+    // the parent keeps searching=true while the detail destination is on top.
+    LaunchedEffect(searching) {
+        if (!searching) query = ""
+    }
     var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
     var searchLoading by remember(instance.id) { mutableStateOf(false) }
     var studioQuery by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("") }
