@@ -1206,10 +1206,10 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     var query by remember(instance.id) { mutableStateOf("") }
     var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
     var searchLoading by remember(instance.id) { mutableStateOf(false) }
-    var browseKind by remember(instance.id) { mutableStateOf<String?>(null) }
-    var browseTitle by remember(instance.id) { mutableStateOf("") }
-    var browseId by remember(instance.id) { mutableIntStateOf(0) }
-    var browsePage by remember(instance.id) { mutableIntStateOf(1) }
+    var browseKind by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf<String?>(null) }
+    var browseTitle by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("") }
+    var browseId by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
+    var browsePage by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(1) }
     var browseResult by remember(instance.id) { mutableStateOf<SeerrBrowsePage?>(null) }
     var browseLoading by remember(instance.id) { mutableStateOf(false) }
     var studioQuery by remember(instance.id) { mutableStateOf("") }
