@@ -1500,6 +1500,7 @@ private fun SeerrBrowseScreen(
     val supportsAdvanced = destination.kind in listOf(
         "Popular Movies", "Popular TV Shows", "Movie genre", "TV genre", "Studio", "Network")
     var filterDialogOpen by remember { mutableStateOf(false) }
+    val filterFabVisible by remember(scrollState) { derivedStateOf { !scrollState.isScrollInProgress || scrollState.lastScrolledBackward || !scrollState.canScrollBackward } }
     val keywordNames = remember(instance.id) { mutableStateMapOf<Int, String>() }
     if (filterDialogOpen && supportsAdvanced) {
         SeerrDiscoverFilterDialog(instance, appliedFilters, mediaType = if (destination.kind in listOf("Popular TV Shows", "TV genre", "Network")) SeerrDiscoverMediaType.TV else SeerrDiscoverMediaType.MOVIE,
@@ -1513,8 +1514,10 @@ private fun SeerrBrowseScreen(
         if (supportsAdvanced) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                FilledTonalButton(onClick = { filterDialogOpen = true }) {
-                    Text(if (appliedFilters.isEmpty()) "Sort & filter" else "Edit filters")
+                AnimatedVisibility(visible = filterFabVisible) {
+                    SmallFloatingActionButton(onClick = { filterDialogOpen = true }) {
+                        Icon(Icons.Default.Tune, contentDescription = "Sort and filter")
+                    }
                 }
                 if (!appliedFilters.isEmpty()) TextButton(onClick = {
                     onFiltersApplied(SeerrDiscoverFilters())
