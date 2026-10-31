@@ -125,38 +125,6 @@ object SeerrBrowseClient {
         }
     }
 
-    /** Reference-data endpoints differ in their response envelopes across Seerr versions. */
-    suspend fun referenceOptions(config: ServiceConfig, path: String): Result<List<SeerrBrowseOption>> = runCatching {
-        val raw = get(config, "/api/v1/$path")
-        val root = org.json.JSONTokener(raw).nextValue()
-        val arrays = mutableListOf<JSONArray>()
-        when (root) {
-            is JSONArray -> arrays.add(root)
-            is JSONObject -> {
-                listOf("results", "regions", "languages", "providers", "certifications")
-                    .forEach { root.optJSONArray(it)?.let(arrays::add) }
-                if (arrays.isEmpty()) root.keys().forEach { key ->
-                    root.optJSONArray(key)?.let(arrays::add)
-                }
-            }
-        }
-        arrays.flatMap { array ->
-            (0 until array.length()).mapNotNull { index ->
-                array.optJSONObject(index)?.let { item ->
-                    val id = item.optInt("id", -1)
-                    val code = item.optString("iso_3166_1").ifBlank {
-                        item.optString("iso_639_1")
-                    }.ifBlank { item.optString("certification") }
-                    val name = item.optString("name").ifBlank {
-                        item.optString("english_name")
-                    }.ifBlank { code }
-                    if (name.isBlank()) null else SeerrBrowseOption(
-                        if (id > 0) id else code.hashCode(), name)
-                }
-            }
-        }.distinctBy { it.id }
-    }
-
     suspend fun searchStudios(config: ServiceConfig, query: String): Result<List<SeerrBrowseOption>> = runCatching {
         val data = JSONObject(get(config, "/api/v1/search/company?query=${encode(query)}&page=1"))
         val array = data.optJSONArray("results") ?: JSONArray()
