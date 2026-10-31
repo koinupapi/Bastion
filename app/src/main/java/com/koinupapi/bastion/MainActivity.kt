@@ -1654,15 +1654,10 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     var tvGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var browseError by remember(instance.id) { mutableStateOf<String?>(null) }
     var watchlistFeed by remember(instance.id) { mutableStateOf<SeerrBrowsePage?>(null) }
-    var recentlyAddedFeed by remember(instance.id) { mutableStateOf<SeerrBrowsePage?>(null) }
     LaunchedEffect(instance, showWatchlist, refresh) {
         watchlistFeed = if (showWatchlist) SeerrBrowseClient.browse(instance,
             "Plex Watchlist", 1, overridePath = "/discover/watchlist?") else null
     }
-    LaunchedEffect(instance, showRecentlyAdded, refresh) {
-        recentlyAddedFeed = if (showRecentlyAdded) SeerrBrowsePage(error = "Recently Added requires a library-specific feed; Seerr discovery does not provide library addition dates.") else null
-    }
-
     LaunchedEffect(instance.id) {
         val movies = SeerrBrowseClient.options(instance, "genres/movie")
         val tv = SeerrBrowseClient.options(instance, "genres/tv")
@@ -1853,7 +1848,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         }
         }
         (sections + listOfNotNull("Plex Watchlist".takeIf { showWatchlist },
-            "Recently Added".takeIf { showRecentlyAdded })).filter { section ->
+            null)).filter { section ->
             category == "For You" || section == "Trending" ||
                 (category == "Movies" && section.contains("Movies")) ||
                 (category == "TV Shows" && section.contains("TV"))
@@ -1871,7 +1866,6 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 }
                 val result = when (section) {
                     "Plex Watchlist" -> watchlistFeed?.let { SeerrDiscoverResult(it.items, it.error) }
-                    "Recently Added" -> recentlyAddedFeed?.let { SeerrDiscoverResult(it.items, it.error) }
                     else -> results[section]
                 }
                 val visibleItems = result?.items?.filter {
