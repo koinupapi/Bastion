@@ -1790,8 +1790,10 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Browse by genre", style = MaterialTheme.typography.titleLarge)
-            browseError?.let { Text("Genres: $it", color = MaterialTheme.colorScheme.error) }
+            if (category in listOf("For You", "Movies", "TV Shows", "Genres"))
+                Text("Browse by genre", style = MaterialTheme.typography.titleLarge)
+            if (category in listOf("For You", "Movies", "TV Shows", "Genres"))
+                browseError?.let { Text("Genres: $it", color = MaterialTheme.colorScheme.error) }
             if (category in listOf("For You", "Movies", "Genres")) {
             Text("Movie genres", style = MaterialTheme.typography.titleSmall)
             Row(Modifier.horizontalScroll(rememberScrollState()),
