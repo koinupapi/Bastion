@@ -423,9 +423,10 @@ private fun BastionApp() {
                 }
                 val scrollKey = if (destination.page.startsWith("media:")) destination.page
                     else "main-${destination.serviceId ?: "bastion"}-${destination.tab}-${destination.page}"
-                val screenScroll = seerrScrollStates.getOrPut(scrollKey) {
-                    androidx.compose.foundation.lazy.LazyListState()
+                val screenScroll = androidx.compose.runtime.saveable.rememberSaveable(scrollKey, saver = androidx.compose.foundation.lazy.LazyListState.Saver) {
+                    seerrScrollStates[scrollKey] ?: androidx.compose.foundation.lazy.LazyListState()
                 }
+                SideEffect { seerrScrollStates[scrollKey] = screenScroll }
             val screenContent: @Composable () -> Unit = {
             LazyColumn(
                 state = screenScroll,
