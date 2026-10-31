@@ -1,5 +1,6 @@
 package com.koinupapi.bastion
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -8,6 +9,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
+data class SeerrNamedChoice(val code: String, val label: String)
+
 data class SeerrBrowseOption(val id: Int, val name: String)
 data class SeerrBrowsePage(
     val items: List<SeerrRelatedTitle> = emptyList(),
@@ -15,6 +18,68 @@ data class SeerrBrowsePage(
     val totalPages: Int = 1,
     val error: String? = null
 )
+
+/**
+ * Shared server-side discovery criteria. Null/empty values mean "use Seerr defaults".
+ * Keep draft and applied instances separate in the UI; only applied values should
+ * become part of the browse destination and page-cache key.
+ */
+data class SeerrDiscoverFilters(
+    val sortBy: String? = null,
+    val dateFrom: String? = null,
+    val dateTo: String? = null,
+    val ratingFrom: Double? = null,
+    val ratingTo: Double? = null,
+    val votesFrom: Int? = null,
+    val votesTo: Int? = null,
+    val runtimeFrom: Int? = null,
+    val runtimeTo: Int? = null,
+    val originalLanguage: String? = null,
+    val watchRegion: String? = null,
+    val providerIds: Set<Int> = emptySet(),
+    val certification: String? = null,
+    val certificationCountry: String? = null,
+    val keywordIds: Set<Int> = emptySet(),
+    val excludedKeywordIds: Set<Int> = emptySet(),
+    val tvStatus: String? = null
+) {
+    fun isEmpty(): Boolean = this == SeerrDiscoverFilters()
+}
+
+/** Explicitly separate broad discovery from fixed lists such as Trending/Upcoming. */
+enum class SeerrDiscoverMediaType { MOVIE, TV }
+
+/** Parameter names follow Seerr's /api/v1/discover/movies and /discover/tv API. */
+internal fun SeerrDiscoverFilters.toQueryParameters(mediaType: SeerrDiscoverMediaType): Map<String, String> {
+    val result = linkedMapOf<String, String>()
+    fun put(name: String, value: String?) {
+        if (!value.isNullOrBlank()) result[name] = value
+    }
+    fun ids(values: Set<Int>): String? = values.filter { it > 0 }.sorted()
+        .takeIf { it.isNotEmpty() }?.joinToString(",")
+    put("sortBy", sortBy)
+    val datePrefix = if (mediaType == SeerrDiscoverMediaType.MOVIE) "primaryReleaseDate" else "firstAirDate"
+    put("${datePrefix}Gte", dateFrom)
+    put("${datePrefix}Lte", dateTo)
+    ratingFrom?.let { result["voteAverageGte"] = it.toString() }
+    ratingTo?.let { result["voteAverageLte"] = it.toString() }
+    votesFrom?.let { result["voteCountGte"] = it.toString() }
+    votesTo?.let { result["voteCountLte"] = it.toString() }
+    runtimeFrom?.let { result["withRuntimeGte"] = it.toString() }
+    runtimeTo?.let { result["withRuntimeLte"] = it.toString() }
+    // The main Discover API language parameter controls localization, not original language.
+    put("watchRegion", watchRegion)
+    // Seerr/TMDB accept provider IDs separated by pipes (OR semantics).
+    put("watchProviders", providerIds.filter { it > 0 }.sorted()
+        .takeIf { it.isNotEmpty() }?.joinToString("|"))
+    put("certification", certification)
+    if (!certification.isNullOrBlank()) put("certificationMode", "exact")
+    put("certificationCountry", certificationCountry)
+    put("keywords", ids(keywordIds))
+    put("excludeKeywords", ids(excludedKeywordIds))
+    if (mediaType == SeerrDiscoverMediaType.TV) put("status", tvStatus)
+    return result
+}
 
 /** Server-side discovery and pagination; requests go through the configured Seerr instance. */
 object SeerrBrowseClient {
@@ -46,6 +111,7 @@ object SeerrBrowseClient {
                     return@withContext connection.inputStream.bufferedReader().use { it.readText() }
                 } finally { connection.disconnect() }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 failures.add("$label: ${e.message ?: e.javaClass.simpleName}")
                 if (e.message == "HTTP 401" || e.message == "HTTP 403") break
             }
@@ -64,6 +130,32 @@ object SeerrBrowseClient {
         }
     }
 
+    suspend fun namedChoices(config: ServiceConfig, path: String, codeField: String): Result<List<SeerrNamedChoice>> = runCatching {
+        val array = JSONArray(get(config, "/api/v1/$path"))
+        (0 until array.length()).mapNotNull { index ->
+            array.optJSONObject(index)?.let { item ->
+                val code = item.optString(codeField)
+                val label = item.optString("english_name").ifBlank { item.optString("name") }
+                if (code.isNotBlank() && label.isNotBlank()) SeerrNamedChoice(code, label) else null
+            }
+        }.sortedBy { it.label }
+    }
+
+    suspend fun watchProviders(config: ServiceConfig, mediaType: SeerrDiscoverMediaType, region: String): Result<List<SeerrBrowseOption>> =
+        options(config, "watchproviders/${if (mediaType == SeerrDiscoverMediaType.MOVIE) "movies" else "tv"}?watchRegion=${encode(region)}")
+
+    suspend fun certifications(config: ServiceConfig, mediaType: SeerrDiscoverMediaType): Result<Map<String, List<String>>> = runCatching {
+        val kind = if (mediaType == SeerrDiscoverMediaType.MOVIE) "movie" else "tv"
+        val countries = JSONObject(get(config, "/api/v1/certifications/$kind"))
+            .getJSONObject("certifications")
+        countries.keys().asSequence().associateWith { country ->
+            val items = countries.optJSONArray(country) ?: JSONArray()
+            (0 until items.length()).mapNotNull { i ->
+                items.optJSONObject(i)?.optString("certification")?.takeIf { it.isNotBlank() }
+            }
+        }
+    }
+
     suspend fun searchStudios(config: ServiceConfig, query: String): Result<List<SeerrBrowseOption>> = runCatching {
         val data = JSONObject(get(config, "/api/v1/search/company?query=${encode(query)}&page=1"))
         val array = data.optJSONArray("results") ?: JSONArray()
@@ -76,12 +168,59 @@ object SeerrBrowseClient {
         }
     }
 
+    /** Searchable keyword picker data; use real IDs instead of asking users to type them. */
+    suspend fun searchKeywords(config: ServiceConfig, query: String): Result<List<SeerrBrowseOption>> = runCatching {
+        if (query.isBlank()) emptyList() else {
+            val data = JSONObject(get(config, "/api/v1/search/keyword?query=${encode(query)}&page=1"))
+            val results = data.optJSONArray("results") ?: JSONArray()
+            (0 until results.length()).mapNotNull { index ->
+                results.optJSONObject(index)?.let { item ->
+                    val id = item.optInt("id")
+                    val name = item.optString("name")
+                    if (id > 0 && name.isNotBlank()) SeerrBrowseOption(id, name) else null
+                }
+            }
+        }
+    }
+
+    /**
+     * Advanced discovery via Seerr's main discover endpoints. The criteria are
+     * applied server-side, so page counts and results remain accurate.
+     */
+    suspend fun discover(
+        config: ServiceConfig,
+        mediaType: SeerrDiscoverMediaType,
+        page: Int,
+        filters: SeerrDiscoverFilters = SeerrDiscoverFilters(),
+        genreId: Int = 0,
+        studioOrNetworkId: Int = 0
+    ): SeerrBrowsePage {
+        val params = linkedMapOf<String, String>()
+        if (genreId > 0) params["genre"] = genreId.toString()
+        if (studioOrNetworkId > 0) params[
+            if (mediaType == SeerrDiscoverMediaType.MOVIE) "studio" else "network"
+        ] = studioOrNetworkId.toString()
+        if (!filters.originalLanguage.isNullOrBlank()) {
+            if (!filters.copy(originalLanguage = null).isEmpty() || genreId > 0 || studioOrNetworkId > 0)
+                return SeerrBrowsePage(page = page, error = "Original-language discovery cannot be combined with other filters in Seerr.")
+            val kind = if (mediaType == SeerrDiscoverMediaType.MOVIE) "movies" else "tv"
+            return browse(config, if (mediaType == SeerrDiscoverMediaType.MOVIE) "Popular Movies" else "Popular TV Shows",
+                page, overridePath = "/discover/$kind/language/${encode(filters.originalLanguage)}?")
+        }
+        params.putAll(filters.toQueryParameters(mediaType))
+        val path = if (mediaType == SeerrDiscoverMediaType.MOVIE) "movies" else "tv"
+        val query = params.entries.joinToString("&") { (key, value) -> "${encode(key)}=${encode(value)}" }
+        return browse(config,
+            if (mediaType == SeerrDiscoverMediaType.MOVIE) "Popular Movies" else "Popular TV Shows",
+            page, overridePath = "/discover/$path?$query")
+    }
+
     suspend fun browse(
         config: ServiceConfig, kind: String, page: Int,
-        filter: String = "all", id: Int = 0, query: String = ""
+        filter: String = "all", id: Int = 0, query: String = "", overridePath: String? = null, trendingWindow: String = "week"
     ): SeerrBrowsePage = try {
-        val path = when (kind) {
-            "Trending" -> "/discover/trending?mediaType=${encode(filter)}"
+        val path = overridePath ?: when (kind) {
+            "Trending" -> "/discover/trending?mediaType=${encode(filter)}&timeWindow=${encode(trendingWindow)}"
             "Popular Movies" -> "/discover/movies?"
             "Popular TV Shows" -> "/discover/tv?"
             "Upcoming Movies" -> "/discover/movies/upcoming?"
@@ -118,6 +257,7 @@ object SeerrBrowseClient {
         SeerrBrowsePage(items, data.optInt("page", page),
             data.optInt("totalPages", 1).coerceAtLeast(1))
     } catch (e: Exception) {
+        if (e is CancellationException) throw e
         SeerrBrowsePage(page = page, error = e.message ?: e.javaClass.simpleName)
     }
 }

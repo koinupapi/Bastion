@@ -33,6 +33,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
@@ -131,6 +132,7 @@ private fun BastionApp() {
         var seerrSearching by remember(selectedMediaId) { mutableStateOf(false) }
         var seerrBrowse by remember(selectedMediaId) { mutableStateOf<SeerrBrowseDestination?>(null) }
         var seerrBrowseFilter by remember(selectedMediaId) { mutableStateOf("all") }
+        var seerrAppliedFilters by remember(selectedMediaId) { mutableStateOf(SeerrDiscoverFilters()) }
         val seerrBrowsePageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrBrowsePage>() }
         val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
         val seerrMediaCache = remember { mutableStateMapOf<String, SeerrMediaDetails>() }
@@ -374,7 +376,7 @@ private fun BastionApp() {
                 tab = if (selectedMediaId == null) tab else seerrTab,
                 page = when {
                     openSeerrRequest != null -> "media:${seerrMediaStack.size}:${openSeerrRequest.tmdbId}"
-                    selectedMediaId != null && seerrTab == 0 && seerrBrowse != null -> "browse:${seerrBrowse!!.kind}:${seerrBrowse!!.id}:${seerrBrowse!!.page}:${seerrBrowseFilter}"
+                    selectedMediaId != null && seerrTab == 0 && seerrBrowse != null -> "browse:${seerrBrowse!!.kind}:${seerrBrowse!!.id}:${seerrBrowse!!.page}:${seerrBrowseFilter}:${seerrAppliedFilters.hashCode()}"
                     selectedMediaId != null && seerrTab == 4 -> seerrSettingsSection
                     selectedMediaId == null && tab == 2 -> settingsPage
                     else -> "root"
@@ -409,7 +411,7 @@ private fun BastionApp() {
                 state = screenScroll,
                 overscrollEffect = rememberOverscrollEffect(),
                 modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).then(
-                    if (destination.serviceId != null && destination.tab == 0 && !destination.page.startsWith("media:") &&
+                    if (destination.serviceId != null && destination.tab == 0 && destination.page == "root" &&
                         savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) Modifier else Modifier.padding(insets)
                 ),
                 contentPadding = PaddingValues(start = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp, top = if (openSeerrRequest != null) 0.dp else 16.dp, end = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp,
@@ -421,7 +423,8 @@ private fun BastionApp() {
                     val service = savedInstances.firstOrNull { it.id == destination.serviceId }
                     if (service?.type == "Seerr") {
                         if (destination.page.startsWith("browse:") && seerrBrowse != null) item {
-                            SeerrBrowseScreen(service, seerrBrowse!!, seerrBrowseFilter, seerrBrowsePageCache,
+                            SeerrBrowseScreen(service, seerrBrowse!!, seerrBrowseFilter, seerrAppliedFilters, seerrBrowsePageCache,
+                                onFiltersApplied = { seerrAppliedFilters = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
                                 onPageChange = { seerrBrowse = seerrBrowse?.copy(page = it) },
                                 onFilterChange = { seerrBrowseFilter = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
                                 onMediaClick = { seerrMediaStack.add(it) })
@@ -451,7 +454,7 @@ private fun BastionApp() {
                                         seerrSearching, { seerrSearching = it }, seerrDiscoverRefresh,
                                         { seerrDiscoverRefreshing = it },
                                         onDiscoverRefreshFeedback = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
-                                        onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all" }) {
+                                        onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all"; seerrAppliedFilters = SeerrDiscoverFilters() }) {
                                         seerrMediaStack.add(it)
                                     }
                                 }
@@ -926,7 +929,7 @@ private fun BastionApp() {
             }
             }
                 val discoverVisible = destination.serviceId != null && destination.tab == 0 &&
-                    !destination.page.startsWith("media:") &&
+                    destination.page == "root" &&
                     savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }
                 if (discoverVisible) {
                     Box(Modifier.fillMaxSize().padding(insets)) {
@@ -1216,43 +1219,333 @@ private fun SettingsEntry(
 }
 
 @Composable
+private fun SeerrChoicePicker(
+    label: String,
+    choices: List<Pair<String, String>>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    allowClear: Boolean = false
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var search by remember { mutableStateOf("") }
+    val selectedLabel = choices.firstOrNull { it.first == selected }?.second ?: selected
+    OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+        Text("$label: ${selectedLabel.ifBlank { "Any" }}")
+    }
+    if (expanded) AlertDialog(
+        onDismissRequest = { expanded = false },
+        title = { Text(label) },
+        text = {
+            Column(Modifier.heightIn(max = 360.dp)) {
+                OutlinedTextField(search, { search = it }, label = { Text("Search") }, singleLine = true)
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    if (allowClear) TextButton(onClick = { onSelect(""); expanded = false }) { Text("Any") }
+                    choices.filter { search.isBlank() || it.second.contains(search, ignoreCase = true) ||
+                        it.first.contains(search, ignoreCase = true) }.forEach { (code, name) ->
+                        TextButton(onClick = { onSelect(code); expanded = false }) { Text(name) }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { expanded = false }) { Text("Close") } }
+    )
+}
+
+@Composable
+private fun SeerrDiscoverFilterDialog(
+    instance: ServiceConfig,
+    applied: SeerrDiscoverFilters,
+    mediaType: SeerrDiscoverMediaType,
+    isScopedDestination: Boolean,
+    keywordNames: androidx.compose.runtime.snapshots.SnapshotStateMap<Int, String>,
+    onDismiss: () -> Unit,
+    onApply: (SeerrDiscoverFilters) -> Unit
+) {
+    var draft by remember(applied) { mutableStateOf(applied) }
+    var minYear by remember(applied) { mutableStateOf(applied.dateFrom?.take(4).orEmpty()) }
+    var maxYear by remember(applied) { mutableStateOf(applied.dateTo?.take(4).orEmpty()) }
+    var minRating by remember(applied) { mutableStateOf(applied.ratingFrom?.toString().orEmpty()) }
+    var maxRating by remember(applied) { mutableStateOf(applied.ratingTo?.toString().orEmpty()) }
+    var minVotes by remember(applied) { mutableStateOf(applied.votesFrom?.toString().orEmpty()) }
+    var maxVotes by remember(applied) { mutableStateOf(applied.votesTo?.toString().orEmpty()) }
+    var minRuntime by remember(applied) { mutableStateOf(applied.runtimeFrom?.toString().orEmpty()) }
+    var maxRuntime by remember(applied) { mutableStateOf(applied.runtimeTo?.toString().orEmpty()) }
+    var language by remember(applied) { mutableStateOf(applied.originalLanguage.orEmpty()) }
+    var region by remember(applied) { mutableStateOf(applied.watchRegion.orEmpty()) }
+    var providerIds by remember(applied) { mutableStateOf(applied.providerIds.joinToString(",")) }
+    var certificationCountry by remember(applied) { mutableStateOf(applied.certificationCountry.orEmpty()) }
+    var certification by remember(applied) { mutableStateOf(applied.certification.orEmpty()) }
+    var includedKeywords by remember(applied) { mutableStateOf(applied.keywordIds) }
+    var excludedKeywords by remember(applied) { mutableStateOf(applied.excludedKeywordIds) }
+    var keywordQuery by remember { mutableStateOf("") }
+    var keywordResults by remember { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
+    var keywordError by remember { mutableStateOf<String?>(null) }
+    var keywordLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(instance, keywordQuery) {
+        if (keywordQuery.trim().length < 2) {
+            keywordResults = emptyList()
+            keywordError = null
+            keywordLoading = false
+        } else {
+            keywordLoading = true
+            delay(300)
+            SeerrBrowseClient.searchKeywords(instance, keywordQuery.trim())
+                .onSuccess { results ->
+                    keywordResults = results
+                    results.forEach { keywordNames[it.id] = it.name }
+                    keywordError = null
+                }.onFailure { error ->
+                    keywordResults = emptyList()
+                    keywordError = error.message ?: "Keyword search failed"
+                }
+            keywordLoading = false
+        }
+    }
+    var tvStatus by remember(applied) { mutableStateOf(applied.tvStatus.orEmpty()) }
+    var languages by remember(instance) { mutableStateOf<List<SeerrNamedChoice>>(emptyList()) }
+    var regions by remember(instance) { mutableStateOf<List<SeerrNamedChoice>>(emptyList()) }
+    var providers by remember(instance, mediaType, region) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
+    var certificationMap by remember(instance, mediaType) { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
+    var optionsError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(instance, mediaType) {
+        SeerrBrowseClient.namedChoices(instance, "languages", "iso_639_1")
+            .onSuccess { languages = it }.onFailure { optionsError = it.message }
+        SeerrBrowseClient.namedChoices(instance, "watchproviders/regions", "iso_3166_1")
+            .onSuccess { regions = it }.onFailure { optionsError = it.message }
+        SeerrBrowseClient.certifications(instance, mediaType)
+            .onSuccess { certificationMap = it }.onFailure { optionsError = it.message }
+    }
+    LaunchedEffect(instance, mediaType, region) {
+        providers = emptyList()
+        if (region.isNotBlank()) SeerrBrowseClient.watchProviders(instance, mediaType, region)
+            .onSuccess { providers = it }.onFailure { optionsError = it.message }
+    }
+    fun parseIds(value: String): Set<Int> = value.split(",").mapNotNull { it.trim().toIntOrNull() }
+        .filter { it > 0 }.toSet()
+    val languageConflicts = language.isNotBlank() && (isScopedDestination ||
+        draft.sortBy != null || minYear.isNotBlank() || maxYear.isNotBlank() ||
+        minRating.isNotBlank() || maxRating.isNotBlank() || minVotes.isNotBlank() ||
+        maxVotes.isNotBlank() || minRuntime.isNotBlank() || maxRuntime.isNotBlank() ||
+        region.isNotBlank() || parseIds(providerIds).isNotEmpty() ||
+        certificationCountry.isNotBlank() || certification.isNotBlank() ||
+        includedKeywords.isNotEmpty() || excludedKeywords.isNotEmpty() || tvStatus.isNotBlank()
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sort & filter") },
+        text = {
+            Column(Modifier.fillMaxWidth().heightIn(max = 480.dp)
+                .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Sort by", style = MaterialTheme.typography.titleSmall)
+                listOf(
+                    null to "Default", "popularity.desc" to "Most popular",
+                    "popularity.asc" to "Least popular",
+                    "vote_average.desc" to "Highest rated",
+                    "vote_count.desc" to "Most votes"
+                ).forEach { (value, label) ->
+                    FilterChip(selected = draft.sortBy == value,
+                        onClick = { draft = draft.copy(sortBy = value) },
+                        label = { Text(label) })
+                }
+                OutlinedTextField(minYear, { minYear = it }, label = { Text("From year") }, singleLine = true)
+                OutlinedTextField(maxYear, { maxYear = it }, label = { Text("Through year") }, singleLine = true)
+                OutlinedTextField(minRating, { minRating = it }, label = { Text("Minimum TMDB rating (0–10)") }, singleLine = true)
+                OutlinedTextField(maxRating, { maxRating = it }, label = { Text("Maximum rating (0–10)") }, singleLine = true)
+                OutlinedTextField(minVotes, { minVotes = it }, label = { Text("Minimum vote count") }, singleLine = true)
+                OutlinedTextField(maxVotes, { maxVotes = it }, label = { Text("Maximum vote count") }, singleLine = true)
+                OutlinedTextField(minRuntime, { minRuntime = it }, label = { Text("Minimum runtime (minutes)") }, singleLine = true)
+                OutlinedTextField(maxRuntime, { maxRuntime = it }, label = { Text("Maximum runtime (minutes)") }, singleLine = true)
+                optionsError?.let { Text("Filter options: $it", color = MaterialTheme.colorScheme.error) }
+                Text("Original language", style = MaterialTheme.typography.titleSmall)
+                SeerrChoicePicker("Original language", languages.map { it.code to it.label },
+                    language, { language = it }, allowClear = true)
+                if (language.isNotBlank()) Text(if (isScopedDestination) "Original-language discovery is available from Popular Movies or Popular TV Shows, not within a genre, studio, or network." else "Original language uses a separate Seerr discovery category. Other filters cannot be combined with it.", style = MaterialTheme.typography.bodySmall)
+                Text("Watch region", style = MaterialTheme.typography.titleSmall)
+                SeerrChoicePicker("Watch region", regions.map { it.code to it.label },
+                    region, { region = it; providerIds = "" }, allowClear = true)
+                Text("Streaming providers", style = MaterialTheme.typography.titleSmall)
+                if (region.isBlank()) Text("Select a watch region to see providers.")
+                else {
+                    val selectedProviders = parseIds(providerIds)
+                    providers.forEach { provider ->
+                        FilterChip(selected = provider.id in selectedProviders,
+                            onClick = {
+                                val next = if (provider.id in selectedProviders) selectedProviders - provider.id else selectedProviders + provider.id
+                                providerIds = next.joinToString(",")
+                            }, label = { Text(provider.name) })
+                    }
+                    if (providers.isEmpty()) Text("No providers loaded for this region.")
+                }
+                Text("Certification", style = MaterialTheme.typography.titleSmall)
+                SeerrChoicePicker("Certification country",
+                    certificationMap.keys.sorted().map { it to (regions.firstOrNull { region -> region.code == it }?.label ?: it) },
+                    certificationCountry, { certificationCountry = it; certification = "" }, allowClear = true)
+                if (certificationCountry.isNotBlank()) {
+                    SeerrChoicePicker("Certification", certificationMap[certificationCountry].orEmpty().map { it to it },
+                        certification, { certification = it }, allowClear = true)
+                }
+                Text("Keywords", style = MaterialTheme.typography.titleSmall)
+                Text("Search for a keyword, then include or exclude it.", style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(keywordQuery, { keywordQuery = it },
+                    label = { Text("Search keywords") }, singleLine = true)
+                if (keywordLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                keywordError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                keywordResults.take(8).forEach { option ->
+                    Column {
+                        Text(option.name, style = MaterialTheme.typography.bodyMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(selected = option.id in includedKeywords,
+                                onClick = {
+                                    includedKeywords = if (option.id in includedKeywords) includedKeywords - option.id else includedKeywords + option.id
+                                    excludedKeywords = excludedKeywords - option.id
+                                }, label = { Text("Include") })
+                            FilterChip(selected = option.id in excludedKeywords,
+                                onClick = {
+                                    excludedKeywords = if (option.id in excludedKeywords) excludedKeywords - option.id else excludedKeywords + option.id
+                                    includedKeywords = includedKeywords - option.id
+                                }, label = { Text("Exclude") })
+                        }
+                    }
+                }
+                (includedKeywords + excludedKeywords).sorted().forEach { id ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${keywordNames[id] ?: "Keyword #$id"} · ${if (id in includedKeywords) "Included" else "Excluded"}",
+                            modifier = Modifier.weight(1f))
+                        TextButton(onClick = {
+                            includedKeywords = includedKeywords - id
+                            excludedKeywords = excludedKeywords - id
+                        }) { Text("Remove") }
+                    }
+                }
+                if (mediaType == SeerrDiscoverMediaType.TV) {
+                    Text("TV status", style = MaterialTheme.typography.titleSmall)
+                    SeerrChoicePicker("TV status",
+                        listOf("0" to "Returning Series", "1" to "Planned", "2" to "In Production",
+                            "3" to "Ended", "4" to "Canceled", "5" to "Pilot"),
+                        tvStatus, { tvStatus = it }, allowClear = true)
+                }
+
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                fun date(value: String, end: Boolean): String? =
+                    value.toIntOrNull()?.takeIf { it in 1900..2100 }
+                        ?.let { "%04d-%s".format(it, if (end) "12-31" else "01-01") }
+                onApply(draft.copy(
+                    dateFrom = date(minYear, false), dateTo = date(maxYear, true),
+                    ratingFrom = minRating.toDoubleOrNull()?.takeIf { it in 0.0..10.0 },
+                    ratingTo = maxRating.toDoubleOrNull()?.takeIf { it in 0.0..10.0 },
+                    votesFrom = minVotes.toIntOrNull()?.takeIf { it >= 0 },
+                    votesTo = maxVotes.toIntOrNull()?.takeIf { it >= 0 },
+                    runtimeFrom = minRuntime.toIntOrNull()?.takeIf { it >= 0 },
+                    runtimeTo = maxRuntime.toIntOrNull()?.takeIf { it >= 0 },
+                    originalLanguage = language.trim().ifBlank { null },
+                    watchRegion = region.trim().ifBlank { null },
+                    providerIds = parseIds(providerIds),
+                    certification = certification.trim().ifBlank { null },
+                    certificationCountry = certificationCountry.trim().ifBlank { null },
+                    keywordIds = includedKeywords,
+                    excludedKeywordIds = excludedKeywords,
+                    tvStatus = tvStatus.trim().ifBlank { null }
+                ))
+            }, enabled = !languageConflicts) { Text("Apply") }
+        },
+        dismissButton = {
+            TextButton(onClick = { onApply(SeerrDiscoverFilters()) }) { Text("Reset all") }
+        }
+    )
+}
+
+@Composable
 private fun SeerrBrowseScreen(
     instance: ServiceConfig,
     destination: SeerrBrowseDestination,
     filter: String,
+    appliedFilters: SeerrDiscoverFilters,
     pageCache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrBrowsePage>,
     onPageChange: (Int) -> Unit,
+    onFiltersApplied: (SeerrDiscoverFilters) -> Unit,
     onFilterChange: (String) -> Unit,
     onMediaClick: (SeerrRecentRequest) -> Unit
 ) {
     // Keep the full list composed when returning from media details. Otherwise the
     // transient empty/loading view shrinks the parent LazyColumn and clamps its scroll
     // position to zero before the network request finishes.
-    val cacheKey = "${instance.id}:${destination.kind}:${destination.id}:${destination.page}:${filter}"
+    var trendingWindow by remember(instance.id, destination.kind) { mutableStateOf("week") }
+    val cacheKey = "${instance.id}:${destination.kind}:${destination.id}:${destination.page}:${filter}:${trendingWindow}:${appliedFilters}"
     val result = pageCache[cacheKey]
     var loading by remember(cacheKey) { mutableStateOf(result == null) }
-    LaunchedEffect(instance, cacheKey) {
+    var retryCount by remember(cacheKey) { mutableIntStateOf(0) }
+    LaunchedEffect(instance, cacheKey, retryCount) {
         if (pageCache[cacheKey] != null) {
             loading = false
             return@LaunchedEffect
         }
         loading = true
-        val response = SeerrBrowseClient.browse(instance, destination.kind, destination.page, filter, destination.id)
+        val mediaType = when (destination.kind) {
+            "Popular Movies", "Movie genre", "Studio" -> SeerrDiscoverMediaType.MOVIE
+            "Popular TV Shows", "TV genre", "Network" -> SeerrDiscoverMediaType.TV
+            else -> null
+        }
+        val response = if (mediaType != null) SeerrBrowseClient.discover(instance, mediaType,
+            destination.page, appliedFilters,
+            genreId = if (destination.kind.endsWith("genre")) destination.id else 0,
+            studioOrNetworkId = if (destination.kind == "Studio" || destination.kind == "Network") destination.id else 0)
+        else SeerrBrowseClient.browse(instance, destination.kind, destination.page, filter, destination.id,
+            trendingWindow = trendingWindow)
         pageCache[cacheKey] = response
         loading = false
     }
+    val supportsAdvanced = destination.kind in listOf(
+        "Popular Movies", "Popular TV Shows", "Movie genre", "TV genre", "Studio", "Network")
+    var filterDialogOpen by remember { mutableStateOf(false) }
+    val keywordNames = remember(instance.id) { mutableStateMapOf<Int, String>() }
+    if (filterDialogOpen && supportsAdvanced) {
+        SeerrDiscoverFilterDialog(instance, appliedFilters, mediaType = if (destination.kind in listOf("Popular TV Shows", "TV genre", "Network")) SeerrDiscoverMediaType.TV else SeerrDiscoverMediaType.MOVIE,
+            isScopedDestination = destination.kind in listOf("Movie genre", "TV genre", "Studio", "Network"),
+            keywordNames = keywordNames,
+            onDismiss = { filterDialogOpen = false },
+            onApply = { onFiltersApplied(it); filterDialogOpen = false })
+    }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (supportsAdvanced) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                FilledTonalButton(onClick = { filterDialogOpen = true }) {
+                    Text(if (appliedFilters.isEmpty()) "Sort & filter" else "Edit filters")
+                }
+                if (!appliedFilters.isEmpty()) TextButton(onClick = {
+                    onFiltersApplied(SeerrDiscoverFilters())
+                }) { Text("Reset") }
+            }
+        }
         if (destination.kind == "Trending") {
+            Text("Media type", style = MaterialTheme.typography.titleSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("all" to "All", "movie" to "Movies", "tv" to "TV Shows").forEach { (value, label) ->
                     FilterChip(selected = filter == value, onClick = { onFilterChange(value) },
                         label = { Text(label) })
                 }
             }
+            Text("Trending period", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("day" to "Today", "week" to "This week").forEach { (value, label) ->
+                    FilterChip(selected = trendingWindow == value,
+                        onClick = {
+                            trendingWindow = value
+                            onPageChange(1)
+                        }, label = { Text(label) })
+                }
+            }
         }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-        result?.error?.let { BastionErrorState(it) }
+        result?.error?.let { error ->
+            BastionErrorState(error)
+            TextButton(onClick = { pageCache.remove(cacheKey); retryCount++ }) { Text("Retry") }
+        }
         result?.takeIf { it.error == null }?.let { page ->
             if (page.items.isEmpty()) Text("No titles found")
             page.items.forEach { title ->
