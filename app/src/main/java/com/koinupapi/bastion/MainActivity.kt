@@ -1851,7 +1851,8 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             }
         }
         }
-        sections.filter { section ->
+        (sections + listOfNotNull("Plex Watchlist".takeIf { showWatchlist },
+            "Recently Added".takeIf { showRecentlyAdded })).filter { section ->
             category == "For You" || section == "Trending" ||
                 (category == "Movies" && section.contains("Movies")) ||
                 (category == "TV Shows" && section.contains("TV"))
@@ -1862,11 +1863,16 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
                     Text(section, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    TextButton(onClick = {
-                        onBrowse(SeerrBrowseDestination(section, section))
-                    }) { Text("View all") }
+                    if (section !in listOf("Plex Watchlist", "Recently Added"))
+                        TextButton(onClick = {
+                            onBrowse(SeerrBrowseDestination(section, section))
+                        }) { Text("View all") }
                 }
-                val result = results[section]
+                val result = when (section) {
+                    "Plex Watchlist" -> watchlistFeed?.let { SeerrDiscoverResult(it.items, it.error) }
+                    "Recently Added" -> recentlyAddedFeed?.let { SeerrDiscoverResult(it.items, it.error) }
+                    else -> results[section]
+                }
                 val visibleItems = result?.items?.filter {
                     section != "Trending" || category == "For You" ||
                         (category == "Movies" && !it.isTv) ||
