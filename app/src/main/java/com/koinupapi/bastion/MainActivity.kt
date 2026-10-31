@@ -146,6 +146,7 @@ private fun BastionApp() {
         savedBrowsePage = seerrBrowse?.page ?: 1
     }
         var seerrBrowseFilter by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("all") }
+        var seerrTrendingPeriod by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("week") }
         var seerrAppliedFilters by remember(selectedMediaId) { mutableStateOf(SeerrDiscoverFilters()) }
         val seerrBrowsePageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrBrowsePage>() }
         val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
@@ -448,7 +449,10 @@ private fun BastionApp() {
                                 onFiltersApplied = { seerrAppliedFilters = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
                                 onPageChange = { seerrBrowse = seerrBrowse?.copy(page = it) },
                                 onFilterChange = { seerrBrowseFilter = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
-                                onMediaClick = { seerrMediaStack.add(it) }, scrollState = screenScroll)
+                                onMediaClick = { seerrMediaStack.add(it) },
+                                trendingWindow = seerrTrendingPeriod,
+                                onTrendingWindowChange = { seerrTrendingPeriod = it },
+                                scrollState = screenScroll)
                         }
                         else if (destination.page.startsWith("media:") && destinationMedia != null) item { SeerrRequestDetails(service, destinationMedia,
                             cache = seerrMediaCache,
@@ -1488,12 +1492,13 @@ private fun SeerrBrowseScreen(
     onFiltersApplied: (SeerrDiscoverFilters) -> Unit,
     onFilterChange: (String) -> Unit,
     onMediaClick: (SeerrRecentRequest) -> Unit,
+    trendingWindow: String,
+    onTrendingWindowChange: (String) -> Unit,
     scrollState: androidx.compose.foundation.lazy.LazyListState
 ) {
     // Keep the full list composed when returning from media details. Otherwise the
     // transient empty/loading view shrinks the parent LazyColumn and clamps its scroll
     // position to zero before the network request finishes.
-    var trendingWindow by androidx.compose.runtime.saveable.rememberSaveable(instance.id, destination.kind) { mutableStateOf("week") }
     val cacheKey = "${instance.id}:${destination.kind}:${destination.id}:${destination.page}:${filter}:${trendingWindow}:${appliedFilters}"
     val result = pageCache[cacheKey]
     var loading by remember(cacheKey) { mutableStateOf(result == null) }
@@ -1558,7 +1563,7 @@ private fun SeerrBrowseScreen(
                 listOf("day" to "Today", "week" to "This week").forEach { (value, label) ->
                     FilterChip(selected = trendingWindow == value,
                         onClick = {
-                            trendingWindow = value
+                            onTrendingWindowChange(value)
                             onPageChange(1)
                         }, label = { Text(label) })
                 }
