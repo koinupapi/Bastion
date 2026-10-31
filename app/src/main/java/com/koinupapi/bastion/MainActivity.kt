@@ -1652,6 +1652,17 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     var movieGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var tvGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var browseError by remember(instance.id) { mutableStateOf<String?>(null) }
+    var watchlistFeed by remember(instance.id) { mutableStateOf<SeerrBrowsePage?>(null) }
+    var recentlyAddedFeed by remember(instance.id) { mutableStateOf<SeerrBrowsePage?>(null) }
+    LaunchedEffect(instance, showWatchlist, refresh) {
+        watchlistFeed = if (showWatchlist) SeerrBrowseClient.browse(instance,
+            "Plex Watchlist", 1, overridePath = "/discover/watchlist?") else null
+    }
+    LaunchedEffect(instance, showRecentlyAdded, refresh) {
+        recentlyAddedFeed = if (showRecentlyAdded) SeerrBrowseClient.browse(instance,
+            "Recently Added", 1, overridePath = "/discover/movies?sortBy=primaryReleaseDate.desc&") else null
+    }
+
     LaunchedEffect(instance.id) {
         val movies = SeerrBrowseClient.options(instance, "genres/movie")
         val tv = SeerrBrowseClient.options(instance, "genres/tv")
