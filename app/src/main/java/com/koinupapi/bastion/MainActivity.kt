@@ -1591,6 +1591,27 @@ private fun SeerrBrowseScreen(
 }
 
 @Composable
+private fun BastionGenreCard(name: String, isTv: Boolean, onClick: () -> Unit) {
+    val colors = if (isTv) listOf(
+        MaterialTheme.colorScheme.tertiaryContainer,
+        MaterialTheme.colorScheme.secondaryContainer,
+        MaterialTheme.colorScheme.primaryContainer
+    ) else listOf(
+        MaterialTheme.colorScheme.primaryContainer,
+        MaterialTheme.colorScheme.secondaryContainer,
+        MaterialTheme.colorScheme.tertiaryContainer
+    )
+    Surface(onClick = onClick, modifier = Modifier.width(156.dp).height(94.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = colors.first()) {
+        Box(Modifier.fillMaxSize().background(Brush.linearGradient(colors))) {
+            Text(name, Modifier.align(Alignment.BottomStart).padding(12.dp),
+                style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
 private fun SeerrDiscoverScreen(instance: ServiceConfig,
     results: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
     searching: Boolean, onSearchingChange: (Boolean) -> Unit,
@@ -1776,19 +1797,8 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             Row(Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 movieGenres.forEach { option ->
-                    Surface(onClick = {
+                    BastionGenreCard(option.name, isTv = false) {
                         onBrowse(SeerrBrowseDestination("Movie genre", "${option.name} Movies", option.id))
-                    }, modifier = Modifier.width(156.dp).height(94.dp),
-                        shape = RoundedCornerShape(22.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer) {
-                        Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.secondaryContainer,
-                            MaterialTheme.colorScheme.tertiaryContainer)))) {
-                            Text(option.name, Modifier.align(Alignment.BottomStart).padding(12.dp),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold)
-                        }
                     }
                 }
             }
@@ -1798,19 +1808,8 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             Row(Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 tvGenres.forEach { option ->
-                    Surface(onClick = {
+                    BastionGenreCard(option.name, isTv = true) {
                         onBrowse(SeerrBrowseDestination("TV genre", "${option.name} TV Shows", option.id))
-                    }, modifier = Modifier.width(156.dp).height(94.dp),
-                        shape = RoundedCornerShape(22.dp),
-                        color = MaterialTheme.colorScheme.tertiaryContainer) {
-                        Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(
-                            MaterialTheme.colorScheme.tertiaryContainer,
-                            MaterialTheme.colorScheme.secondaryContainer,
-                            MaterialTheme.colorScheme.primaryContainer)))) {
-                            Text(option.name, Modifier.align(Alignment.BottomStart).padding(12.dp),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold)
-                        }
                     }
                 }
             }
