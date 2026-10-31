@@ -33,6 +33,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
@@ -1219,6 +1220,7 @@ private fun SettingsEntry(
 
 @Composable
 private fun SeerrDiscoverFilterDialog(
+    instance: ServiceConfig,
     applied: SeerrDiscoverFilters,
     onDismiss: () -> Unit,
     onApply: (SeerrDiscoverFilters) -> Unit
@@ -1237,8 +1239,33 @@ private fun SeerrDiscoverFilterDialog(
     var providerIds by remember(applied) { mutableStateOf(applied.providerIds.joinToString(",")) }
     var certificationCountry by remember(applied) { mutableStateOf(applied.certificationCountry.orEmpty()) }
     var certification by remember(applied) { mutableStateOf(applied.certification.orEmpty()) }
-    var keywordIds by remember(applied) { mutableStateOf(applied.keywordIds.joinToString(",")) }
-    var excludedIds by remember(applied) { mutableStateOf(applied.excludedKeywordIds.joinToString(",")) }
+    var includedKeywords by remember(applied) { mutableStateOf(applied.keywordIds) }
+    var excludedKeywords by remember(applied) { mutableStateOf(applied.excludedKeywordIds) }
+    var keywordQuery by remember { mutableStateOf("") }
+    var keywordResults by remember { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
+    var keywordError by remember { mutableStateOf<String?>(null) }
+    var keywordLoading by remember { mutableStateOf(false) }
+    val keywordNames = remember { mutableStateMapOf<Int, String>() }
+    LaunchedEffect(instance, keywordQuery) {
+        if (keywordQuery.trim().length < 2) {
+            keywordResults = emptyList()
+            keywordError = null
+            keywordLoading = false
+        } else {
+            keywordLoading = true
+            delay(300)
+            SeerrBrowseClient.searchKeywords(instance, keywordQuery.trim())
+                .onSuccess { results ->
+                    keywordResults = results
+                    results.forEach { keywordNames[it.id] = it.name }
+                    keywordError = null
+                }.onFailure { error ->
+                    keywordResults = emptyList()
+                    keywordError = error.message ?: "Keyword search failed"
+                }
+            keywordLoading = false
+        }
+    }
     var tvStatus by remember(applied) { mutableStateOf(applied.tvStatus.orEmpty()) }
     fun parseIds(value: String): Set<Int> = value.split(",").mapNotNull { it.trim().toIntOrNull() }
         .filter { it > 0 }.toSet()
@@ -1273,8 +1300,39 @@ private fun SeerrDiscoverFilterDialog(
                 OutlinedTextField(providerIds, { providerIds = it }, label = { Text("Provider IDs, comma separated") }, singleLine = true)
                 OutlinedTextField(certificationCountry, { certificationCountry = it }, label = { Text("Certification country (e.g. US)") }, singleLine = true)
                 OutlinedTextField(certification, { certification = it }, label = { Text("Certification (e.g. PG-13)") }, singleLine = true)
-                OutlinedTextField(keywordIds, { keywordIds = it }, label = { Text("Include keyword IDs") }, singleLine = true)
-                OutlinedTextField(excludedIds, { excludedIds = it }, label = { Text("Exclude keyword IDs") }, singleLine = true)
+                Text("Keywords", style = MaterialTheme.typography.titleSmall)
+                Text("Search for a keyword, then include or exclude it.", style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(keywordQuery, { keywordQuery = it },
+                    label = { Text("Search keywords") }, singleLine = true)
+                if (keywordLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                keywordError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                keywordResults.take(8).forEach { option ->
+                    Column {
+                        Text(option.name, style = MaterialTheme.typography.bodyMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(selected = option.id in includedKeywords,
+                                onClick = {
+                                    includedKeywords = if (option.id in includedKeywords) includedKeywords - option.id else includedKeywords + option.id
+                                    excludedKeywords = excludedKeywords - option.id
+                                }, label = { Text("Include") })
+                            FilterChip(selected = option.id in excludedKeywords,
+                                onClick = {
+                                    excludedKeywords = if (option.id in excludedKeywords) excludedKeywords - option.id else excludedKeywords + option.id
+                                    includedKeywords = includedKeywords - option.id
+                                }, label = { Text("Exclude") })
+                        }
+                    }
+                }
+                (includedKeywords + excludedKeywords).sorted().forEach { id ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${keywordNames[id] ?: "Keyword #$id"} · ${if (id in includedKeywords) "Included" else "Excluded"}",
+                            modifier = Modifier.weight(1f))
+                        TextButton(onClick = {
+                            includedKeywords = includedKeywords - id
+                            excludedKeywords = excludedKeywords - id
+                        }) { Text("Remove") }
+                    }
+                }
                 OutlinedTextField(tvStatus, { tvStatus = it }, label = { Text("TV status codes (TV only)") }, singleLine = true)
                 Text("Advanced fields currently use Seerr/TMDB IDs.",
                     style = MaterialTheme.typography.bodySmall)
@@ -1298,8 +1356,8 @@ private fun SeerrDiscoverFilterDialog(
                     providerIds = parseIds(providerIds),
                     certification = certification.trim().ifBlank { null },
                     certificationCountry = certificationCountry.trim().ifBlank { null },
-                    keywordIds = parseIds(keywordIds),
-                    excludedKeywordIds = parseIds(excludedIds),
+                    keywordIds = includedKeywords,
+                    excludedKeywordIds = excludedKeywords,
                     tvStatus = tvStatus.trim().ifBlank { null }
                 ))
             }) { Text("Apply") }
@@ -1352,7 +1410,7 @@ private fun SeerrBrowseScreen(
         "Popular Movies", "Popular TV Shows", "Movie genre", "TV genre", "Studio", "Network")
     var filterDialogOpen by remember { mutableStateOf(false) }
     if (filterDialogOpen && supportsAdvanced) {
-        SeerrDiscoverFilterDialog(appliedFilters,
+        SeerrDiscoverFilterDialog(instance, appliedFilters,
             onDismiss = { filterDialogOpen = false },
             onApply = { onFiltersApplied(it); filterDialogOpen = false })
     }
