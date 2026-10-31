@@ -132,19 +132,19 @@ private fun BastionApp() {
         var seerrTab by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableIntStateOf(0) }
         var seerrSettingsSection by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("root") }
         var seerrSearching by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf(false) }
-        var savedBrowseKind by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf<String?>(null) }
-    var savedBrowseTitle by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("") }
-    var savedBrowseId by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableIntStateOf(0) }
-    var savedBrowsePage by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableIntStateOf(1) }
-    var seerrBrowse by remember(selectedMediaId) {
-        mutableStateOf(savedBrowseKind?.let { SeerrBrowseDestination(it, savedBrowseTitle, savedBrowseId, savedBrowsePage) })
-    }
-    LaunchedEffect(seerrBrowse) {
-        savedBrowseKind = seerrBrowse?.kind
-        savedBrowseTitle = seerrBrowse?.title.orEmpty()
-        savedBrowseId = seerrBrowse?.id ?: 0
-        savedBrowsePage = seerrBrowse?.page ?: 1
-    }
+        var seerrBrowse by androidx.compose.runtime.saveable.rememberSaveable(
+        selectedMediaId,
+        saver = androidx.compose.runtime.saveable.Saver<MutableState<SeerrBrowseDestination?>, List<String>>(
+            save = { state -> state.value?.let {
+                listOf(it.kind, it.title, it.id.toString(), it.page.toString())
+            } ?: emptyList() },
+            restore = { saved -> mutableStateOf(
+                if (saved.size == 4) SeerrBrowseDestination(
+                    saved[0], saved[1], saved[2].toIntOrNull() ?: 0, saved[3].toIntOrNull() ?: 1
+                ) else null
+            ) }
+        )
+    ) { mutableStateOf<SeerrBrowseDestination?>(null) }
         var seerrBrowseFilter by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("all") }
         var seerrTrendingPeriod by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("week") }
         var seerrAppliedFilters by remember(selectedMediaId) { mutableStateOf(SeerrDiscoverFilters()) }
