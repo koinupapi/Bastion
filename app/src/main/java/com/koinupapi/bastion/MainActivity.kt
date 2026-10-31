@@ -361,7 +361,10 @@ private fun BastionApp() {
                         }
             },
             actions = {
-                        if (serviceScreen && seerrTab == 0 && openSeerrRequest == null) {
+                        val discoverScroll = seerrScrollStates["main-${selectedMediaId}-0-root"]
+                        val showTopSearch = seerrBrowse != null || seerrSearching ||
+                            (discoverScroll?.canScrollBackward == true && discoverScroll.lastScrolledForward)
+                        if (serviceScreen && seerrTab == 0 && openSeerrRequest == null && showTopSearch) {
                             IconButton(onClick = { seerrSearching = !seerrSearching }) {
                                 Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
                                     contentDescription = if (seerrSearching) "Close search" else "Search movies and TV")
