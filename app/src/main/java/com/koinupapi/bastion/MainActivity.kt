@@ -928,7 +928,7 @@ private fun BastionApp() {
             }
             }
                 val discoverVisible = destination.serviceId != null && destination.tab == 0 &&
-                    !destination.page.startsWith("media:") &&
+                    destination.page == "root" &&
                     savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }
                 if (discoverVisible) {
                     Box(Modifier.fillMaxSize().padding(insets)) {
@@ -1368,7 +1368,10 @@ private fun SeerrBrowseScreen(
             }
         }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-        result?.error?.let { BastionErrorState(it) }
+        result?.error?.let { error ->
+            BastionErrorState(error)
+            TextButton(onClick = { pageCache.remove(cacheKey) }) { Text("Retry") }
+        }
         result?.takeIf { it.error == null }?.let { page ->
             if (page.items.isEmpty()) Text("No titles found")
             page.items.forEach { title ->
