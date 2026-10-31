@@ -363,7 +363,8 @@ private fun BastionApp() {
             actions = {
                         val discoverScroll = seerrScrollStates["main-${selectedMediaId}-0-root"]
                         val showTopSearch = seerrBrowse != null || seerrSearching ||
-                            (discoverScroll?.canScrollBackward == true && discoverScroll.lastScrolledForward)
+                            (discoverScroll?.canScrollBackward == true &&
+                                (discoverScroll.isScrollInProgress || !discoverScroll.lastScrolledBackward))
                         if (serviceScreen && seerrTab == 0 && openSeerrRequest == null && showTopSearch) {
                             IconButton(onClick = { seerrSearching = !seerrSearching }) {
                                 Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
@@ -1643,7 +1644,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         onDispose { discoverPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("For You") }
-    val searchExpanded by remember(scrollState) { derivedStateOf { !scrollState.canScrollBackward || scrollState.lastScrolledBackward } }
+    val searchExpanded by remember(scrollState) { derivedStateOf { !scrollState.canScrollBackward || (!scrollState.isScrollInProgress && scrollState.lastScrolledBackward) } }
     var query by remember(instance.id) { mutableStateOf("") }
     var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
     var searchLoading by remember(instance.id) { mutableStateOf(false) }
