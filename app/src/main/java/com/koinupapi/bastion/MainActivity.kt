@@ -126,14 +126,14 @@ private fun BastionApp() {
         activity.window.isNavigationBarContrastEnforced = false
     }
     BastionTheme(dark = dark, dynamic = dynamic, seed = themeSeed) {
-        var tab by remember { mutableIntStateOf(0) }
+        var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
-        var selectedMediaId by remember { mutableStateOf<String?>(null) }
-        var seerrTab by remember(selectedMediaId) { mutableIntStateOf(0) }
-        var seerrSettingsSection by remember(selectedMediaId) { mutableStateOf("root") }
-        var seerrSearching by remember(selectedMediaId) { mutableStateOf(false) }
+        var selectedMediaId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+        var seerrTab by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableIntStateOf(0) }
+        var seerrSettingsSection by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("root") }
+        var seerrSearching by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf(false) }
         var seerrBrowse by remember(selectedMediaId) { mutableStateOf<SeerrBrowseDestination?>(null) }
-        var seerrBrowseFilter by remember(selectedMediaId) { mutableStateOf("all") }
+        var seerrBrowseFilter by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("all") }
         var seerrAppliedFilters by remember(selectedMediaId) { mutableStateOf(SeerrDiscoverFilters()) }
         val seerrBrowsePageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrBrowsePage>() }
         val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
@@ -1478,7 +1478,7 @@ private fun SeerrBrowseScreen(
     // Keep the full list composed when returning from media details. Otherwise the
     // transient empty/loading view shrinks the parent LazyColumn and clamps its scroll
     // position to zero before the network request finishes.
-    var trendingWindow by remember(instance.id, destination.kind) { mutableStateOf("week") }
+    var trendingWindow by androidx.compose.runtime.saveable.rememberSaveable(instance.id, destination.kind) { mutableStateOf("week") }
     val cacheKey = "${instance.id}:${destination.kind}:${destination.id}:${destination.page}:${filter}:${trendingWindow}:${appliedFilters}"
     val result = pageCache[cacheKey]
     var loading by remember(cacheKey) { mutableStateOf(result == null) }
