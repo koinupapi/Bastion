@@ -1785,6 +1785,9 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         if (searching && !previousSearching) {
             discoverScrollIndex = scrollState.firstVisibleItemIndex
             discoverScrollOffset = scrollState.firstVisibleItemScrollOffset
+            // The toolbar search action can be tapped far down the Discover feed.
+            // Move to the search field after preserving the original position.
+            scrollState.scrollToItem(0, 0)
         } else if (!searching && previousSearching) {
             query = ""
             androidx.compose.runtime.withFrameNanos { }
