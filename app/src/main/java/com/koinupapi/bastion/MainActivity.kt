@@ -67,6 +67,57 @@ import androidx.compose.ui.unit.dp
 private val services = listOf("Sonarr", "Radarr", "qBittorrent", "Seerr", "Plex", "Docker")
 private data class Integration(val name: String, val category: String)
 private data class SeerrBrowseDestination(val kind: String, val title: String, val id: Int = 0, val page: Int = 1)
+private val seerrFiltersSaver = androidx.compose.runtime.saveable.Saver<MutableState<SeerrDiscoverFilters>, String>(
+    save = { state ->
+        val f = state.value
+        org.json.JSONObject().apply {
+            fun putOptional(key: String, value: Any?) { if (value != null) put(key, value) }
+            putOptional("sortBy", f.sortBy)
+            putOptional("dateFrom", f.dateFrom)
+            putOptional("dateTo", f.dateTo)
+            putOptional("ratingFrom", f.ratingFrom)
+            putOptional("ratingTo", f.ratingTo)
+            putOptional("votesFrom", f.votesFrom)
+            putOptional("votesTo", f.votesTo)
+            putOptional("runtimeFrom", f.runtimeFrom)
+            putOptional("runtimeTo", f.runtimeTo)
+            putOptional("originalLanguage", f.originalLanguage)
+            putOptional("watchRegion", f.watchRegion)
+            put("providerIds", org.json.JSONArray(f.providerIds.sorted()))
+            putOptional("certification", f.certification)
+            putOptional("certificationCountry", f.certificationCountry)
+            put("keywordIds", org.json.JSONArray(f.keywordIds.sorted()))
+            put("excludedKeywordIds", org.json.JSONArray(f.excludedKeywordIds.sorted()))
+            putOptional("tvStatus", f.tvStatus)
+        }.toString()
+    },
+    restore = { saved ->
+        val json = org.json.JSONObject(saved)
+        fun ids(key: String): Set<Int> = json.optJSONArray(key)?.let { array ->
+            (0 until array.length()).map { array.optInt(it) }.filter { it > 0 }.toSet()
+        } ?: emptySet()
+        mutableStateOf(SeerrDiscoverFilters(
+            sortBy = json.optString("sortBy").ifBlank { null },
+            dateFrom = json.optString("dateFrom").ifBlank { null },
+            dateTo = json.optString("dateTo").ifBlank { null },
+            ratingFrom = if (json.has("ratingFrom")) json.optDouble("ratingFrom") else null,
+            ratingTo = if (json.has("ratingTo")) json.optDouble("ratingTo") else null,
+            votesFrom = if (json.has("votesFrom")) json.optInt("votesFrom") else null,
+            votesTo = if (json.has("votesTo")) json.optInt("votesTo") else null,
+            runtimeFrom = if (json.has("runtimeFrom")) json.optInt("runtimeFrom") else null,
+            runtimeTo = if (json.has("runtimeTo")) json.optInt("runtimeTo") else null,
+            originalLanguage = json.optString("originalLanguage").ifBlank { null },
+            watchRegion = json.optString("watchRegion").ifBlank { null },
+            providerIds = ids("providerIds"),
+            certification = json.optString("certification").ifBlank { null },
+            certificationCountry = json.optString("certificationCountry").ifBlank { null },
+            keywordIds = ids("keywordIds"),
+            excludedKeywordIds = ids("excludedKeywordIds"),
+            tvStatus = json.optString("tvStatus").ifBlank { null }
+        ))
+    }
+)
+
 private val integrationCatalog = listOf(
     Integration("Docker", "Infrastructure"),
     Integration("Uptime Kuma", "Infrastructure"),
@@ -147,7 +198,7 @@ private fun BastionApp() {
     ) { mutableStateOf<SeerrBrowseDestination?>(null) }
         var seerrBrowseFilter by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("all") }
         var seerrTrendingPeriod by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("week") }
-        var seerrAppliedFilters by remember(selectedMediaId) { mutableStateOf(SeerrDiscoverFilters()) }
+        var seerrAppliedFilters by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId, saver = seerrFiltersSaver) { mutableStateOf(SeerrDiscoverFilters()) }
         val seerrBrowsePageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrBrowsePage>() }
         val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
         val seerrMediaCache = remember { mutableStateMapOf<String, SeerrMediaDetails>() }
