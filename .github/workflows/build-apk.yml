@@ -8,8 +8,7 @@ on:
       - 'feature/**'
 jobs:
   build:
-    # Stable/develop still build on every push. Feature branches build only
-    # on manual dispatch or when the head commit message contains [build].
+    # Stable/develop build on push; feature branches build only when explicitly requested.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.ref_name == 'main' ||
