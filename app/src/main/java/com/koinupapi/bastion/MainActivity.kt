@@ -410,7 +410,7 @@ private fun BastionApp() {
                 state = screenScroll,
                 overscrollEffect = rememberOverscrollEffect(),
                 modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).then(
-                    if (destination.serviceId != null && destination.tab == 0 && !destination.page.startsWith("media:") &&
+                    if (destination.serviceId != null && destination.tab == 0 && destination.page == "root" &&
                         savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) Modifier else Modifier.padding(insets)
                 ),
                 contentPadding = PaddingValues(start = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp, top = if (openSeerrRequest != null) 0.dp else 16.dp, end = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp,
