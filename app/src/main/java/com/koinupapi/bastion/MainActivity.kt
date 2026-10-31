@@ -1409,9 +1409,13 @@ private fun SeerrDiscoverFilterDialog(
                         }) { Text("Remove") }
                     }
                 }
-                if (mediaType == SeerrDiscoverMediaType.TV)
-                    Text("TV status filtering is not exposed by this Seerr Discover API.",
-                        style = MaterialTheme.typography.bodySmall)
+                if (mediaType == SeerrDiscoverMediaType.TV) {
+                    Text("TV status", style = MaterialTheme.typography.titleSmall)
+                    SeerrChoicePicker("TV status",
+                        listOf("0" to "Returning Series", "1" to "Planned", "2" to "In Production",
+                            "3" to "Ended", "4" to "Canceled", "5" to "Pilot"),
+                        tvStatus, { tvStatus = it }, allowClear = true)
+                }
 
             }
         },
@@ -1435,7 +1439,7 @@ private fun SeerrDiscoverFilterDialog(
                     certificationCountry = certificationCountry.trim().ifBlank { null },
                     keywordIds = includedKeywords,
                     excludedKeywordIds = excludedKeywords,
-                    tvStatus = null
+                    tvStatus = tvStatus.trim().ifBlank { null }
                 ))
             }) { Text("Apply") }
         },
