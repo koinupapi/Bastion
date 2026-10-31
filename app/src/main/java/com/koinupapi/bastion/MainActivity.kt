@@ -1383,7 +1383,8 @@ private fun SeerrBrowseScreen(
     // Keep the full list composed when returning from media details. Otherwise the
     // transient empty/loading view shrinks the parent LazyColumn and clamps its scroll
     // position to zero before the network request finishes.
-    val cacheKey = "${instance.id}:${destination.kind}:${destination.id}:${destination.page}:${filter}:${appliedFilters}"
+    var trendingWindow by remember(instance.id, destination.kind) { mutableStateOf("week") }
+    val cacheKey = "${instance.id}:${destination.kind}:${destination.id}:${destination.page}:${filter}:${trendingWindow}:${appliedFilters}"
     val result = pageCache[cacheKey]
     var loading by remember(cacheKey) { mutableStateOf(result == null) }
     var retryCount by remember(cacheKey) { mutableIntStateOf(0) }
@@ -1402,7 +1403,8 @@ private fun SeerrBrowseScreen(
             destination.page, appliedFilters,
             genreId = if (destination.kind.endsWith("genre")) destination.id else 0,
             studioOrNetworkId = if (destination.kind == "Studio" || destination.kind == "Network") destination.id else 0)
-        else SeerrBrowseClient.browse(instance, destination.kind, destination.page, filter, destination.id)
+        else SeerrBrowseClient.browse(instance, destination.kind, destination.page, filter, destination.id,
+            trendingWindow = trendingWindow)
         pageCache[cacheKey] = response
         loading = false
     }
@@ -1428,10 +1430,21 @@ private fun SeerrBrowseScreen(
             }
         }
         if (destination.kind == "Trending") {
+            Text("Media type", style = MaterialTheme.typography.titleSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("all" to "All", "movie" to "Movies", "tv" to "TV Shows").forEach { (value, label) ->
                     FilterChip(selected = filter == value, onClick = { onFilterChange(value) },
                         label = { Text(label) })
+                }
+            }
+            Text("Trending period", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("day" to "Today", "week" to "This week").forEach { (value, label) ->
+                    FilterChip(selected = trendingWindow == value,
+                        onClick = {
+                            trendingWindow = value
+                            onPageChange(1)
+                        }, label = { Text(label) })
                 }
             }
         }
