@@ -1256,6 +1256,7 @@ private fun SeerrDiscoverFilterDialog(
     instance: ServiceConfig,
     applied: SeerrDiscoverFilters,
     mediaType: SeerrDiscoverMediaType,
+    isScopedDestination: Boolean,
     onDismiss: () -> Unit,
     onApply: (SeerrDiscoverFilters) -> Unit
 ) {
@@ -1321,7 +1322,7 @@ private fun SeerrDiscoverFilterDialog(
     }
     fun parseIds(value: String): Set<Int> = value.split(",").mapNotNull { it.trim().toIntOrNull() }
         .filter { it > 0 }.toSet()
-    val languageConflicts = language.isNotBlank() && (
+    val languageConflicts = language.isNotBlank() && (isScopedDestination ||
         draft.sortBy != null || minYear.isNotBlank() || maxYear.isNotBlank() ||
         minRating.isNotBlank() || maxRating.isNotBlank() || minVotes.isNotBlank() ||
         maxVotes.isNotBlank() || minRuntime.isNotBlank() || maxRuntime.isNotBlank() ||
@@ -1359,7 +1360,7 @@ private fun SeerrDiscoverFilterDialog(
                 Text("Original language", style = MaterialTheme.typography.titleSmall)
                 SeerrChoicePicker("Original language", languages.map { it.code to it.label },
                     language, { language = it }, allowClear = true)
-                if (language.isNotBlank()) Text("Original language uses a separate Seerr discovery category. Other filters cannot be combined with it.", style = MaterialTheme.typography.bodySmall)
+                if (language.isNotBlank()) Text(if (isScopedDestination) "Original-language discovery is available from Popular Movies or Popular TV Shows, not within a genre, studio, or network." else "Original language uses a separate Seerr discovery category. Other filters cannot be combined with it.", style = MaterialTheme.typography.bodySmall)
                 Text("Watch region", style = MaterialTheme.typography.titleSmall)
                 SeerrChoicePicker("Watch region", regions.map { it.code to it.label },
                     region, { region = it; providerIds = "" }, allowClear = true)
@@ -1502,6 +1503,7 @@ private fun SeerrBrowseScreen(
     var filterDialogOpen by remember { mutableStateOf(false) }
     if (filterDialogOpen && supportsAdvanced) {
         SeerrDiscoverFilterDialog(instance, appliedFilters, mediaType = if (destination.kind in listOf("Popular TV Shows", "TV genre", "Network")) SeerrDiscoverMediaType.TV else SeerrDiscoverMediaType.MOVIE,
+            isScopedDestination = destination.kind in listOf("Movie genre", "TV genre", "Studio", "Network"),
             onDismiss = { filterDialogOpen = false },
             onApply = { onFiltersApplied(it); filterDialogOpen = false })
     }
