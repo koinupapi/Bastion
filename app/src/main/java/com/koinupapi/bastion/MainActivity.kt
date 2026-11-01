@@ -568,9 +568,17 @@ private fun BastionApp() {
                     seerrScrollStates[scrollKey] ?: androidx.compose.foundation.lazy.LazyListState()
                 }
                 SideEffect { seerrScrollStates[scrollKey] = screenScroll }
+                // Search is an overlay mode of Discover, not the same scrollable list.
+                // Keep its position independent so closing search uncovers Discover unchanged.
+                val searchScroll = androidx.compose.runtime.saveable.rememberSaveable(
+                    "$scrollKey-search", saver = androidx.compose.foundation.lazy.LazyListState.Saver
+                ) { androidx.compose.foundation.lazy.LazyListState() }
+                val isDiscoverSearch = destination.serviceId != null && destination.tab == 0 &&
+                    destination.page == "root" && sheetSeerr && seerrSearching
+                val contentScroll = if (isDiscoverSearch) searchScroll else screenScroll
             val screenContent: @Composable () -> Unit = {
             LazyColumn(
-                state = screenScroll,
+                state = contentScroll,
                 overscrollEffect = rememberOverscrollEffect(),
                 modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).then(
                     if (destination.serviceId != null && destination.tab == 0 && destination.page == "root" &&
