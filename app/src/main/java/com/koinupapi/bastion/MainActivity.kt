@@ -600,9 +600,8 @@ private fun BastionApp() {
                         }
             },
             actions = {
-                        val discoverScroll = seerrScrollStates["main-${destination.serviceId}:0:root"]
-                        val showTopSearch = sheetSearch || sheetBrowse ||
-                            (destination.page == "root" && discoverScroll?.canScrollBackward == true)
+                        // Keep Search accessible regardless of Discover scroll position.
+                        val showTopSearch = sheetSearch || sheetBrowse || destination.page == "root"
                         if (sheetSeerr && destination.tab == 0 && !sheetMedia && destination.identity == activeDestination.identity && showTopSearch) {
                             IconButton(onClick = { changeSeerrSearching(!seerrSearching) }) {
                                 Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
