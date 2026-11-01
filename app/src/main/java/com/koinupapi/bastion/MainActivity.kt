@@ -258,6 +258,9 @@ private fun BastionApp() {
         val seerrScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.lazy.LazyListState>() }
         val seerrCarouselScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.ScrollState>() }
         val seerrDiscoverCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrDiscoverResult>() }
+        // Request pages survive tab branch disposal; explicit refresh still bypasses cache.
+        val seerrRequestPageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrRecentResult>() }
+        val seerrRequestCountCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrRequestCounts>() }
         var seerrDiscoverRefresh by remember(selectedMediaId) { mutableIntStateOf(0) }
         var seerrDiscoverRefreshing by remember(selectedMediaId) { mutableStateOf(false) }
         val seerrRefreshDiscover: () -> Unit = { seerrDiscoverRefresh++ }
@@ -625,6 +628,7 @@ private fun BastionApp() {
                             seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${destination.tab}-${destination.page}") {
                                 Box(Modifier.fillMaxWidth().then(if (destination.tab == 0) Modifier else Modifier.padding(horizontal = 16.dp))) {
                                     SeerrManagementScreen(service, destination.tab, seerrDiscoverCache,
+                                        seerrRequestPageCache, seerrRequestCountCache,
                                         destination.page, { seerrSettingsSection = it },
                                         seerrSearching, { seerrSearching = it }, seerrDiscoverRefresh,
                                         { seerrDiscoverRefreshing = it },
@@ -2228,6 +2232,8 @@ private fun SeerrIssuesScreen(instance: ServiceConfig) {
 @Composable
 private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     discoverResults: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
+    requestPageCache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrRecentResult>,
+    requestCountCache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrRequestCounts>,
     settingsSection: String, onSettingsSectionChange: (String) -> Unit,
     searching: Boolean, onSearchingChange: (Boolean) -> Unit,
     discoverRefresh: Int, onDiscoverRefreshingChange: (Boolean) -> Unit,
@@ -2265,15 +2271,29 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
         pagePreferences.registerOnSharedPreferenceChangeListener(listener)
         onDispose { pagePreferences.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    LaunchedEffect(instance, destination, page, pageSize, filter, mediaType, sortOrder, sortDirection, refresh) {
+    val requestCacheKey = "${instance.id}:${page}:${pageSize}:${filter}:${mediaType}:${sortOrder}:${sortDirection}"
+    LaunchedEffect(instance, destination, requestCacheKey, refresh) {
         if (destination != 1) return@LaunchedEffect
+        val cached = if (refresh == 0) requestPageCache[requestCacheKey] else null
+        if (cached != null) {
+            result = cached
+            loading = false
+            return@LaunchedEffect
+        }
         loading = true
         result = SeerrClient.requestPage(instance, pageSize, page * pageSize, filter,
             mediaType, sortOrder, sortDirection)
+        result?.let { if (it.error == null) requestPageCache[requestCacheKey] = it }
         loading = false
     }
     LaunchedEffect(instance, destination, refresh) {
-        if (destination == 1) counts = SeerrClient.requestCounts(instance).getOrNull()
+        if (destination == 1) {
+            counts = if (refresh == 0) requestCountCache[instance.id] else null
+            if (counts == null) {
+                counts = SeerrClient.requestCounts(instance).getOrNull()
+                counts?.let { requestCountCache[instance.id] = it }
+            }
+        }
     }
     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
         if (destination == 0) {
