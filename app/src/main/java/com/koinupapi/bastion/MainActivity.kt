@@ -461,40 +461,6 @@ private fun BastionApp() {
             }
         }) {
         LaunchedEffect(tab, selectedMediaId, seerrTab, settingsPage, hideNavOnScroll) { navVisible = true }
-        BastionAppShell(
-            title = headerTitle,
-            subtitle = headerContext,
-            isBack = headerBack,
-            immersive = openSeerrRequest != null,
-            scrollBehavior = topBarScrollBehavior,
-            onNavigationClick = {
-                        when {
-                            openSeerrRequest != null -> popSeerrMedia()
-                            seerrSearching && serviceScreen && seerrTab == 0 -> seerrSearching = false
-                            seerrBrowse != null && serviceScreen && seerrTab == 0 -> seerrBrowse = null
-                            nestedSeerrSettings -> seerrSettingsSection = when (seerrSettingsSection) {
-                                "Plex", "Radarr", "Sonarr", "Override Rules" -> "Media Services"
-                                "Logs", "Scheduled Jobs", "Cache Management" -> "Maintenance & Diagnostics"
-                                else -> "root"
-                            }
-                            nestedBastionSettings -> goBackSettings()
-                            else -> scope.launch { drawerState.open() }
-                        }
-            },
-            actions = {
-                        val discoverScroll = seerrScrollStates["main-${selectedMediaId}-0-root"]
-                        val showTopSearch = seerrBrowse != null || seerrSearching ||
-                            (discoverScroll?.canScrollBackward == true && !discoverSearchBarVisible)
-                        if (serviceScreen && seerrTab == 0 && openSeerrRequest == null && showTopSearch) {
-                            IconButton(onClick = { seerrSearching = !seerrSearching }) {
-                                Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
-                                    contentDescription = if (seerrSearching) "Close search" else "Search movies and TV")
-                            }
-                        }
-            },
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-        ) { insets ->
-            Box(Modifier.fillMaxSize()) {
             val activeDestination = BastionScreenDestination(
                 serviceId = selectedMediaId,
                 tab = if (selectedMediaId == null) tab else seerrTab,
@@ -519,6 +485,66 @@ private fun BastionApp() {
                 },
             )
             BastionNavigationHost(destination = activeDestination, modifier = Modifier.fillMaxSize()) { destination ->
+                val sheetMedia = destination.page.startsWith("media:")
+                val sheetBrowse = destination.page.startsWith("browse:")
+                val sheetSeerr = destination.serviceId != null &&
+                    savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }
+                val sheetTitle = when {
+                    sheetMedia -> seerrMediaStack.getOrNull(
+                        (destination.page.split(':').getOrNull(1)?.toIntOrNull() ?: 0) - 1
+                    )?.title ?: headerTitle
+                    sheetBrowse -> seerrBrowse?.title ?: headerTitle
+                    sheetSeerr && destination.tab == 4 && destination.page != "root" -> destination.page
+                    sheetSeerr -> seerrLabels.getOrElse(destination.tab) { headerTitle }
+                    destination.serviceId != null -> headerTitle
+                    destination.tab == 2 && destination.page != "Settings" ->
+                        if (destination.page == "Service detail") selectedIntegration else destination.page
+                    destination.tab == 0 -> "Bastion"
+                    destination.tab == 1 -> "Calendar"
+                    else -> "Settings"
+                }
+                val sheetSubtitle = if (destination.serviceId != null && showInstanceSubtitle)
+                    savedInstances.firstOrNull { it.id == destination.serviceId }?.name else null
+                val sheetBack = sheetMedia || sheetBrowse ||
+                    (sheetSeerr && destination.tab == 4 && destination.page != "root") ||
+                    (destination.serviceId == null && destination.tab == 2 && destination.page != "Settings")
+                val sheetScrollBehavior = if (hideHeaderOnScroll)
+                    TopAppBarDefaults.enterAlwaysScrollBehavior()
+                else TopAppBarDefaults.pinnedScrollBehavior()
+        BastionAppShell(
+            title = sheetTitle,
+            subtitle = sheetSubtitle,
+            isBack = sheetBack,
+            immersive = sheetMedia,
+            scrollBehavior = sheetScrollBehavior,
+            onNavigationClick = {
+                        when {
+                            sheetMedia -> popSeerrMedia()
+                            seerrSearching && serviceScreen && seerrTab == 0 -> seerrSearching = false
+                            sheetBrowse -> seerrBrowse = null
+                            nestedSeerrSettings -> seerrSettingsSection = when (seerrSettingsSection) {
+                                "Plex", "Radarr", "Sonarr", "Override Rules" -> "Media Services"
+                                "Logs", "Scheduled Jobs", "Cache Management" -> "Maintenance & Diagnostics"
+                                else -> "root"
+                            }
+                            nestedBastionSettings -> goBackSettings()
+                            else -> scope.launch { drawerState.open() }
+                        }
+            },
+            actions = {
+                        val discoverScroll = seerrScrollStates["main-${destination.serviceId}-0-root"]
+                        val showTopSearch = seerrBrowse != null || seerrSearching ||
+                            (discoverScroll?.canScrollBackward == true && !discoverSearchBarVisible)
+                        if (sheetSeerr && destination.tab == 0 && !sheetMedia && destination.identity == activeDestination.identity && showTopSearch) {
+                            IconButton(onClick = { seerrSearching = !seerrSearching }) {
+                                Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
+                                    contentDescription = if (seerrSearching) "Close search" else "Search movies and TV")
+                            }
+                        }
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+        ) { insets ->
+            Box(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxSize()) {
                 // AnimatedContent keeps outgoing destinations composed during their exit.
                 // Capture the media for THIS destination so popping the live stack does
@@ -1119,9 +1145,9 @@ private fun BastionApp() {
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
                 }
+                }
             }
         }
-    }
     }
 }
 
