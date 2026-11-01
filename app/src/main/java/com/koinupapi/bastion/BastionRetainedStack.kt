@@ -6,14 +6,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.layout.layout
 
 /**
  * A retained, non-animated stack for destination content.
  *
  * All supplied entries remain in composition while they are in the back stack.
- * Only the top entry is drawn and exposed to accessibility. This is intentionally
+ * Only the top entry is placed, drawn, hit-tested, or exposed to accessibility. This is intentionally
  * different from AnimatedContent: popping an entry does not recreate the previous
  * destination's composable subtree.
  *
@@ -40,8 +39,12 @@ internal fun <T> BastionRetainedStack(
                     Box(
                         Modifier
                             .fillMaxSize()
-                            .graphicsLayer { alpha = if (isTop) 1f else 0f }
-                            .then(if (isTop) Modifier else Modifier.clearAndSetSemantics { }),
+                            .layout { measurable, constraints ->
+                                val placeable = measurable.measure(constraints)
+                                layout(placeable.width, placeable.height) {
+                                    if (isTop) placeable.place(0, 0)
+                                }
+                            },
                     ) {
                         content(entry, isTop)
                     }
