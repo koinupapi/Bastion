@@ -600,7 +600,7 @@ private fun BastionApp() {
                         }
             },
             actions = {
-                        val discoverScroll = seerrScrollStates["main-${destination.serviceId}-0-root"]
+                        val discoverScroll = seerrScrollStates["main-${destination.serviceId}:0:root"]
                         val showTopSearch = sheetSearch || sheetBrowse ||
                             (destination.page == "root" && discoverScroll?.canScrollBackward == true)
                         if (sheetSeerr && destination.tab == 0 && !sheetMedia && destination.identity == activeDestination.identity && showTopSearch) {
