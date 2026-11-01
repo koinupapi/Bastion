@@ -67,8 +67,11 @@ fun SeerrRequestManagementSheet(
                     originalProfile = original.profileId
                     originalRoot = original.rootFolder
                     val configured = servers.firstOrNull { it.id == original.serverId }
-                        ?: servers.singleOrNull()
-                    selectedServer = configured?.id ?: original.serverId
+                        ?: servers.filter { candidate ->
+                            candidate.profiles.any { it.id == original.profileId } &&
+                                candidate.roots.any { it.name == original.rootFolder }
+                        }.singleOrNull()
+                    selectedServer = configured?.id ?: -1
                     selectedProfile = original.profileId.takeIf { id ->
                         configured?.profiles?.any { it.id == id } == true
                     } ?: configured?.defaultProfile?.takeIf { id ->
@@ -154,8 +157,13 @@ fun SeerrRequestManagementSheet(
                 adminMetadata?.let { metadata ->
                     Text("ADMINISTRATIVE DETAILS", style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    metadata.createdAt?.let { Text("Created: $it", style = MaterialTheme.typography.bodySmall) }
-                    metadata.updatedAt?.let { Text("Last updated: $it", style = MaterialTheme.typography.bodySmall) }
+                    fun displayTime(value: String): String = runCatching {
+                        java.time.OffsetDateTime.parse(value)
+                            .atZoneSameInstant(java.time.ZoneId.systemDefault())
+                            .format(java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy h:mm a"))
+                    }.getOrDefault(value)
+                    metadata.createdAt?.let { Text("Created: ${displayTime(it)}", style = MaterialTheme.typography.bodySmall) }
+                    metadata.updatedAt?.let { Text("Last updated: ${displayTime(it)}", style = MaterialTheme.typography.bodySmall) }
                     metadata.requesterId?.let { Text("Requester ID: $it", style = MaterialTheme.typography.bodySmall) }
                     Text(if (metadata.is4k) "4K request: Yes" else "4K request: No",
                         style = MaterialTheme.typography.bodySmall)
@@ -194,7 +202,7 @@ fun SeerrRequestManagementSheet(
                                 }
                                 if (request.requestStatus == "Pending" &&
                                     (!destination.hasServer || !destination.hasProfile || !destination.hasRoot)) {
-                                    Text("Some settings are missing. Check Seerr before approving.",
+                                    Text("Destination could not be uniquely verified. Select a valid instance, profile and root folder, then save before approving.",
                                         color = MaterialTheme.colorScheme.error,
                                         style = MaterialTheme.typography.bodySmall)
                                 }
@@ -270,6 +278,8 @@ fun SeerrRequestManagementSheet(
                                     originalRoot = selectedRoot
                                     approvalDetails = SeerrClient.requestApprovalDetails(
                                         instance, request.requestId, request.isTv)
+                                    adminMetadata = SeerrClient.requestAdminMetadata(
+                                        instance, request.requestId).getOrNull()
                                     savedMessage = "Destination saved and verified. You can now approve."
                                     onChanged()
                                 }
