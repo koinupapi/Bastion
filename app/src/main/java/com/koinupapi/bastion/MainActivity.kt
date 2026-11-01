@@ -1150,6 +1150,7 @@ private fun BastionApp() {
             }
         }
     }
+    }
 }
 
 @Composable
