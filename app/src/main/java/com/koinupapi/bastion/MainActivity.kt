@@ -53,6 +53,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -634,6 +635,38 @@ private fun BastionApp() {
                     seerrScrollStates[scrollKey] ?: androidx.compose.foundation.lazy.LazyListState()
                 }
                 SideEffect { seerrScrollStates[scrollKey] = screenScroll }
+                // Retain the last meaningful offset independently of LazyListState.
+                // Async Discover/Details content can briefly collapse during rotation.
+                var checkpointIndex by androidx.compose.runtime.saveable.rememberSaveable(scrollKey) { mutableIntStateOf(0) }
+                var checkpointOffset by androidx.compose.runtime.saveable.rememberSaveable(scrollKey) { mutableIntStateOf(0) }
+                var restorationReady by remember(scrollKey) { mutableStateOf(false) }
+                LaunchedEffect(scrollKey) {
+                    if (!destination.page.startsWith("search:") && (checkpointIndex != 0 || checkpointOffset != 0)) {
+                        // The entire screen is currently a single LazyColumn item.
+                        // Wait until that item's measured height can accommodate the
+                        // previous offset; otherwise restoration is immediately clamped.
+                        kotlinx.coroutines.withTimeoutOrNull(8000L) {
+                            kotlinx.coroutines.flow.snapshotFlow {
+                                val layout = screenScroll.layoutInfo
+                                val first = layout.visibleItemsInfo.firstOrNull()
+                                first != null && first.size >= checkpointOffset +
+                                    (layout.viewportEndOffset - layout.viewportStartOffset)
+                            }.first { it }
+                        }
+                        screenScroll.scrollToItem(checkpointIndex, checkpointOffset)
+                    }
+                    restorationReady = true
+                }
+                LaunchedEffect(scrollKey, restorationReady) {
+                    if (restorationReady) {
+                        kotlinx.coroutines.flow.snapshotFlow {
+                            screenScroll.firstVisibleItemIndex to screenScroll.firstVisibleItemScrollOffset
+                        }.collect { (index, offset) ->
+                            checkpointIndex = index
+                            checkpointOffset = offset
+                        }
+                    }
+                }
                 // Search is a separate retained destination above Discover/Browse.
                 // Never swap the underlying LazyColumn's content or scroll state.
                 val contentScroll = screenScroll
