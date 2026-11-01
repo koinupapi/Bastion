@@ -645,7 +645,6 @@ private fun BastionApp() {
                                         onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all"; seerrAppliedFilters = SeerrDiscoverFilters() },
                                         onRequestClick = { seerrMediaStack.add(it) },
                                         scrollState = contentScroll,
-                                        genreScrollStates = seerrCarouselScrollStates,
                                         onSearchBarVisibilityChange = { visible -> discoverSearchBarVisible = visible })
                                 }
                             }
@@ -1829,7 +1828,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     onBrowse: (SeerrBrowseDestination) -> Unit,
     onMediaClick: (SeerrRecentRequest) -> Unit,
     scrollState: androidx.compose.foundation.lazy.LazyListState,
-    genreScrollStates: MutableMap<String, ScrollState>,
+    genreScrollStates: MutableMap<String, androidx.compose.foundation.ScrollState>,
     onSearchBarVisibilityChange: (Boolean) -> Unit) {
     val sections = remember { listOf("Trending", "Popular Movies", "Upcoming Movies",
         "Popular TV Shows", "Upcoming TV Shows") }
@@ -2244,7 +2243,7 @@ private fun SeerrIssuesScreen(instance: ServiceConfig) {
 @Composable
 private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     discoverResults: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
-    genreScrollStates: MutableMap<String, ScrollState>,
+    genreScrollStates: MutableMap<String, androidx.compose.foundation.ScrollState>,
     requestPageCache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrRecentResult>,
     requestCountCache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrRequestCounts>,
     settingsSection: String, onSettingsSectionChange: (String) -> Unit,
@@ -2260,8 +2259,9 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     var mediaType by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("all") }
     var sortOrder by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("added") }
     var sortDirection by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("desc") }
-    val initialRequestPageSize = remember(instance.id) {
-        androidx.compose.ui.platform.LocalContext.current.getSharedPreferences(
+    val requestPrefsContext = LocalContext.current
+    val initialRequestPageSize = remember(instance.id, requestPrefsContext) {
+        requestPrefsContext.getSharedPreferences(
             "bastion_seerr_local", android.content.Context.MODE_PRIVATE
         ).getInt("requests_page_size_${instance.id}", 25).takeIf { it in listOf(25, 50, 100) } ?: 25
     }
