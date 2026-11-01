@@ -522,13 +522,17 @@ private fun BastionApp() {
                 // AnimatedContent keeps outgoing destinations composed during their exit.
                 // Capture the media for THIS destination so popping the live stack does
                 // not turn the outgoing details screen into Discover mid-transition.
-                val destinationMedia = remember(destination.page) {
-                    if (destination.page.startsWith("media:")) openSeerrRequest else null
-                }
-                // Keep the outgoing browse destination immutable while its exit frame renders.
-                val destinationBrowse = remember(destination.page) {
-                    if (destination.page.startsWith("browse:")) seerrBrowse else null
-                }
+                // Resolve each retained detail from its own stack position rather than
+                // the global top item, which changes when navigating to related media.
+                val destinationMedia = if (destination.page.startsWith("media:")) {
+                    val stackPosition = destination.page.split(':').getOrNull(1)?.toIntOrNull()
+                    stackPosition?.let { seerrMediaStack.getOrNull(it - 1) }
+                } else null
+                // Browse is a single retained destination whose page/filter arguments
+                // can change without creating a new navigation entry.
+                val destinationBrowse = if (destination.page.startsWith("browse:")) {
+                    seerrBrowse
+                } else null
                 // Browse pagination and filter changes update content, not scroll ownership.
                 // Match the navigation host's stable destination identity.
                 val scrollKey = "main-${destination.identity}"
