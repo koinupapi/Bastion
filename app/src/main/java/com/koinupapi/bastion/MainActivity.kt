@@ -2268,8 +2268,14 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     var mediaType by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("all") }
     var sortOrder by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("added") }
     var sortDirection by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("desc") }
-    var result by remember(instance.id) { mutableStateOf<SeerrRecentResult?>(null) }
-    var counts by remember(instance.id) { mutableStateOf<SeerrRequestCounts?>(null) }
+    val initialRequestPageSize = remember(instance.id) {
+        androidx.compose.ui.platform.LocalContext.current.getSharedPreferences(
+            "bastion_seerr_local", android.content.Context.MODE_PRIVATE
+        ).getInt("requests_page_size_${instance.id}", 25).takeIf { it in listOf(25, 50, 100) } ?: 25
+    }
+    val initialRequestKey = "${instance.id}:0:${initialRequestPageSize}:All:all:added:desc"
+    var result by remember(instance.id) { mutableStateOf<SeerrRecentResult?>(requestPageCache[initialRequestKey]) }
+    var counts by remember(instance.id) { mutableStateOf<SeerrRequestCounts?>(requestCountCache[instance.id]) }
     var loading by remember(instance.id) { mutableStateOf(false) }
     var refresh by remember(instance.id) { mutableIntStateOf(0) }
     var managingRequest by remember(instance.id) { mutableStateOf<SeerrRecentRequest?>(null) }
