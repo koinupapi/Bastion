@@ -704,7 +704,12 @@ private fun BastionApp() {
                             seerrPageStateHolder.SaveableStateProvider("seerr-browse-${service.id}-${destinationBrowse.kind}-${destinationBrowse.id}") {
                                 SeerrBrowseScreen(service, destinationBrowse, seerrBrowseFilter, seerrAppliedFilters, seerrBrowsePageCache,
                                 onFiltersApplied = { seerrAppliedFilters = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
-                                onPageChange = { seerrBrowse = seerrBrowse?.copy(page = it) },
+                                onPageChange = { nextPage ->
+                                    if (seerrBrowse?.page != nextPage) {
+                                        seerrBrowse = seerrBrowse?.copy(page = nextPage)
+                                        scope.launch { screenScroll.scrollToItem(0) }
+                                    }
+                                },
                                 onFilterChange = { seerrBrowseFilter = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
                                 onMediaClick = openSeerrDetails,
                                 trendingWindow = seerrTrendingPeriod,
