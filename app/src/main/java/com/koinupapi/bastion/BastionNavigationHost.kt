@@ -28,8 +28,9 @@ internal data class BastionScreenDestination(
  * Retained native destination host.
  *
  * The parent owns navigation decisions; this host retains visited destinations
- * on the current branch until they are popped. A tab or service switch begins a
- * separate visible branch. A later return to that branch restores its entries.
+ * on the current branch until they are popped. A tab or service switch suspends
+ * that branch composition while preserving its saveable UI state and history.
+ * A later return restores the branch without running hidden tab effects.
  */
 @Composable
 internal fun BastionNavigationHost(
