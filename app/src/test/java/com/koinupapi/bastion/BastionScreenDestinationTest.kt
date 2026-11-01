@@ -108,4 +108,18 @@ class BastionScreenDestinationTest {
         assertEquals(listOf(discover, browse), reconcileBastionNavigation(history.dropLast(1), browse))
     }
 
+    @Test fun newSearchSessionDoesNotReusePreviousDestinationState() {
+        val first = BastionScreenDestination("seerr", 0, "search:1", 1)
+        val second = BastionScreenDestination("seerr", 0, "search:2", 1)
+        assertNotEquals(first.identity, second.identity)
+    }
+
+    @Test fun returningFromDetailsKeepsTheSameSearchSession() {
+        val root = BastionScreenDestination("seerr", 0, "root", 0)
+        val search = BastionScreenDestination("seerr", 0, "search:4", 1)
+        val detail = BastionScreenDestination("seerr", 0, "media:1:42", 2)
+        assertEquals(listOf(root, search),
+            reconcileBastionNavigation(listOf(root, search, detail), search))
+    }
+
 }
