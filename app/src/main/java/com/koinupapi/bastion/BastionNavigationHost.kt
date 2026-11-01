@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Modifier
 
@@ -36,6 +38,7 @@ internal fun BastionNavigationHost(
     modifier: Modifier = Modifier,
     content: @Composable (BastionScreenDestination) -> Unit,
 ) {
+    val branchStateHolder = rememberSaveableStateHolder()
     val branches = remember { mutableStateMapOf<String, androidx.compose.runtime.snapshots.SnapshotStateList<BastionScreenDestination>>() }
     val branchId = "${destination.serviceId ?: "bastion"}:${destination.tab}"
     val stack = branches.getOrPut(branchId) { mutableStateListOf(destination) }
@@ -51,12 +54,19 @@ internal fun BastionNavigationHost(
         }
     }
 
-    BastionRetainedStack(
-        entries = visibleEntries,
-        entryKey = { it.identity },
-        modifier = modifier,
-    ) { entry, _ ->
-        content(entry)
+    // Retain each branch's saveable state when switching tabs or services.
+    // Only the active branch is composed: background tabs cannot execute effects
+    // or compete for global app-bar, scrolling, and network state.
+    key(branchId) {
+        branchStateHolder.SaveableStateProvider(branchId) {
+            BastionRetainedStack(
+                entries = visibleEntries,
+                entryKey = { it.identity },
+                modifier = modifier,
+            ) { entry, _ ->
+                content(entry)
+            }
+        }
     }
 }
 
