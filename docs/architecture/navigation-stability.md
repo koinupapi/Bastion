@@ -36,3 +36,7 @@ Bastion `feature/seerr-discover-batch-5`: `MainActivity.kt` drives `BastionNavig
 ## Constraints
 
 Do not migrate to Flutter. Preserve native Compose / Material 3 Expressive. Do not merge to develop/main or run [build] commit until user authorizes.
+
+## Consolidated APK verification
+
+Candidate includes search scrolling, rotation browse geometry, Requests caching, and browse filter overlay. Device verification pending.
