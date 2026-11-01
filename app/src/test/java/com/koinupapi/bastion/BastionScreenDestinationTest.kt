@@ -59,4 +59,25 @@ class BastionScreenDestinationTest {
             reconcileBastionNavigation(listOf(discover, action), comedy))
     }
 
+    @Test fun poppingMultipleLevelsReturnsToOriginalRoot() {
+        val root = BastionScreenDestination("seerr", 0, "root", 0)
+        val browse = BastionScreenDestination("seerr", 0, "browse:genre:28:1:all:0", 1)
+        val movie = BastionScreenDestination("seerr", 0, "media:1:123", 2)
+        val related = BastionScreenDestination("seerr", 0, "media:2:456", 3)
+        assertEquals(listOf(root), reconcileBastionNavigation(listOf(root, browse, movie, related), root))
+    }
+
+    @Test fun repeatedDestinationDoesNotDuplicateHistory() {
+        val root = BastionScreenDestination("seerr", 0, "root", 0)
+        val details = BastionScreenDestination("seerr", 0, "media:1:123", 1)
+        val history = listOf(root, details)
+        assertEquals(history, reconcileBastionNavigation(history, details))
+    }
+
+    @Test fun rootOfAnotherTabHasDifferentIdentity() {
+        val discover = BastionScreenDestination("seerr", 0, "root", 0)
+        val requests = BastionScreenDestination("seerr", 1, "root", 0)
+        assertNotEquals(discover.identity, requests.identity)
+    }
+
 }
