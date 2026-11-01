@@ -525,6 +525,10 @@ private fun BastionApp() {
                 val destinationMedia = remember(destination.page) {
                     if (destination.page.startsWith("media:")) openSeerrRequest else null
                 }
+                // Keep the outgoing browse destination immutable while its exit frame renders.
+                val destinationBrowse = remember(destination.page) {
+                    if (destination.page.startsWith("browse:")) seerrBrowse else null
+                }
                 val scrollKey = if (destination.page.startsWith("media:")) destination.page
                     else "main-${destination.serviceId ?: "bastion"}-${destination.tab}-${destination.page}"
                 val screenScroll = androidx.compose.runtime.saveable.rememberSaveable(scrollKey, saver = androidx.compose.foundation.lazy.LazyListState.Saver) {
@@ -547,8 +551,8 @@ private fun BastionApp() {
                 if (destination.serviceId != null) {
                     val service = savedInstances.firstOrNull { it.id == destination.serviceId }
                     if (service?.type == "Seerr") {
-                        if (destination.page.startsWith("browse:") && seerrBrowse != null) item {
-                            SeerrBrowseScreen(service, seerrBrowse!!, seerrBrowseFilter, seerrAppliedFilters, seerrBrowsePageCache,
+                        if (destination.page.startsWith("browse:") && destinationBrowse != null) item {
+                            SeerrBrowseScreen(service, destinationBrowse, seerrBrowseFilter, seerrAppliedFilters, seerrBrowsePageCache,
                                 onFiltersApplied = { seerrAppliedFilters = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
                                 onPageChange = { seerrBrowse = seerrBrowse?.copy(page = it) },
                                 onFilterChange = { seerrBrowseFilter = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
