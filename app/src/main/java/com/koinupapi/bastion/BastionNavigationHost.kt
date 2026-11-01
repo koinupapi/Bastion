@@ -13,7 +13,13 @@ internal data class BastionScreenDestination(
     val page: String,
     val depth: Int,
 ) {
-    val identity: String get() = "${serviceId ?: "bastion"}:$tab:$page"
+    val identity: String
+        get() {
+            val stablePage = if (page.startsWith("browse:")) {
+                page.split(':').take(3).joinToString(":")
+            } else page
+            return "${serviceId ?: "bastion"}:$tab:$stablePage"
+        }
 }
 
 /**
@@ -38,6 +44,7 @@ internal fun BastionNavigationHost(
     when {
         previousIndex >= 0 -> {
             while (stack.lastIndex > previousIndex) stack.removeAt(stack.lastIndex)
+            if (stack[previousIndex] != destination) stack[previousIndex] = destination
         }
         stack.isEmpty() -> stack.add(destination)
         destination.depth > stack.last().depth -> stack.add(destination)
