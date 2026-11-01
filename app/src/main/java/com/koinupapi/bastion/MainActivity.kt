@@ -529,8 +529,9 @@ private fun BastionApp() {
                 val destinationBrowse = remember(destination.page) {
                     if (destination.page.startsWith("browse:")) seerrBrowse else null
                 }
-                val scrollKey = if (destination.page.startsWith("media:")) destination.page
-                    else "main-${destination.serviceId ?: "bastion"}-${destination.tab}-${destination.page}"
+                // Browse pagination and filter changes update content, not scroll ownership.
+                // Match the navigation host's stable destination identity.
+                val scrollKey = "main-${destination.identity}"
                 val screenScroll = androidx.compose.runtime.saveable.rememberSaveable(scrollKey, saver = androidx.compose.foundation.lazy.LazyListState.Saver) {
                     seerrScrollStates[scrollKey] ?: androidx.compose.foundation.lazy.LazyListState()
                 }
