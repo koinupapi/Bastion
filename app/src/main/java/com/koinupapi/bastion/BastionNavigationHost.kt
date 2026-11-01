@@ -3,6 +3,7 @@ package com.koinupapi.bastion
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Modifier
 
 /** Immutable snapshot of a navigation destination. */
@@ -28,14 +29,11 @@ internal fun BastionNavigationHost(
     modifier: Modifier = Modifier,
     content: @Composable (BastionScreenDestination) -> Unit,
 ) {
-    val branches = remember { mutableMapOf<String, androidx.compose.runtime.snapshots.SnapshotStateList<BastionScreenDestination>>() }
+    val branches = remember { mutableStateMapOf<String, androidx.compose.runtime.snapshots.SnapshotStateList<BastionScreenDestination>>() }
     val branchId = "${destination.serviceId ?: "bastion"}:${destination.tab}"
-    val stack = remember(branchId) {
-        branches.getOrPut(branchId) { mutableStateListOf(destination) }
-    }
+    val stack = branches.getOrPut(branchId) { mutableStateListOf(destination) }
 
-    // Update the branch synchronously so a Back action reveals the retained
-    // previous composition in the same frame, rather than after an effect.
+    // Reconcile the active destination with its branch history.
     val previousIndex = stack.indexOfLast { it.identity == destination.identity }
     when {
         previousIndex >= 0 -> {
