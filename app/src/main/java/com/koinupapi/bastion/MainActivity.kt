@@ -469,13 +469,15 @@ private fun BastionApp() {
                 tab = if (selectedMediaId == null) tab else seerrTab,
                 page = when {
                     selectedMediaId != null && seerrTab == 0 && openSeerrRequest != null -> "media:${seerrMediaStack.size}:${openSeerrRequest.tmdbId}"
+                    selectedMediaId != null && seerrTab == 0 && seerrSearching -> "search"
                     selectedMediaId != null && seerrTab == 0 && seerrBrowse != null -> "browse:${seerrBrowse!!.kind}:${seerrBrowse!!.id}:${seerrBrowse!!.page}:${seerrBrowseFilter}:${seerrAppliedFilters.hashCode()}"
                     selectedMediaId != null && seerrTab == 4 -> seerrSettingsSection
                     selectedMediaId == null && tab == 2 -> settingsPage
                     else -> "root"
                 },
                 depth = when {
-                    selectedMediaId != null && seerrTab == 0 && openSeerrRequest != null -> seerrMediaStack.size + if (seerrBrowse != null) 1 else 0
+                    selectedMediaId != null && seerrTab == 0 && openSeerrRequest != null -> seerrMediaStack.size + (if (seerrBrowse != null) 1 else 0) + (if (seerrSearching) 1 else 0)
+                    selectedMediaId != null && seerrTab == 0 && seerrSearching -> if (seerrBrowse != null) 2 else 1
                     selectedMediaId != null && seerrTab == 0 && seerrBrowse != null -> 1
                     selectedMediaId != null && seerrTab == 4 -> when (seerrSettingsSection) {
                         "root" -> 0
@@ -491,6 +493,7 @@ private fun BastionApp() {
             BastionNavigationHost(destination = activeDestination, modifier = Modifier.fillMaxSize()) { destination ->
                 val sheetMedia = destination.page.startsWith("media:")
                 val sheetBrowse = destination.page.startsWith("browse:")
+                val sheetSearch = destination.page == "search"
                 val sheetSeerr = destination.serviceId != null &&
                     savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }
                 val sheetTitle = when {
@@ -498,6 +501,7 @@ private fun BastionApp() {
                         (destination.page.split(':').getOrNull(1)?.toIntOrNull() ?: 0) - 1
                     )?.title ?: headerTitle
                     sheetBrowse -> seerrBrowse?.title ?: headerTitle
+                    sheetSearch -> "Search"
                     sheetSeerr && destination.tab == 4 && destination.page != "root" -> destination.page
                     sheetSeerr -> seerrLabels.getOrElse(destination.tab) { headerTitle }
                     destination.serviceId != null -> headerTitle
@@ -509,7 +513,7 @@ private fun BastionApp() {
                 }
                 val sheetSubtitle = if (destination.serviceId != null && showInstanceSubtitle)
                     savedInstances.firstOrNull { it.id == destination.serviceId }?.name else null
-                val sheetBack = sheetMedia || sheetBrowse ||
+                val sheetBack = sheetMedia || sheetBrowse || sheetSearch ||
                     (sheetSeerr && destination.tab == 4 && destination.page != "root") ||
                     (destination.serviceId == null && destination.tab == 2 && destination.page != "Settings")
                 val sheetScrollBehavior = if (hideHeaderOnScroll)
@@ -524,7 +528,7 @@ private fun BastionApp() {
             onNavigationClick = {
                         when {
                             sheetMedia -> popSeerrMedia()
-                            seerrSearching && serviceScreen && seerrTab == 0 -> seerrSearching = false
+                            sheetSearch -> seerrSearching = false
                             sheetBrowse -> seerrBrowse = null
                             nestedSeerrSettings -> seerrSettingsSection = when (seerrSettingsSection) {
                                 "Plex", "Radarr", "Sonarr", "Override Rules" -> "Media Services"
@@ -537,7 +541,7 @@ private fun BastionApp() {
             },
             actions = {
                         val discoverScroll = seerrScrollStates["main-${destination.serviceId}-0-root"]
-                        val showTopSearch = seerrBrowse != null || seerrSearching ||
+                        val showTopSearch = sheetSearch || (destination.page == "root" && seerrBrowse != null) ||
                             (discoverScroll?.canScrollBackward == true && !discoverSearchBarVisible)
                         if (sheetSeerr && destination.tab == 0 && !sheetMedia && destination.identity == activeDestination.identity && showTopSearch) {
                             IconButton(onClick = { seerrSearching = !seerrSearching }) {
@@ -571,30 +575,9 @@ private fun BastionApp() {
                     seerrScrollStates[scrollKey] ?: androidx.compose.foundation.lazy.LazyListState()
                 }
                 SideEffect { seerrScrollStates[scrollKey] = screenScroll }
-                // Search is an overlay mode of Discover, not the same scrollable list.
-                // Keep its position independent so closing search uncovers Discover unchanged.
-                val searchScroll = androidx.compose.runtime.saveable.rememberSaveable(
-                    "$scrollKey-search", saver = androidx.compose.foundation.lazy.LazyListState.Saver
-                ) { androidx.compose.foundation.lazy.LazyListState() }
-                val isDiscoverSearch = destination.serviceId != null && destination.tab == 0 &&
-                    destination.page == "root" && sheetSeerr && seerrSearching
-                // Preserve Discover's actual viewport across the Search layout swap.
-                // The inactive LazyListState may be clamped while its content is removed.
-                var discoverSavedIndex by androidx.compose.runtime.saveable.rememberSaveable(scrollKey) { mutableIntStateOf(0) }
-                var discoverSavedOffset by androidx.compose.runtime.saveable.rememberSaveable("$scrollKey-offset") { mutableIntStateOf(0) }
-                var wasDiscoverSearch by remember(scrollKey) { mutableStateOf(false) }
-                LaunchedEffect(isDiscoverSearch) {
-                    if (isDiscoverSearch && !wasDiscoverSearch) {
-                        discoverSavedIndex = screenScroll.firstVisibleItemIndex
-                        discoverSavedOffset = screenScroll.firstVisibleItemScrollOffset
-                        searchScroll.scrollToItem(0)
-                    } else if (!isDiscoverSearch && wasDiscoverSearch) {
-                        androidx.compose.runtime.withFrameNanos { }
-                        screenScroll.scrollToItem(discoverSavedIndex, discoverSavedOffset)
-                    }
-                    wasDiscoverSearch = isDiscoverSearch
-                }
-                val contentScroll = if (isDiscoverSearch) searchScroll else screenScroll
+                // Search is a separate retained destination above Discover/Browse.
+                // Never swap the underlying LazyColumn's content or scroll state.
+                val contentScroll = screenScroll
                 var browseFilterDialogOpen by remember(destination.identity) { mutableStateOf(false) }
                 val browseSupportsFilters = destinationBrowse?.kind in listOf(
                     "Popular Movies", "Popular TV Shows", "Movie genre", "TV genre", "Studio", "Network")
@@ -651,7 +634,7 @@ private fun BastionApp() {
                                     SeerrManagementScreen(service, destination.tab, seerrDiscoverCache,
                                         seerrCarouselScrollStates, seerrRequestPageCache, seerrRequestCountCache,
                                         destination.page, { seerrSettingsSection = it },
-                                        seerrSearching, { seerrSearching = it }, seerrDiscoverRefresh,
+                                        sheetSearch, { seerrSearching = it }, seerrDiscoverRefresh,
                                         { seerrDiscoverRefreshing = it },
                                         onDiscoverRefreshFeedback = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
                                         onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all"; seerrAppliedFilters = SeerrDiscoverFilters() },
