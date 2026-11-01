@@ -635,7 +635,7 @@ private fun BastionApp() {
                                         onDiscoverRefreshFeedback = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
                                         onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all"; seerrAppliedFilters = SeerrDiscoverFilters() },
                                         onRequestClick = { seerrMediaStack.add(it) },
-                                        scrollState = screenScroll,
+                                        scrollState = contentScroll,
                                         onSearchBarVisibilityChange = { visible -> discoverSearchBarVisible = visible })
                                 }
                             }
@@ -1840,23 +1840,11 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     val movieGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }
     val tvGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }
     var query by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("") }
-    // Closing Search ends its session; opening media details does not, because
-    // the parent keeps searching=true while the detail destination is on top.
-    var discoverScrollIndex by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
-    var discoverScrollOffset by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
+    // Search owns an independent LazyListState in the destination host. Clearing
+    // its query on exit does not mutate the underlying Discover scroll position.
     var previousSearching by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf(false) }
     LaunchedEffect(searching) {
-        if (searching && !previousSearching) {
-            discoverScrollIndex = scrollState.firstVisibleItemIndex
-            discoverScrollOffset = scrollState.firstVisibleItemScrollOffset
-            // The toolbar search action can be tapped far down the Discover feed.
-            // Move to the search field after preserving the original position.
-            scrollState.scrollToItem(0, 0)
-        } else if (!searching && previousSearching) {
-            query = ""
-            androidx.compose.runtime.withFrameNanos { }
-            scrollState.scrollToItem(discoverScrollIndex, discoverScrollOffset)
-        }
+        if (!searching && previousSearching) query = ""
         previousSearching = searching
     }
     var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
