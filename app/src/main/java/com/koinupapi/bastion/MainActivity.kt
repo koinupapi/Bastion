@@ -1699,20 +1699,11 @@ private fun SeerrBrowseScreen(
             onDismiss = { filterDialogOpen = false },
             onApply = { onFiltersApplied(it); filterDialogOpen = false })
     }
+    Box(Modifier.fillMaxWidth()) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (supportsAdvanced) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                AnimatedVisibility(visible = filterFabVisible) {
-                    SmallFloatingActionButton(onClick = { filterDialogOpen = true }) {
-                        Icon(Icons.Default.Tune, contentDescription = "Sort and filter")
-                    }
-                }
-                if (!appliedFilters.isEmpty()) TextButton(onClick = {
-                    onFiltersApplied(SeerrDiscoverFilters())
-                }) { Text("Reset") }
-            }
+        if (supportsAdvanced && !appliedFilters.isEmpty()) {
+            TextButton(onClick = { onFiltersApplied(SeerrDiscoverFilters()) }) { Text("Reset filters") }
         }
         if (destination.kind == "Trending") {
             Row(
@@ -1785,6 +1776,17 @@ private fun SeerrBrowseScreen(
                     enabled = destination.page < page.totalPages && !loading) { Text("Next") }
             }
         }
+    }
+    if (supportsAdvanced) {
+        AnimatedVisibility(
+            visible = filterFabVisible,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp)
+        ) {
+            SmallFloatingActionButton(onClick = { filterDialogOpen = true }) {
+                Icon(Icons.Default.Tune, contentDescription = "Sort and filter")
+            }
+        }
+    }
     }
 }
 
