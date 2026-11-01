@@ -291,6 +291,15 @@ object SeerrClient {
             "Choose a valid instance, quality profile and root folder."
         }
         require(canManageRequests(config).getOrThrow()) { "No request-management permission." }
+        val availableServers = requestOptions(config, isTv).getOrThrow()
+        val selectedServer = availableServers.firstOrNull { it.id == serverId }
+            ?: error("Selected server is no longer configured in Seerr.")
+        require(selectedServer.profiles.any { it.id == profileId }) {
+            "Selected quality profile is not available on this server."
+        }
+        require(selectedServer.roots.any { it.name == rootFolder }) {
+            "Selected root folder is not available on this server."
+        }
         val current = api(config, "/api/v1/request/$requestId")
         require(current.optInt("status") == 1) { "Request is no longer pending. Refresh the request." }
         val body = JSONObject()
