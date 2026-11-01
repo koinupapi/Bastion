@@ -484,6 +484,7 @@ private fun BastionApp() {
                     else -> 0
                 },
             )
+            // Each retained destination owns its shell and navigation chrome.
             BastionNavigationHost(destination = activeDestination, modifier = Modifier.fillMaxSize()) { destination ->
                 val sheetMedia = destination.page.startsWith("media:")
                 val sheetBrowse = destination.page.startsWith("browse:")
