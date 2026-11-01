@@ -1,7 +1,6 @@
 package com.koinupapi.bastion
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -55,7 +54,7 @@ internal fun BastionNavigationHost(
         entries = stack,
         entryKey = { it.identity },
         modifier = modifier,
-    ) { entry, isTop ->
+    ) { entry, _ ->
         content(entry)
     }
 }
