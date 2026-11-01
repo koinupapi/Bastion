@@ -235,6 +235,11 @@ private fun BastionApp() {
         var seerrTab by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableIntStateOf(0) }
         var seerrSettingsSection by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("root") }
         var seerrSearching by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf(false) }
+        var seerrSearchSession by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableIntStateOf(0) }
+        val changeSeerrSearching: (Boolean) -> Unit = { enabled ->
+            if (enabled && !seerrSearching) seerrSearchSession++
+            seerrSearching = enabled
+        }
         var seerrBrowse by androidx.compose.runtime.saveable.rememberSaveable(
         selectedMediaId,
         saver = androidx.compose.runtime.saveable.Saver<MutableState<SeerrBrowseDestination?>, List<String>>(
@@ -469,7 +474,7 @@ private fun BastionApp() {
                 tab = if (selectedMediaId == null) tab else seerrTab,
                 page = when {
                     selectedMediaId != null && seerrTab == 0 && openSeerrRequest != null -> "media:${seerrMediaStack.size}:${openSeerrRequest.tmdbId}"
-                    selectedMediaId != null && seerrTab == 0 && seerrSearching -> "search"
+                    selectedMediaId != null && seerrTab == 0 && seerrSearching -> "search:$seerrSearchSession"
                     selectedMediaId != null && seerrTab == 0 && seerrBrowse != null -> "browse:${seerrBrowse!!.kind}:${seerrBrowse!!.id}:${seerrBrowse!!.page}:${seerrBrowseFilter}:${seerrAppliedFilters.hashCode()}"
                     selectedMediaId != null && seerrTab == 4 -> seerrSettingsSection
                     selectedMediaId == null && tab == 2 -> settingsPage
@@ -493,7 +498,7 @@ private fun BastionApp() {
             BastionNavigationHost(destination = activeDestination, modifier = Modifier.fillMaxSize()) { destination ->
                 val sheetMedia = destination.page.startsWith("media:")
                 val sheetBrowse = destination.page.startsWith("browse:")
-                val sheetSearch = destination.page == "search"
+                val sheetSearch = destination.page.startsWith("search:")
                 val sheetSeerr = destination.serviceId != null &&
                     savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }
                 val sheetTitle = when {
@@ -544,7 +549,7 @@ private fun BastionApp() {
                         val showTopSearch = sheetSearch || (destination.page == "root" && seerrBrowse != null) ||
                             (discoverScroll?.canScrollBackward == true && !discoverSearchBarVisible)
                         if (sheetSeerr && destination.tab == 0 && !sheetMedia && destination.identity == activeDestination.identity && showTopSearch) {
-                            IconButton(onClick = { seerrSearching = !seerrSearching }) {
+                            IconButton(onClick = { changeSeerrSearching(!seerrSearching) }) {
                                 Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
                                     contentDescription = if (seerrSearching) "Close search" else "Search movies and TV")
                             }
@@ -634,7 +639,7 @@ private fun BastionApp() {
                                     SeerrManagementScreen(service, destination.tab, seerrDiscoverCache,
                                         seerrCarouselScrollStates, seerrRequestPageCache, seerrRequestCountCache,
                                         destination.page, { seerrSettingsSection = it },
-                                        sheetSearch, { seerrSearching = it }, seerrDiscoverRefresh,
+                                        sheetSearch, changeSeerrSearching, seerrDiscoverRefresh,
                                         { seerrDiscoverRefreshing = it },
                                         onDiscoverRefreshFeedback = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
                                         onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all"; seerrAppliedFilters = SeerrDiscoverFilters() },
