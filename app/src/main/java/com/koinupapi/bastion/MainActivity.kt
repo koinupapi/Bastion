@@ -669,7 +669,7 @@ private fun BastionApp() {
                 // Search is a separate retained destination above Discover/Browse.
                 // Never swap the underlying LazyColumn's content or scroll state.
                 val contentScroll = screenScroll
-                var browseFilterDialogOpen by remember(destination.identity) { mutableStateOf(false) }
+                var browseFilterDialogOpen by androidx.compose.runtime.saveable.rememberSaveable(destination.identity) { mutableStateOf(false) }
                 val browseSupportsFilters = destinationBrowse?.kind in listOf(
                     "Popular Movies", "Popular TV Shows", "Movie genre", "TV genre", "Studio", "Network")
             val screenContent: @Composable () -> Unit = {
