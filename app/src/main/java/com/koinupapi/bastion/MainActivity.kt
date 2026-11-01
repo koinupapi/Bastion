@@ -646,7 +646,7 @@ private fun BastionApp() {
                         // Wait until that item's measured height can accommodate the
                         // previous offset; otherwise restoration is immediately clamped.
                         kotlinx.coroutines.withTimeoutOrNull(8000L) {
-                            kotlinx.coroutines.flow.snapshotFlow {
+                            snapshotFlow {
                                 val layout = screenScroll.layoutInfo
                                 val first = layout.visibleItemsInfo.firstOrNull()
                                 first != null && first.size >= checkpointOffset +
@@ -659,7 +659,7 @@ private fun BastionApp() {
                 }
                 LaunchedEffect(scrollKey, restorationReady) {
                     if (restorationReady) {
-                        kotlinx.coroutines.flow.snapshotFlow {
+                        snapshotFlow {
                             screenScroll.firstVisibleItemIndex to screenScroll.firstVisibleItemScrollOffset
                         }.collect { (index, offset) ->
                             checkpointIndex = index
