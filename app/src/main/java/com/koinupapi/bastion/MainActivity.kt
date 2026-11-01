@@ -119,6 +119,52 @@ private val seerrMediaStackSaver = androidx.compose.runtime.saveable.Saver<
     }
 )
 
+// Keep the currently displayed Search rows available during activity recreation.
+// Without them, the one-item Search LazyColumn temporarily collapses and clamps
+// its restored pixel offset to zero before the API response arrives.
+private val seerrSearchResultSaver = androidx.compose.runtime.saveable.Saver<
+    MutableState<SeerrDiscoverResult?>, String>(
+    save = { state ->
+        state.value?.let { result ->
+            org.json.JSONObject().apply {
+                put("error", result.error)
+                put("items", org.json.JSONArray().apply {
+                    result.items.forEach { title ->
+                        put(org.json.JSONObject().apply {
+                            put("title", title.title)
+                            put("posterUrl", title.posterUrl)
+                            put("year", title.year)
+                            put("rating", title.rating)
+                            put("tmdbId", title.tmdbId)
+                            put("isTv", title.isTv)
+                            put("mediaStatus", title.mediaStatus)
+                        })
+                    }
+                })
+            }.toString()
+        }
+    },
+    restore = { saved ->
+        val json = org.json.JSONObject(saved)
+        val rows = json.optJSONArray("items") ?: org.json.JSONArray()
+        mutableStateOf(SeerrDiscoverResult(
+            items = (0 until rows.length()).map { index ->
+                val row = rows.getJSONObject(index)
+                SeerrRelatedTitle(
+                    title = row.optString("title"),
+                    posterUrl = if (row.isNull("posterUrl")) null else row.optString("posterUrl"),
+                    year = row.optString("year"),
+                    rating = row.optDouble("rating"),
+                    tmdbId = row.optInt("tmdbId"),
+                    isTv = row.optBoolean("isTv"),
+                    mediaStatus = row.optInt("mediaStatus")
+                )
+            },
+            error = if (json.isNull("error")) null else json.optString("error")
+        ))
+    }
+)
+
 private val seerrFiltersSaver = androidx.compose.runtime.saveable.Saver<MutableState<SeerrDiscoverFilters>, String>(
     save = { state ->
         val f = state.value
@@ -1874,7 +1920,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         if (!searching && previousSearching) query = ""
         previousSearching = searching
     }
-    var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
+    var searchResult by androidx.compose.runtime.saveable.rememberSaveable(instance.id, query, saver = seerrSearchResultSaver) { mutableStateOf<SeerrDiscoverResult?>(null) }
     var searchLoading by remember(instance.id) { mutableStateOf(false) }
     var studioQuery by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("") }
     var studioOptions by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
@@ -1908,7 +1954,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             searchLoading = false
         } else {
             val cacheKey = "search:${instance.id}:${searchText}"
-            val cached = results[cacheKey]
+            val cached = results[cacheKey] ?: searchResult
             if (cached != null) {
                 searchResult = cached
                 searchLoading = false
