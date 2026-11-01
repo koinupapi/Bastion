@@ -260,6 +260,14 @@ private fun BastionApp() {
         val seerrBrowsePageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrBrowsePage>() }
         val seerrMediaStack = androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId, saver = seerrMediaStackSaver) { mutableStateListOf<SeerrRecentRequest>() }
         val seerrMediaCache = remember { mutableStateMapOf<String, SeerrMediaDetails>() }
+        val seerrKeyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+        val seerrFocusManager = androidx.compose.ui.platform.LocalFocusManager.current
+        val openSeerrDetails: (SeerrRecentRequest) -> Unit = { request ->
+            seerrKeyboard?.hide()
+            seerrFocusManager.clearFocus(force = true)
+            seerrMediaStack.add(request)
+        }
+
         val seerrScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.lazy.LazyListState>() }
         val seerrCarouselScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.ScrollState>() }
         val seerrDiscoverCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrDiscoverResult>() }
@@ -608,7 +616,7 @@ private fun BastionApp() {
                                 onFiltersApplied = { seerrAppliedFilters = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
                                 onPageChange = { seerrBrowse = seerrBrowse?.copy(page = it) },
                                 onFilterChange = { seerrBrowseFilter = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
-                                onMediaClick = { seerrMediaStack.add(it) },
+                                onMediaClick = openSeerrDetails,
                                 trendingWindow = seerrTrendingPeriod,
                                 onTrendingWindowChange = { seerrTrendingPeriod = it },
                                 scrollState = screenScroll,
@@ -643,7 +651,7 @@ private fun BastionApp() {
                                         { seerrDiscoverRefreshing = it },
                                         onDiscoverRefreshFeedback = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
                                         onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all"; seerrAppliedFilters = SeerrDiscoverFilters() },
-                                        onRequestClick = { seerrMediaStack.add(it) },
+                                        onRequestClick = openSeerrDetails,
                                         scrollState = contentScroll,
                                         onSearchBarVisibilityChange = { visible -> discoverSearchBarVisible = visible })
                                 }
