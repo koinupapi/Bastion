@@ -232,6 +232,17 @@ object SeerrClient {
         )
     }
 
+    /** Read authoritative request status immediately before administrative actions. */
+    suspend fun pendingRequestForAction(config: ServiceConfig, requestId: Int): Result<Unit> = runCatching {
+        require(requestId > 0) { "Invalid request" }
+        require(canManageRequests(config).getOrThrow()) { "No request-management permission." }
+        val latest = api(config, "/api/v1/request/$requestId")
+        require(latest.optInt("status", -1) == 1) {
+            "This request is no longer pending. Refresh Requests before taking action."
+        }
+        Unit
+    }
+
     /** Load editable destination from the actual request; never rely on list defaults. */
     suspend fun editableRequestDestination(config: ServiceConfig, requestId: Int):
         Result<SeerrEditableDestination> = runCatching {
