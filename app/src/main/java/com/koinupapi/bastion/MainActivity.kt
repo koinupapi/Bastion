@@ -579,6 +579,9 @@ private fun BastionApp() {
                 val isDiscoverSearch = destination.serviceId != null && destination.tab == 0 &&
                     destination.page == "root" && sheetSeerr && seerrSearching
                 val contentScroll = if (isDiscoverSearch) searchScroll else screenScroll
+                var browseFilterDialogOpen by remember(destination.identity) { mutableStateOf(false) }
+                val browseSupportsFilters = destinationBrowse?.kind in listOf(
+                    "Popular Movies", "Popular TV Shows", "Movie genre", "TV genre", "Studio", "Network")
             val screenContent: @Composable () -> Unit = {
             LazyColumn(
                 state = contentScroll,
@@ -604,7 +607,9 @@ private fun BastionApp() {
                                 onMediaClick = { seerrMediaStack.add(it) },
                                 trendingWindow = seerrTrendingPeriod,
                                 onTrendingWindowChange = { seerrTrendingPeriod = it },
-                                scrollState = screenScroll)
+                                scrollState = screenScroll,
+                                filterDialogOpen = browseFilterDialogOpen,
+                                onFilterDialogOpenChange = { browseFilterDialogOpen = it })
                             }
                         }
                         else if (destination.page.startsWith("media:") && destinationMedia != null) item { SeerrRequestDetails(service, destinationMedia,
@@ -1120,6 +1125,17 @@ private fun BastionApp() {
                         }) { screenContent() }
                     }
                 } else screenContent()
+                if (sheetBrowse && browseSupportsFilters) {
+                    AnimatedVisibility(
+                        visible = !screenScroll.isScrollInProgress || screenScroll.lastScrolledBackward,
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                            .padding(end = 20.dp, bottom = 100.dp)
+                    ) {
+                        SmallFloatingActionButton(onClick = { browseFilterDialogOpen = true }) {
+                            Icon(Icons.Default.Tune, contentDescription = "Sort and filter")
+                        }
+                    }
+                }
                 val activeTabs = if (destination.serviceId != null && savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) {
                 seerrLabels.mapIndexed { index, label ->
                     BastionNavDestination(
@@ -1650,7 +1666,9 @@ private fun SeerrBrowseScreen(
     onMediaClick: (SeerrRecentRequest) -> Unit,
     trendingWindow: String,
     onTrendingWindowChange: (String) -> Unit,
-    scrollState: androidx.compose.foundation.lazy.LazyListState
+    scrollState: androidx.compose.foundation.lazy.LazyListState,
+    filterDialogOpen: Boolean,
+    onFilterDialogOpenChange: (Boolean) -> Unit
 ) {
     // Keep the full list composed when returning from media details. Otherwise the
     // transient empty/loading view shrinks the parent LazyColumn and clamps its scroll
@@ -1689,17 +1707,14 @@ private fun SeerrBrowseScreen(
     }
     val supportsAdvanced = destination.kind in listOf(
         "Popular Movies", "Popular TV Shows", "Movie genre", "TV genre", "Studio", "Network")
-    var filterDialogOpen by remember { mutableStateOf(false) }
-    val filterFabVisible by remember(scrollState) { derivedStateOf { !scrollState.isScrollInProgress || scrollState.lastScrolledBackward || !scrollState.canScrollBackward } }
-    val keywordNames = remember(instance.id) { mutableStateMapOf<Int, String>() }
+     val keywordNames = remember(instance.id) { mutableStateMapOf<Int, String>() }
     if (filterDialogOpen && supportsAdvanced) {
         SeerrDiscoverFilterDialog(instance, appliedFilters, mediaType = if (destination.kind in listOf("Popular TV Shows", "TV genre", "Network")) SeerrDiscoverMediaType.TV else SeerrDiscoverMediaType.MOVIE,
             isScopedDestination = destination.kind in listOf("Movie genre", "TV genre", "Studio", "Network"),
             keywordNames = keywordNames,
-            onDismiss = { filterDialogOpen = false },
-            onApply = { onFiltersApplied(it); filterDialogOpen = false })
+            onDismiss = { onFilterDialogOpenChange(false) },
+            onApply = { onFiltersApplied(it); onFilterDialogOpenChange(false) })
     }
-    Box(Modifier.fillMaxWidth()) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (supportsAdvanced && !appliedFilters.isEmpty()) {
@@ -1776,17 +1791,6 @@ private fun SeerrBrowseScreen(
                     enabled = destination.page < page.totalPages && !loading) { Text("Next") }
             }
         }
-    }
-    if (supportsAdvanced) {
-        AnimatedVisibility(
-            visible = filterFabVisible,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp)
-        ) {
-            SmallFloatingActionButton(onClick = { filterDialogOpen = true }) {
-                Icon(Icons.Default.Tune, contentDescription = "Sort and filter")
-            }
-        }
-    }
     }
 }
 
