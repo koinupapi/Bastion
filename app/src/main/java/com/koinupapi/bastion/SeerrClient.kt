@@ -232,6 +232,24 @@ object SeerrClient {
         )
     }
 
+    /** Administrative request fields read from the detail endpoint, not list summaries. */
+    suspend fun requestAdminMetadata(config: ServiceConfig, requestId: Int): Result<SeerrRequestAdminMetadata> = runCatching {
+        require(requestId > 0) { "Invalid request" }
+        require(canManageRequests(config).getOrThrow()) { "No request-management permission." }
+        val request = api(config, "/api/v1/request/$requestId")
+        val requester = request.optJSONObject("requestedBy")
+        SeerrRequestAdminMetadata(
+            status = request.optInt("status", -1),
+            createdAt = request.optString("createdAt").takeIf { it.isNotBlank() },
+            updatedAt = request.optString("updatedAt").takeIf { it.isNotBlank() },
+            requesterId = requester?.optInt("id", -1)?.takeIf { it > 0 },
+            is4k = request.optBoolean("is4k", false),
+            serverId = request.optInt("serverId", -1).takeIf { it >= 0 },
+            profileId = request.optInt("profileId", -1).takeIf { it >= 0 },
+            rootFolder = request.optString("rootFolder").takeIf { it.isNotBlank() }
+        )
+    }
+
     /** Read authoritative request status immediately before administrative actions. */
     suspend fun pendingRequestForAction(config: ServiceConfig, requestId: Int): Result<Unit> = runCatching {
         require(requestId > 0) { "Invalid request" }
@@ -1059,6 +1077,11 @@ data class SeerrRecentRequest(
     val tmdbId: Int = 0,
     val requestId: Int = 0, val requestStatus: String = "",
     val mediaStatus: String? = null
+)
+data class SeerrRequestAdminMetadata(
+    val status: Int, val createdAt: String?, val updatedAt: String?,
+    val requesterId: Int?, val is4k: Boolean,
+    val serverId: Int?, val profileId: Int?, val rootFolder: String?
 )
 data class SeerrRequestCounts(
     val total: Int, val pending: Int, val approved: Int, val processing: Int,
