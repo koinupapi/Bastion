@@ -274,8 +274,10 @@ fun SeerrRequestManagementSheet(
                     busy = true
                     error = null
                     scope.launch {
-                        SeerrClient.pendingRequestForAction(instance, request.requestId)
-                            .onSuccess { SeerrClient.changeRequestStatus(instance, request.requestId, true).getOrThrow() }
+                        runCatching {
+                            SeerrClient.pendingRequestForAction(instance, request.requestId).getOrThrow()
+                            SeerrClient.changeRequestStatus(instance, request.requestId, true).getOrThrow()
+                        }
                             .onSuccess { onChanged(); onDismiss() }
                             .onFailure { error = it.message ?: "Approval failed" }
                         busy = false
@@ -291,8 +293,10 @@ fun SeerrRequestManagementSheet(
                     busy = true
                     error = null
                     scope.launch {
-                        SeerrClient.pendingRequestForAction(instance, request.requestId)
-                            .onSuccess { SeerrClient.changeRequestStatus(instance, request.requestId, false).getOrThrow() }
+                        runCatching {
+                            SeerrClient.pendingRequestForAction(instance, request.requestId).getOrThrow()
+                            SeerrClient.changeRequestStatus(instance, request.requestId, false).getOrThrow()
+                        }
                             .onSuccess { onChanged(); onDismiss() }
                             .onFailure { error = it.message ?: "Decline failed" }
                         busy = false
