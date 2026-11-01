@@ -46,6 +46,7 @@ fun SeerrRequestManagementSheet(
     val profileValid = activeServer?.profiles?.any { it.id == selectedProfile } == true
     val rootValid = activeServer?.roots?.any { it.name == selectedRoot } == true
     val validDestination = serverValid && profileValid && rootValid
+    var adminMetadata by remember(instance.id, request.requestId) { mutableStateOf<SeerrRequestAdminMetadata?>(null) }
     var approvalDetails by remember(instance.id, request.requestId) {
         mutableStateOf<Result<SeerrApprovalDetails>?>(null)
     }
@@ -53,6 +54,7 @@ fun SeerrRequestManagementSheet(
         approvalDetails = null
         canManage = SeerrClient.canManageRequests(instance).getOrDefault(false)
         if (canManage == true) {
+            adminMetadata = SeerrClient.requestAdminMetadata(instance, request.requestId).getOrNull()
             approvalDetails = SeerrClient.requestApprovalDetails(instance, request.requestId, request.isTv)
             if (request.requestStatus == "Pending") {
                 destinationLoading = true
@@ -147,6 +149,17 @@ fun SeerrRequestManagementSheet(
                 Text(request.mediaStatus ?: "Not yet tracked",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (canManage == true) {
+                adminMetadata?.let { metadata ->
+                    Text("ADMINISTRATIVE DETAILS", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    metadata.createdAt?.let { Text("Created: $it", style = MaterialTheme.typography.bodySmall) }
+                    metadata.updatedAt?.let { Text("Last updated: $it", style = MaterialTheme.typography.bodySmall) }
+                    metadata.requesterId?.let { Text("Requester ID: $it", style = MaterialTheme.typography.bodySmall) }
+                    Text(if (metadata.is4k) "4K request: Yes" else "4K request: No",
+                        style = MaterialTheme.typography.bodySmall)
+                }
             }
             if (canManage == null) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (canManage == true) {
