@@ -578,6 +578,22 @@ private fun BastionApp() {
                 ) { androidx.compose.foundation.lazy.LazyListState() }
                 val isDiscoverSearch = destination.serviceId != null && destination.tab == 0 &&
                     destination.page == "root" && sheetSeerr && seerrSearching
+                // Preserve Discover's actual viewport across the Search layout swap.
+                // The inactive LazyListState may be clamped while its content is removed.
+                var discoverSavedIndex by androidx.compose.runtime.saveable.rememberSaveable(scrollKey) { mutableIntStateOf(0) }
+                var discoverSavedOffset by androidx.compose.runtime.saveable.rememberSaveable("$scrollKey-offset") { mutableIntStateOf(0) }
+                var wasDiscoverSearch by remember(scrollKey) { mutableStateOf(false) }
+                LaunchedEffect(isDiscoverSearch) {
+                    if (isDiscoverSearch && !wasDiscoverSearch) {
+                        discoverSavedIndex = screenScroll.firstVisibleItemIndex
+                        discoverSavedOffset = screenScroll.firstVisibleItemScrollOffset
+                        searchScroll.scrollToItem(0)
+                    } else if (!isDiscoverSearch && wasDiscoverSearch) {
+                        androidx.compose.runtime.withFrameNanos { }
+                        screenScroll.scrollToItem(discoverSavedIndex, discoverSavedOffset)
+                    }
+                    wasDiscoverSearch = isDiscoverSearch
+                }
                 val contentScroll = if (isDiscoverSearch) searchScroll else screenScroll
                 var browseFilterDialogOpen by remember(destination.identity) { mutableStateOf(false) }
                 val browseSupportsFilters = destinationBrowse?.kind in listOf(
