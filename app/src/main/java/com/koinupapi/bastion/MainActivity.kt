@@ -306,7 +306,7 @@ private fun BastionApp() {
         var seerrAppliedFilters by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId, saver = seerrFiltersSaver) { mutableStateOf(SeerrDiscoverFilters()) }
         val seerrBrowsePageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrBrowsePage>() }
         val seerrMediaStack = androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId, saver = seerrMediaStackSaver) { mutableStateListOf<SeerrRecentRequest>() }
-        val seerrMediaCache = remember { mutableStateMapOf<String, SeerrMediaDetails>() }
+        val seerrMediaCache = androidx.lifecycle.ViewModelProvider(activity)[SeerrMediaCacheViewModel::class.java].media
         val seerrKeyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
         val seerrFocusManager = androidx.compose.ui.platform.LocalFocusManager.current
         val openSeerrDetails: (SeerrRecentRequest) -> Unit = { request ->
@@ -602,7 +602,7 @@ private fun BastionApp() {
             actions = {
                         val discoverScroll = seerrScrollStates["main-${destination.serviceId}-0-root"]
                         val showTopSearch = sheetSearch || sheetBrowse ||
-                            (destination.page == "root" && discoverScroll?.canScrollBackward == true && !discoverSearchBarVisible)
+                            (destination.page == "root" && discoverScroll?.canScrollBackward == true)
                         if (sheetSeerr && destination.tab == 0 && !sheetMedia && destination.identity == activeDestination.identity && showTopSearch) {
                             IconButton(onClick = { changeSeerrSearching(!seerrSearching) }) {
                                 Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
