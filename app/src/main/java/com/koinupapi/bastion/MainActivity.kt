@@ -1081,7 +1081,7 @@ private fun BastionApp() {
                     }
                 } else screenContent()
             }
-            val activeTabs = if (destination.serviceId != null && savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) {
+            val activeTabs = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
                 seerrLabels.mapIndexed { index, label ->
                     BastionNavDestination(
                         label = label,
