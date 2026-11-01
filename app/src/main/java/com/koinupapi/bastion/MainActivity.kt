@@ -539,7 +539,7 @@ private fun BastionApp() {
                     if (destination.serviceId != null && destination.tab == 0 && destination.page == "root" &&
                         savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) Modifier else Modifier.padding(insets)
                 ),
-                contentPadding = PaddingValues(start = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp, top = if (destination.page.startsWith("media:")) 0.dp else 16.dp, end = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp,
+                contentPadding = PaddingValues(start = if (destination.serviceId != null && savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) 0.dp else 16.dp, top = if (destination.page.startsWith("media:")) 0.dp else 16.dp, end = if (destination.serviceId != null && savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) 0.dp else 16.dp,
                     bottom = if (destination.page.startsWith("media:")) 28.dp else if (!hideNavOnScroll || navVisible) 100.dp else 16.dp),
                 verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)
             ) {
@@ -1070,7 +1070,7 @@ private fun BastionApp() {
                     }
                 } else screenContent()
             }
-            val activeTabs = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
+            val activeTabs = if (destination.serviceId != null && savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) {
                 seerrLabels.mapIndexed { index, label ->
                     BastionNavDestination(
                         label = label,
