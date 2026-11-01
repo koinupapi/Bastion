@@ -633,7 +633,7 @@ private fun BastionApp() {
                             seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${destination.tab}-${destination.page}") {
                                 Box(Modifier.fillMaxWidth().then(if (destination.tab == 0) Modifier else Modifier.padding(horizontal = 16.dp))) {
                                     SeerrManagementScreen(service, destination.tab, seerrDiscoverCache,
-                                        seerrRequestPageCache, seerrRequestCountCache,
+                                        seerrCarouselScrollStates, seerrRequestPageCache, seerrRequestCountCache,
                                         destination.page, { seerrSettingsSection = it },
                                         seerrSearching, { seerrSearching = it }, seerrDiscoverRefresh,
                                         { seerrDiscoverRefreshing = it },
@@ -641,6 +641,7 @@ private fun BastionApp() {
                                         onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all"; seerrAppliedFilters = SeerrDiscoverFilters() },
                                         onRequestClick = { seerrMediaStack.add(it) },
                                         scrollState = contentScroll,
+                                        genreScrollStates = seerrCarouselScrollStates,
                                         onSearchBarVisibilityChange = { visible -> discoverSearchBarVisible = visible })
                                 }
                             }
@@ -1824,6 +1825,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     onBrowse: (SeerrBrowseDestination) -> Unit,
     onMediaClick: (SeerrRecentRequest) -> Unit,
     scrollState: androidx.compose.foundation.lazy.LazyListState,
+    genreScrollStates: MutableMap<String, ScrollState>,
     onSearchBarVisibilityChange: (Boolean) -> Unit) {
     val sections = remember { listOf("Trending", "Popular Movies", "Upcoming Movies",
         "Popular TV Shows", "Upcoming TV Shows") }
@@ -1843,8 +1845,16 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         onDispose { discoverPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("For You") }
-    val movieGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }
-    val tvGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }
+    val movieGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) {
+        genreScrollStates["${instance.id}:movie-genre"] ?: androidx.compose.foundation.ScrollState(0)
+    }
+    val tvGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) {
+        genreScrollStates["${instance.id}:tv-genre"] ?: androidx.compose.foundation.ScrollState(0)
+    }
+    SideEffect {
+        genreScrollStates["${instance.id}:movie-genre"] = movieGenreScroll
+        genreScrollStates["${instance.id}:tv-genre"] = tvGenreScroll
+    }
     var query by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("") }
     // Search owns an independent LazyListState in the destination host. Clearing
     // its query on exit does not mutate the underlying Discover scroll position.
@@ -2226,6 +2236,7 @@ private fun SeerrIssuesScreen(instance: ServiceConfig) {
 @Composable
 private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     discoverResults: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
+    genreScrollStates: MutableMap<String, ScrollState>,
     requestPageCache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrRecentResult>,
     requestCountCache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrRequestCounts>,
     settingsSection: String, onSettingsSectionChange: (String) -> Unit,
@@ -2293,7 +2304,7 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
         if (destination == 0) {
             SeerrDiscoverScreen(instance, discoverResults, searching, onSearchingChange,
                 discoverRefresh, onDiscoverRefreshingChange, onDiscoverRefreshFeedback, onBrowse, onRequestClick,
-                scrollState, onSearchBarVisibilityChange)
+                scrollState, genreScrollStates, onSearchBarVisibilityChange)
         } else if (destination == 2) {
             SeerrIssuesScreen(instance)
         } else if (destination == 3) {
