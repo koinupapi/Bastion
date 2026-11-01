@@ -1820,14 +1820,24 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         studioOptions = SeerrBrowseClient.searchStudios(instance, studioQuery.trim()).getOrDefault(emptyList())
     }
     LaunchedEffect(instance, searching, query) {
-        if (!searching || query.trim().length < 2) {
+        val searchText = query.trim()
+        if (!searching || searchText.length < 2) {
             searchResult = null
             searchLoading = false
         } else {
-            searchLoading = true
-            kotlinx.coroutines.delay(350)
-            searchResult = SeerrClient.discover(instance, "Search", query)
-            searchLoading = false
+            val cacheKey = "search:${instance.id}:${searchText}"
+            val cached = results[cacheKey]
+            if (cached != null) {
+                searchResult = cached
+                searchLoading = false
+            } else {
+                searchLoading = true
+                kotlinx.coroutines.delay(350)
+                val response = SeerrClient.discover(instance, "Search", searchText)
+                results[cacheKey] = response
+                searchResult = response
+                searchLoading = false
+            }
         }
     }
     LaunchedEffect(instance, refresh) {
@@ -1848,8 +1858,10 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     }
                 }
             }
-            if (searching && query.trim().length >= 2) {
-                val response = SeerrClient.discover(instance, "Search", query)
+            if (refresh > 0 && searching && query.trim().length >= 2) {
+                val searchText = query.trim()
+                val response = SeerrClient.discover(instance, "Search", searchText)
+                results["search:${instance.id}:${searchText}"] = response
                 searchResult = response
                 if (response.error != null) failures.add("Search: ${response.error}")
             }
