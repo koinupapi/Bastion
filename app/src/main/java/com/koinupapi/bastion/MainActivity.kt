@@ -1875,18 +1875,21 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
     var tvGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var browseError by remember(instance.id) { mutableStateOf<String?>(null) }
     var watchlistFeed by remember(instance.id) { mutableStateOf<SeerrBrowsePage?>(null) }
-    LaunchedEffect(instance, showWatchlist, refresh) {
+    LaunchedEffect(instance, showWatchlist, refresh, searching) {
+        if (searching) return@LaunchedEffect
         watchlistFeed = if (showWatchlist) SeerrBrowseClient.browse(instance,
             "Plex Watchlist", 1, overridePath = "/discover/watchlist?") else null
     }
-    LaunchedEffect(instance.id) {
+    LaunchedEffect(instance.id, searching) {
+        if (searching) return@LaunchedEffect
         val movies = SeerrBrowseClient.options(instance, "genres/movie")
         val tv = SeerrBrowseClient.options(instance, "genres/tv")
         movieGenres = movies.getOrDefault(emptyList())
         tvGenres = tv.getOrDefault(emptyList())
         browseError = movies.exceptionOrNull()?.message ?: tv.exceptionOrNull()?.message
     }
-    LaunchedEffect(instance.id, studioQuery) {
+    LaunchedEffect(instance.id, studioQuery, searching) {
+        if (searching) return@LaunchedEffect
         if (studioQuery.trim().length < 2) { studioOptions = emptyList(); return@LaunchedEffect }
         kotlinx.coroutines.delay(350)
         studioOptions = SeerrBrowseClient.searchStudios(instance, studioQuery.trim()).getOrDefault(emptyList())
@@ -1912,7 +1915,11 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             }
         }
     }
-    LaunchedEffect(instance, refresh) {
+    LaunchedEffect(instance, refresh, searching) {
+        if (searching) {
+            onRefreshingChange(false)
+            return@LaunchedEffect
+        }
         val startedAt = android.os.SystemClock.elapsedRealtime()
         val failures = java.util.Collections.synchronizedList(mutableListOf<String>())
         val requested = sections.filter { refresh > 0 || it !in results }
