@@ -1653,6 +1653,14 @@ private fun SeerrBrowseScreen(
     // position to zero before the network request finishes.
     val cacheKey = "${instance.id}:${destination.kind}:${destination.id}:${destination.page}:${filter}:${trendingWindow}:${appliedFilters}"
     val result = pageCache[cacheKey]
+    // Rotation recreates the in-memory API cache. Retain enough list height while
+    // results reload so LazyColumn does not clamp the restored pixel offset to zero.
+    var retainedRowCount by androidx.compose.runtime.saveable.rememberSaveable(cacheKey) {
+        mutableIntStateOf(20)
+    }
+    if (result != null && result.error == null) {
+        SideEffect { retainedRowCount = result.items.size }
+    }
     var loading by remember(cacheKey) { mutableStateOf(result == null) }
     var retryCount by remember(cacheKey) { mutableIntStateOf(0) }
     LaunchedEffect(instance, cacheKey, retryCount) {
@@ -1728,7 +1736,11 @@ private fun SeerrBrowseScreen(
                 }
             }
         }
-        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (loading) {
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+            // Keep the outgoing results' approximate geometry during activity recreation.
+            if (result == null) Spacer(Modifier.fillMaxWidth().height((retainedRowCount.coerceAtLeast(20) * 104).dp))
+        }
         result?.error?.let { error ->
             BastionErrorState(error)
             TextButton(onClick = { pageCache.remove(cacheKey); retryCount++ }) { Text("Retry") }
