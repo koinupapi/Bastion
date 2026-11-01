@@ -6,7 +6,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Modifier
 
 /** Immutable snapshot of a navigation destination. */
@@ -39,9 +38,9 @@ internal fun BastionNavigationHost(
     content: @Composable (BastionScreenDestination) -> Unit,
 ) {
     val branchStateHolder = rememberSaveableStateHolder()
-    val branches = remember { mutableStateMapOf<String, androidx.compose.runtime.snapshots.SnapshotStateList<BastionScreenDestination>>() }
+    val branches = remember { mutableMapOf<String, androidx.compose.runtime.snapshots.SnapshotStateList<BastionScreenDestination>>() }
     val branchId = "${destination.serviceId ?: "bastion"}:${destination.tab}"
-    val stack = branches.getOrPut(branchId) { mutableStateListOf(destination) }
+    val stack = remember(branchId) { branches.getOrPut(branchId) { mutableStateListOf(destination) } }
 
     // Derive the visible stack without mutating snapshot state during composition.
     // Commit the history after composition; render the derived stack immediately
