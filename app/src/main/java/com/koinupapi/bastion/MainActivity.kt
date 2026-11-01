@@ -546,8 +546,8 @@ private fun BastionApp() {
             },
             actions = {
                         val discoverScroll = seerrScrollStates["main-${destination.serviceId}-0-root"]
-                        val showTopSearch = sheetSearch || (destination.page == "root" && seerrBrowse != null) ||
-                            (discoverScroll?.canScrollBackward == true && !discoverSearchBarVisible)
+                        val showTopSearch = sheetSearch || sheetBrowse ||
+                            (destination.page == "root" && discoverScroll?.canScrollBackward == true && !discoverSearchBarVisible)
                         if (sheetSeerr && destination.tab == 0 && !sheetMedia && destination.identity == activeDestination.identity && showTopSearch) {
                             IconButton(onClick = { changeSeerrSearching(!seerrSearching) }) {
                                 Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
@@ -1916,10 +1916,7 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         }
     }
     LaunchedEffect(instance, refresh, searching) {
-        if (searching) {
-            onRefreshingChange(false)
-            return@LaunchedEffect
-        }
+        if (searching) return@LaunchedEffect
         val startedAt = android.os.SystemClock.elapsedRealtime()
         val failures = java.util.Collections.synchronizedList(mutableListOf<String>())
         val requested = sections.filter { refresh > 0 || it !in results }
