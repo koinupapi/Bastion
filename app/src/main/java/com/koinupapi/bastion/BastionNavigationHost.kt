@@ -43,13 +43,7 @@ internal fun BastionNavigationHost(
     // Derive the visible stack without mutating snapshot state during composition.
     // Commit the history after composition; render the derived stack immediately
     // so Back never waits for an effect to reveal the previous destination.
-    val previousIndex = stack.indexOfLast { it.identity == destination.identity }
-    val visibleEntries = when {
-        previousIndex >= 0 -> stack.take(previousIndex) + destination
-        stack.isEmpty() -> listOf(destination)
-        destination.depth > stack.last().depth -> stack.toList() + destination
-        else -> stack.dropLast(1) + destination
-    }
+    val visibleEntries = reconcileBastionNavigation(stack, destination)
     SideEffect {
         if (stack.toList() != visibleEntries) {
             stack.clear()
@@ -63,5 +57,19 @@ internal fun BastionNavigationHost(
         modifier = modifier,
     ) { entry, _ ->
         content(entry)
+    }
+}
+
+/** Pure history reconciliation; can be unit-tested without Compose rendering. */
+internal fun reconcileBastionNavigation(
+    history: List<BastionScreenDestination>,
+    destination: BastionScreenDestination,
+): List<BastionScreenDestination> {
+    val previousIndex = history.indexOfLast { it.identity == destination.identity }
+    return when {
+        previousIndex >= 0 -> history.take(previousIndex) + destination
+        history.isEmpty() -> listOf(destination)
+        destination.depth > history.last().depth -> history + destination
+        else -> history.dropLast(1) + destination
     }
 }
