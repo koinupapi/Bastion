@@ -552,7 +552,8 @@ private fun BastionApp() {
                     val service = savedInstances.firstOrNull { it.id == destination.serviceId }
                     if (service?.type == "Seerr") {
                         if (destination.page.startsWith("browse:") && destinationBrowse != null) item {
-                            SeerrBrowseScreen(service, destinationBrowse, seerrBrowseFilter, seerrAppliedFilters, seerrBrowsePageCache,
+                            seerrPageStateHolder.SaveableStateProvider("seerr-browse-${service.id}-${destinationBrowse.kind}-${destinationBrowse.id}") {
+                                SeerrBrowseScreen(service, destinationBrowse, seerrBrowseFilter, seerrAppliedFilters, seerrBrowsePageCache,
                                 onFiltersApplied = { seerrAppliedFilters = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
                                 onPageChange = { seerrBrowse = seerrBrowse?.copy(page = it) },
                                 onFilterChange = { seerrBrowseFilter = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
@@ -560,6 +561,7 @@ private fun BastionApp() {
                                 trendingWindow = seerrTrendingPeriod,
                                 onTrendingWindowChange = { seerrTrendingPeriod = it },
                                 scrollState = screenScroll)
+                            }
                         }
                         else if (destination.page.startsWith("media:") && destinationMedia != null) item { SeerrRequestDetails(service, destinationMedia,
                             cache = seerrMediaCache,
