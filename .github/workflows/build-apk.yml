@@ -56,6 +56,8 @@ jobs:
             test "$DEV_NUMBER" -ge 1 || { echo "Milestone baseline must precede this run"; exit 1; }
             echo "BASTION_VERSION_NAME=${BASTION_MILESTONE}-dev.${DEV_NUMBER}" >> "$GITHUB_ENV"
           fi
+      - name: Run JVM unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest
       - name: Build signed release APK
         env:
           BASTION_KEYSTORE_PATH: ${{ runner.temp }}/bastion-release.jks
