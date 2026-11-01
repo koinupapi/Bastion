@@ -3,6 +3,8 @@ package com.koinupapi.bastion
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -39,7 +41,47 @@ internal fun BastionNavigationHost(
     content: @Composable (BastionScreenDestination) -> Unit,
 ) {
     val branchStateHolder = rememberSaveableStateHolder()
-    val branches = remember { mutableMapOf<String, androidx.compose.runtime.snapshots.SnapshotStateList<BastionScreenDestination>>() }
+    // Preserve navigation history across configuration changes, including Search
+    // beneath Details. A plain remember map lost that history on rotation.
+    val branches = rememberSaveable(saver = Saver<
+        MutableMap<String, androidx.compose.runtime.snapshots.SnapshotStateList<BastionScreenDestination>>,
+        ArrayList<String>
+    >(
+        save = { history ->
+            arrayListOf<String>().apply {
+                history.forEach { (branch, entries) ->
+                    add(branch)
+                    add(entries.size.toString())
+                    entries.forEach { entry ->
+                        add(entry.serviceId ?: "")
+                        add(entry.tab.toString())
+                        add(entry.page)
+                        add(entry.depth.toString())
+                    }
+                }
+            }
+        },
+        restore = { saved ->
+            mutableMapOf<String, androidx.compose.runtime.snapshots.SnapshotStateList<BastionScreenDestination>>().apply {
+                var index = 0
+                while (index + 1 < saved.size) {
+                    val branch = saved[index++]
+                    val count = saved[index++].toIntOrNull() ?: break
+                    val entries = mutableStateListOf<BastionScreenDestination>()
+                    repeat(count) {
+                        if (index + 3 < saved.size) {
+                            val service = saved[index++].ifEmpty { null }
+                            val tab = saved[index++].toIntOrNull() ?: 0
+                            val page = saved[index++]
+                            val depth = saved[index++].toIntOrNull() ?: 0
+                            entries.add(BastionScreenDestination(service, tab, page, depth))
+                        }
+                    }
+                    put(branch, entries)
+                }
+            }
+        },
+    )) { mutableMapOf() }
     val branchId = "${destination.serviceId ?: "bastion"}:${destination.tab}"
     val stack = remember(branchId) { branches.getOrPut(branchId) { mutableStateListOf(destination) } }
 
