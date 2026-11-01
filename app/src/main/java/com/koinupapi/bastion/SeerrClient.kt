@@ -206,29 +206,33 @@ object SeerrClient {
         isTv: Boolean): Result<SeerrApprovalDetails> = runCatching {
         require(requestId > 0) { "Invalid request" }
         val request = api(config, "/api/v1/request/$requestId")
-        val serverId = request.optInt("serverId", 0).takeIf { it > 0 }
-        val profileId = request.optInt("profileId", 0).takeIf { it > 0 }
+        val serverId = request.optInt("serverId", -1).takeIf { it >= 0 }
+        val profileId = request.optInt("profileId", -1).takeIf { it >= 0 }
         val rootFolder = request.optString("rootFolder").takeIf { it.isNotBlank() }
-        val options = requestOptions(config, isTv).getOrNull().orEmpty()
-        // Pending requests may omit serverId; infer only when exactly one
-        // server is configured. Never silently choose among multiple servers.
-        val server = options.firstOrNull { it.id == serverId }
-            ?: if (serverId == null) options.singleOrNull() else null
-        val resolvedProfileId = profileId ?: server?.defaultProfile?.takeIf { it > 0 }
-        val profile = server?.profiles?.firstOrNull { it.id == resolvedProfileId }
-        val defaultRoot = server?.let { configured ->
-            configured.roots.firstOrNull { it.id == configured.defaultRoot }
+        val options = requestOptions(config, isTv).getOrThrow()
+        // Only infer a missing server when exactly one configured server is
+        // compatible with every explicit destination value on the request.
+        val candidates = options.filter { option ->
+            (profileId == null || option.profiles.any { it.id == profileId }) &&
+                (rootFolder == null || option.roots.any {
+                    it.name == rootFolder || it.id.toString() == rootFolder
+                })
         }
+        val server = if (serverId != null) options.firstOrNull { it.id == serverId }
+            else candidates.singleOrNull()
+        val resolvedProfileId = profileId ?: server?.defaultProfile
+        val profile = server?.profiles?.firstOrNull { it.id == resolvedProfileId }
+        val defaultRoot = server?.roots?.firstOrNull { it.id == server.defaultRoot }
         val root = server?.roots?.firstOrNull {
             it.name == rootFolder || it.id.toString() == rootFolder
         } ?: if (rootFolder == null) defaultRoot else null
         SeerrApprovalDetails(
             server = server?.name ?: serverId?.let { "Server #$it" },
-            profile = profile?.name ?: resolvedProfileId?.let { "Profile #$it" },
-            rootFolder = rootFolder ?: root?.name,
+            profile = profile?.name ?: profileId?.let { "Profile #$it" },
+            rootFolder = root?.name ?: rootFolder,
             hasServer = server != null,
-            hasProfile = resolvedProfileId != null && profile != null,
-            hasRoot = rootFolder != null || root != null
+            hasProfile = profile != null,
+            hasRoot = root != null
         )
     }
 
