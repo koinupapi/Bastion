@@ -80,4 +80,32 @@ class BastionScreenDestinationTest {
         assertNotEquals(discover.identity, requests.identity)
     }
 
+    @Test fun searchIsSeparateFromDiscoverAndPopsBackToDiscover() {
+        val discover = BastionScreenDestination("seerr", 0, "root", 0)
+        val search = BastionScreenDestination("seerr", 0, "search", 1)
+        assertNotEquals(discover.identity, search.identity)
+        val history = reconcileBastionNavigation(listOf(discover), search)
+        assertEquals(listOf(discover, search), history)
+        assertEquals(listOf(discover), reconcileBastionNavigation(history, discover))
+    }
+
+    @Test fun detailsReturnToSearchBeforeDiscover() {
+        val discover = BastionScreenDestination("seerr", 0, "root", 0)
+        val search = BastionScreenDestination("seerr", 0, "search", 1)
+        val details = BastionScreenDestination("seerr", 0, "media:1:123", 2)
+        val history = reconcileBastionNavigation(listOf(discover, search), details)
+        assertEquals(listOf(discover, search, details), history)
+        assertEquals(listOf(discover, search), reconcileBastionNavigation(history, search))
+    }
+
+    @Test fun searchFromBrowseReturnsToBrowseBeforeDiscover() {
+        val discover = BastionScreenDestination("seerr", 0, "root", 0)
+        val browse = BastionScreenDestination("seerr", 0, "browse:genre:28:1:all:0", 1)
+        val search = BastionScreenDestination("seerr", 0, "search", 2)
+        val details = BastionScreenDestination("seerr", 0, "media:1:123", 3)
+        val history = listOf(discover, browse, search, details)
+        assertEquals(history.dropLast(1), reconcileBastionNavigation(history, search))
+        assertEquals(listOf(discover, browse), reconcileBastionNavigation(history.dropLast(1), browse))
+    }
+
 }
