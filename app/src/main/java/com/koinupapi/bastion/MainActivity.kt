@@ -310,7 +310,7 @@ private fun BastionApp() {
         var lastExitBackAt by remember { mutableLongStateOf(0L) }
         BackHandler {
             when {
-                openSeerrRequest != null -> popSeerrMedia()
+                selectedMediaId != null && seerrTab == 0 && openSeerrRequest != null -> popSeerrMedia()
                 seerrSearching && selectedMediaId != null && seerrTab == 0 -> seerrSearching = false
                 seerrBrowse != null && selectedMediaId != null && seerrTab == 0 -> seerrBrowse = null
                 selectedMediaId != null -> {
