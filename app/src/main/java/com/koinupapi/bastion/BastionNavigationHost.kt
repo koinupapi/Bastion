@@ -3,6 +3,7 @@ package com.koinupapi.bastion
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Modifier
 
@@ -39,24 +40,25 @@ internal fun BastionNavigationHost(
     val branchId = "${destination.serviceId ?: "bastion"}:${destination.tab}"
     val stack = branches.getOrPut(branchId) { mutableStateListOf(destination) }
 
-    // Reconcile the active destination with its branch history.
+    // Derive the visible stack without mutating snapshot state during composition.
+    // Commit the history after composition; render the derived stack immediately
+    // so Back never waits for an effect to reveal the previous destination.
     val previousIndex = stack.indexOfLast { it.identity == destination.identity }
-    when {
-        previousIndex >= 0 -> {
-            while (stack.lastIndex > previousIndex) stack.removeAt(stack.lastIndex)
-            if (stack[previousIndex] != destination) stack[previousIndex] = destination
-        }
-        stack.isEmpty() -> stack.add(destination)
-        destination.depth > stack.last().depth -> stack.add(destination)
-        else -> {
-            // A sibling replacement (for example changing browse filters) is
-            // not a push; keep the underlying history and replace its top entry.
-            stack[stack.lastIndex] = destination
+    val visibleEntries = when {
+        previousIndex >= 0 -> stack.take(previousIndex) + destination
+        stack.isEmpty() -> listOf(destination)
+        destination.depth > stack.last().depth -> stack.toList() + destination
+        else -> stack.dropLast(1) + destination
+    }
+    SideEffect {
+        if (stack.toList() != visibleEntries) {
+            stack.clear()
+            stack.addAll(visibleEntries)
         }
     }
 
     BastionRetainedStack(
-        entries = stack,
+        entries = visibleEntries,
         entryKey = { it.identity },
         modifier = modifier,
     ) { entry, _ ->
