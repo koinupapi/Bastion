@@ -206,30 +206,63 @@ object SeerrClient {
         isTv: Boolean): Result<SeerrApprovalDetails> = runCatching {
         require(requestId > 0) { "Invalid request" }
         val request = api(config, "/api/v1/request/$requestId")
-        val serverId = request.optInt("serverId", 0).takeIf { it > 0 }
-        val profileId = request.optInt("profileId", 0).takeIf { it > 0 }
+        val serverId = request.optInt("serverId", -1).takeIf { it >= 0 }
+        val profileId = request.optInt("profileId", -1).takeIf { it >= 0 }
         val rootFolder = request.optString("rootFolder").takeIf { it.isNotBlank() }
-        val options = requestOptions(config, isTv).getOrNull().orEmpty()
-        // Pending requests may omit serverId; infer only when exactly one
-        // server is configured. Never silently choose among multiple servers.
-        val server = options.firstOrNull { it.id == serverId }
-            ?: if (serverId == null) options.singleOrNull() else null
-        val resolvedProfileId = profileId ?: server?.defaultProfile?.takeIf { it > 0 }
-        val profile = server?.profiles?.firstOrNull { it.id == resolvedProfileId }
-        val defaultRoot = server?.let { configured ->
-            configured.roots.firstOrNull { it.id == configured.defaultRoot }
+        val options = requestOptions(config, isTv).getOrThrow()
+        // Only infer a missing server when exactly one configured server is
+        // compatible with every explicit destination value on the request.
+        val candidates = options.filter { option ->
+            (profileId == null || option.profiles.any { it.id == profileId }) &&
+                (rootFolder == null || option.roots.any {
+                    it.name == rootFolder || it.id.toString() == rootFolder
+                })
         }
+        val server = if (serverId != null) options.firstOrNull { it.id == serverId }
+            else candidates.singleOrNull()
+        val resolvedProfileId = profileId ?: server?.defaultProfile
+        val profile = server?.profiles?.firstOrNull { it.id == resolvedProfileId }
+        val defaultRoot = server?.roots?.firstOrNull { it.id == server.defaultRoot }
         val root = server?.roots?.firstOrNull {
             it.name == rootFolder || it.id.toString() == rootFolder
         } ?: if (rootFolder == null) defaultRoot else null
         SeerrApprovalDetails(
             server = server?.name ?: serverId?.let { "Server #$it" },
-            profile = profile?.name ?: resolvedProfileId?.let { "Profile #$it" },
-            rootFolder = rootFolder ?: root?.name,
+            profile = profile?.name ?: profileId?.let { "Profile #$it" },
+            rootFolder = root?.name ?: rootFolder,
             hasServer = server != null,
-            hasProfile = resolvedProfileId != null && profile != null,
-            hasRoot = rootFolder != null || root != null
+            hasProfile = profile != null,
+            hasRoot = root != null
         )
+    }
+
+    /** Administrative request fields read from the detail endpoint, not list summaries. */
+    suspend fun requestAdminMetadata(config: ServiceConfig, requestId: Int): Result<SeerrRequestAdminMetadata> = runCatching {
+        require(requestId > 0) { "Invalid request" }
+        require(canManageRequests(config).getOrThrow()) { "No request-management permission." }
+        val request = api(config, "/api/v1/request/$requestId")
+        val requester = request.optJSONObject("requestedBy")
+        SeerrRequestAdminMetadata(
+            status = request.optInt("status", -1),
+            createdAt = request.optString("createdAt").takeIf { it.isNotBlank() },
+            updatedAt = request.optString("updatedAt").takeIf { it.isNotBlank() },
+            requesterId = requester?.optInt("id", -1)?.takeIf { it > 0 },
+            is4k = request.optBoolean("is4k", false),
+            serverId = request.optInt("serverId", -1).takeIf { it >= 0 },
+            profileId = request.optInt("profileId", -1).takeIf { it >= 0 },
+            rootFolder = request.optString("rootFolder").takeIf { it.isNotBlank() }
+        )
+    }
+
+    /** Read authoritative request status immediately before administrative actions. */
+    suspend fun pendingRequestForAction(config: ServiceConfig, requestId: Int): Result<Unit> = runCatching {
+        require(requestId > 0) { "Invalid request" }
+        require(canManageRequests(config).getOrThrow()) { "No request-management permission." }
+        val latest = api(config, "/api/v1/request/$requestId")
+        require(latest.optInt("status", -1) == 1) {
+            "This request is no longer pending. Refresh Requests before taking action."
+        }
+        Unit
     }
 
     /** Load editable destination from the actual request; never rely on list defaults. */
@@ -258,6 +291,15 @@ object SeerrClient {
             "Choose a valid instance, quality profile and root folder."
         }
         require(canManageRequests(config).getOrThrow()) { "No request-management permission." }
+        val availableServers = requestOptions(config, isTv).getOrThrow()
+        val selectedServer = availableServers.firstOrNull { it.id == serverId }
+            ?: error("Selected server is no longer configured in Seerr.")
+        require(selectedServer.profiles.any { it.id == profileId }) {
+            "Selected quality profile is not available on this server."
+        }
+        require(selectedServer.roots.any { it.name == rootFolder }) {
+            "Selected root folder is not available on this server."
+        }
         val current = api(config, "/api/v1/request/$requestId")
         require(current.optInt("status") == 1) { "Request is no longer pending. Refresh the request." }
         val body = JSONObject()
@@ -1048,6 +1090,11 @@ data class SeerrRecentRequest(
     val tmdbId: Int = 0,
     val requestId: Int = 0, val requestStatus: String = "",
     val mediaStatus: String? = null
+)
+data class SeerrRequestAdminMetadata(
+    val status: Int, val createdAt: String?, val updatedAt: String?,
+    val requesterId: Int?, val is4k: Boolean,
+    val serverId: Int?, val profileId: Int?, val rootFolder: String?
 )
 data class SeerrRequestCounts(
     val total: Int, val pending: Int, val approved: Int, val processing: Int,

@@ -47,6 +47,7 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2025.08.00")
     implementation(composeBom)
     implementation("androidx.activity:activity-compose:1.11.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel:2.9.4")
     implementation("androidx.compose.material3:material3:1.5.0-beta02")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("com.google.android.material:material:1.12.0") // Material Color Utilities: generate tonal palettes from a seed

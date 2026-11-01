@@ -61,35 +61,3 @@ fun BastionReveal(
     )
 }
 
-/**
- * Common destination identity for the app shell. All services use the same
- * navigation transition host; only the supplied destination keys differ.
- */
-data class BastionScreenDestination(
-    val serviceId: String?,
-    val tab: Int,
-    val page: String = "root",
-    val depth: Int = 0,
-)
-
-@Composable
-fun BastionNavigationHost(
-    destination: BastionScreenDestination,
-    modifier: Modifier = Modifier,
-    content: @Composable (BastionScreenDestination) -> Unit,
-) {
-    BastionDestinationTransition(
-        destination = destination,
-        modifier = modifier,
-        direction = { from, to ->
-            when {
-                from.serviceId != to.serviceId -> 0
-                from.tab != to.tab -> 0
-                to.depth < from.depth -> -1
-                to.depth > from.depth -> 1
-                else -> 0
-            }
-        },
-        content = content,
-    )
-}

@@ -31,6 +31,7 @@ fun SeerrSettingsScreen(instance: ServiceConfig, section: String, onSectionChang
             .takeIf { it in listOf(25, 50, 100) } ?: 25)
     }
 
+    var showWatchlist by remember(instance.id) { mutableStateOf(preferences.getBoolean("discover_watchlist_${instance.id}", true)) }
     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
 
         when (section) {
@@ -95,6 +96,21 @@ fun SeerrSettingsScreen(instance: ServiceConfig, section: String, onSectionChang
             }
             "App Preferences" -> {
                 Text("These preferences apply only to this Seerr connection and are stored in Bastion.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Discover homepage", style = MaterialTheme.typography.titleMedium)
+                BastionGroupedSettings {
+                    Column {
+                        ListItem(headlineContent = { Text("Show Plex Watchlist") },
+                            supportingContent = { Text("Show saved titles when available") },
+                            trailingContent = { Switch(checked = showWatchlist, onCheckedChange = {
+                                showWatchlist = it
+                                preferences.edit().putBoolean("discover_watchlist_${instance.id}", it).apply()
+                            }) })
+
+                    }
+                }
+                Text("Recent requests remain in the Requests tab.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("Requests per page", style = MaterialTheme.typography.titleMedium)

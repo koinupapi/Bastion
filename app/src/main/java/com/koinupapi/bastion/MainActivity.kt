@@ -1,5 +1,7 @@
 package com.koinupapi.bastion
 
+// Batch 5 APK test candidate: Seerr Discover redesign.
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.foundation.horizontalScroll
@@ -51,11 +53,14 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -65,6 +70,153 @@ import androidx.compose.ui.unit.dp
 private val services = listOf("Sonarr", "Radarr", "qBittorrent", "Seerr", "Plex", "Docker")
 private data class Integration(val name: String, val category: String)
 private data class SeerrBrowseDestination(val kind: String, val title: String, val id: Int = 0, val page: Int = 1)
+private val seerrMediaStackSaver = androidx.compose.runtime.saveable.Saver<
+    androidx.compose.runtime.snapshots.SnapshotStateList<SeerrRecentRequest>, String>(
+    save = { stack ->
+        org.json.JSONArray().apply {
+            stack.forEach { item ->
+                put(org.json.JSONObject().apply {
+                    put("title", item.title)
+                    put("status", item.status)
+                    put("posterUrl", item.posterUrl)
+                    put("year", item.year)
+                    put("requestedBy", item.requestedBy)
+                    put("overview", item.overview)
+                    put("releaseDate", item.releaseDate)
+                    put("isTv", item.isTv)
+                    put("seasons", org.json.JSONArray(item.seasons))
+                    put("tmdbId", item.tmdbId)
+                    put("requestId", item.requestId)
+                    put("requestStatus", item.requestStatus)
+                    put("mediaStatus", item.mediaStatus)
+                })
+            }
+        }.toString()
+    },
+    restore = { saved ->
+        val result = mutableStateListOf<SeerrRecentRequest>()
+        val array = org.json.JSONArray(saved)
+        for (index in 0 until array.length()) {
+            val item = array.getJSONObject(index)
+            fun optional(key: String): String? = if (item.isNull(key)) null else item.optString(key)
+            val seasons = item.optJSONArray("seasons")
+            result.add(SeerrRecentRequest(
+                title = item.optString("title"),
+                status = item.optString("status"),
+                posterUrl = optional("posterUrl"),
+                year = optional("year"),
+                requestedBy = optional("requestedBy"),
+                overview = optional("overview"),
+                releaseDate = optional("releaseDate"),
+                isTv = item.optBoolean("isTv"),
+                seasons = if (seasons == null) emptyList() else (0 until seasons.length()).map { seasons.optInt(it) },
+                tmdbId = item.optInt("tmdbId"),
+                requestId = item.optInt("requestId"),
+                requestStatus = item.optString("requestStatus"),
+                mediaStatus = optional("mediaStatus")
+            ))
+        }
+        result
+    }
+)
+
+// Keep the currently displayed Search rows available during activity recreation.
+// Without them, the one-item Search LazyColumn temporarily collapses and clamps
+// its restored pixel offset to zero before the API response arrives.
+private val seerrSearchResultSaver = androidx.compose.runtime.saveable.Saver<
+    MutableState<SeerrDiscoverResult?>, String>(
+    save = { state ->
+        state.value?.let { result ->
+            org.json.JSONObject().apply {
+                put("error", result.error)
+                put("items", org.json.JSONArray().apply {
+                    result.items.forEach { title ->
+                        put(org.json.JSONObject().apply {
+                            put("title", title.title)
+                            put("posterUrl", title.posterUrl)
+                            put("year", title.year)
+                            put("rating", title.rating)
+                            put("tmdbId", title.tmdbId)
+                            put("isTv", title.isTv)
+                            put("mediaStatus", title.mediaStatus)
+                        })
+                    }
+                })
+            }.toString()
+        }
+    },
+    restore = { saved ->
+        val json = org.json.JSONObject(saved)
+        val rows = json.optJSONArray("items") ?: org.json.JSONArray()
+        mutableStateOf(SeerrDiscoverResult(
+            items = (0 until rows.length()).map { index ->
+                val row = rows.getJSONObject(index)
+                SeerrRelatedTitle(
+                    title = row.optString("title"),
+                    posterUrl = if (row.isNull("posterUrl")) null else row.optString("posterUrl"),
+                    year = row.optString("year"),
+                    rating = row.optDouble("rating"),
+                    tmdbId = row.optInt("tmdbId"),
+                    isTv = row.optBoolean("isTv"),
+                    mediaStatus = row.optInt("mediaStatus")
+                )
+            },
+            error = if (json.isNull("error")) null else json.optString("error")
+        ))
+    }
+)
+
+private val seerrFiltersSaver = androidx.compose.runtime.saveable.Saver<MutableState<SeerrDiscoverFilters>, String>(
+    save = { state ->
+        val f = state.value
+        org.json.JSONObject().apply {
+            fun putOptional(key: String, value: Any?) { if (value != null) put(key, value) }
+            putOptional("sortBy", f.sortBy)
+            putOptional("dateFrom", f.dateFrom)
+            putOptional("dateTo", f.dateTo)
+            putOptional("ratingFrom", f.ratingFrom)
+            putOptional("ratingTo", f.ratingTo)
+            putOptional("votesFrom", f.votesFrom)
+            putOptional("votesTo", f.votesTo)
+            putOptional("runtimeFrom", f.runtimeFrom)
+            putOptional("runtimeTo", f.runtimeTo)
+            putOptional("originalLanguage", f.originalLanguage)
+            putOptional("watchRegion", f.watchRegion)
+            put("providerIds", org.json.JSONArray(f.providerIds.sorted()))
+            putOptional("certification", f.certification)
+            putOptional("certificationCountry", f.certificationCountry)
+            put("keywordIds", org.json.JSONArray(f.keywordIds.sorted()))
+            put("excludedKeywordIds", org.json.JSONArray(f.excludedKeywordIds.sorted()))
+            putOptional("tvStatus", f.tvStatus)
+        }.toString()
+    },
+    restore = { saved ->
+        val json = org.json.JSONObject(saved)
+        fun ids(key: String): Set<Int> = json.optJSONArray(key)?.let { array ->
+            (0 until array.length()).map { array.optInt(it) }.filter { it > 0 }.toSet()
+        } ?: emptySet()
+        mutableStateOf(SeerrDiscoverFilters(
+            sortBy = json.optString("sortBy").ifBlank { null },
+            dateFrom = json.optString("dateFrom").ifBlank { null },
+            dateTo = json.optString("dateTo").ifBlank { null },
+            ratingFrom = if (json.has("ratingFrom")) json.optDouble("ratingFrom") else null,
+            ratingTo = if (json.has("ratingTo")) json.optDouble("ratingTo") else null,
+            votesFrom = if (json.has("votesFrom")) json.optInt("votesFrom") else null,
+            votesTo = if (json.has("votesTo")) json.optInt("votesTo") else null,
+            runtimeFrom = if (json.has("runtimeFrom")) json.optInt("runtimeFrom") else null,
+            runtimeTo = if (json.has("runtimeTo")) json.optInt("runtimeTo") else null,
+            originalLanguage = json.optString("originalLanguage").ifBlank { null },
+            watchRegion = json.optString("watchRegion").ifBlank { null },
+            providerIds = ids("providerIds"),
+            certification = json.optString("certification").ifBlank { null },
+            certificationCountry = json.optString("certificationCountry").ifBlank { null },
+            keywordIds = ids("keywordIds"),
+            excludedKeywordIds = ids("excludedKeywordIds"),
+            tvStatus = json.optString("tvStatus").ifBlank { null }
+        ))
+    }
+)
+
 private val integrationCatalog = listOf(
     Integration("Docker", "Infrastructure"),
     Integration("Uptime Kuma", "Infrastructure"),
@@ -124,21 +276,51 @@ private fun BastionApp() {
         activity.window.isNavigationBarContrastEnforced = false
     }
     BastionTheme(dark = dark, dynamic = dynamic, seed = themeSeed) {
-        var tab by remember { mutableIntStateOf(0) }
+        var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
-        var selectedMediaId by remember { mutableStateOf<String?>(null) }
-        var seerrTab by remember(selectedMediaId) { mutableIntStateOf(0) }
-        var seerrSettingsSection by remember(selectedMediaId) { mutableStateOf("root") }
-        var seerrSearching by remember(selectedMediaId) { mutableStateOf(false) }
-        var seerrBrowse by remember(selectedMediaId) { mutableStateOf<SeerrBrowseDestination?>(null) }
-        var seerrBrowseFilter by remember(selectedMediaId) { mutableStateOf("all") }
-        var seerrAppliedFilters by remember(selectedMediaId) { mutableStateOf(SeerrDiscoverFilters()) }
+        var selectedMediaId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+        var seerrTab by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableIntStateOf(0) }
+        var seerrSettingsSection by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("root") }
+        var seerrSearching by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf(false) }
+        var seerrSearchSession by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableIntStateOf(0) }
+        val changeSeerrSearching: (Boolean) -> Unit = { enabled ->
+            if (enabled && !seerrSearching) seerrSearchSession++
+            seerrSearching = enabled
+        }
+        var seerrBrowse by androidx.compose.runtime.saveable.rememberSaveable(
+        selectedMediaId,
+        saver = androidx.compose.runtime.saveable.Saver<MutableState<SeerrBrowseDestination?>, List<String>>(
+            save = { state -> state.value?.let {
+                listOf(it.kind, it.title, it.id.toString(), it.page.toString())
+            } ?: emptyList() },
+            restore = { saved -> mutableStateOf(
+                if (saved.size == 4) SeerrBrowseDestination(
+                    saved[0], saved[1], saved[2].toIntOrNull() ?: 0, saved[3].toIntOrNull() ?: 1
+                ) else null
+            ) }
+        )
+    ) { mutableStateOf<SeerrBrowseDestination?>(null) }
+        var seerrBrowseFilter by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("all") }
+        var seerrTrendingPeriod by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId) { mutableStateOf("week") }
+        var discoverSearchBarVisible by remember(selectedMediaId) { mutableStateOf(true) }
+        var seerrAppliedFilters by androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId, saver = seerrFiltersSaver) { mutableStateOf(SeerrDiscoverFilters()) }
         val seerrBrowsePageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrBrowsePage>() }
-        val seerrMediaStack = remember { mutableStateListOf<SeerrRecentRequest>() }
-        val seerrMediaCache = remember { mutableStateMapOf<String, SeerrMediaDetails>() }
+        val seerrMediaStack = androidx.compose.runtime.saveable.rememberSaveable(selectedMediaId, saver = seerrMediaStackSaver) { mutableStateListOf<SeerrRecentRequest>() }
+        val seerrMediaCache = androidx.lifecycle.ViewModelProvider(activity)[SeerrMediaCacheViewModel::class.java].media
+        val seerrKeyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+        val seerrFocusManager = androidx.compose.ui.platform.LocalFocusManager.current
+        val openSeerrDetails: (SeerrRecentRequest) -> Unit = { request ->
+            seerrKeyboard?.hide()
+            seerrFocusManager.clearFocus(force = true)
+            seerrMediaStack.add(request)
+        }
+
         val seerrScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.lazy.LazyListState>() }
         val seerrCarouselScrollStates = remember(selectedMediaId) { mutableMapOf<String, androidx.compose.foundation.ScrollState>() }
         val seerrDiscoverCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrDiscoverResult>() }
+        // Request pages survive tab branch disposal; explicit refresh still bypasses cache.
+        val seerrRequestPageCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrRecentResult>() }
+        val seerrRequestCountCache = remember(selectedMediaId) { mutableStateMapOf<String, SeerrRequestCounts>() }
         var seerrDiscoverRefresh by remember(selectedMediaId) { mutableIntStateOf(0) }
         var seerrDiscoverRefreshing by remember(selectedMediaId) { mutableStateOf(false) }
         val seerrRefreshDiscover: () -> Unit = { seerrDiscoverRefresh++ }
@@ -191,7 +373,8 @@ private fun BastionApp() {
         var lastExitBackAt by remember { mutableLongStateOf(0L) }
         BackHandler {
             when {
-                openSeerrRequest != null -> popSeerrMedia()
+                selectedMediaId != null && seerrTab == 0 && openSeerrRequest != null -> popSeerrMedia()
+                seerrSearching && selectedMediaId != null && seerrTab == 0 -> seerrSearching = false
                 seerrBrowse != null && selectedMediaId != null && seerrTab == 0 -> seerrBrowse = null
                 selectedMediaId != null -> {
                     if (seerrTab == 4 && seerrSettingsSection != "root") {
@@ -341,48 +524,20 @@ private fun BastionApp() {
             }
         }) {
         LaunchedEffect(tab, selectedMediaId, seerrTab, settingsPage, hideNavOnScroll) { navVisible = true }
-        BastionAppShell(
-            title = headerTitle,
-            subtitle = headerContext,
-            isBack = headerBack,
-            immersive = openSeerrRequest != null,
-            scrollBehavior = topBarScrollBehavior,
-            onNavigationClick = {
-                        when {
-                            openSeerrRequest != null -> popSeerrMedia()
-                            seerrBrowse != null && serviceScreen && seerrTab == 0 -> seerrBrowse = null
-                            nestedSeerrSettings -> seerrSettingsSection = when (seerrSettingsSection) {
-                                "Plex", "Radarr", "Sonarr", "Override Rules" -> "Media Services"
-                                "Logs", "Scheduled Jobs", "Cache Management" -> "Maintenance & Diagnostics"
-                                else -> "root"
-                            }
-                            nestedBastionSettings -> goBackSettings()
-                            else -> scope.launch { drawerState.open() }
-                        }
-            },
-            actions = {
-                        if (serviceScreen && seerrTab == 0 && openSeerrRequest == null) {
-                            IconButton(onClick = { seerrSearching = !seerrSearching }) {
-                                Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
-                                    contentDescription = if (seerrSearching) "Close search" else "Search movies and TV")
-                            }
-                        }
-            },
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-        ) { insets ->
-            Box(Modifier.fillMaxSize()) {
             val activeDestination = BastionScreenDestination(
                 serviceId = selectedMediaId,
                 tab = if (selectedMediaId == null) tab else seerrTab,
                 page = when {
-                    openSeerrRequest != null -> "media:${seerrMediaStack.size}:${openSeerrRequest.tmdbId}"
+                    selectedMediaId != null && seerrTab == 0 && openSeerrRequest != null -> "media:${seerrMediaStack.size}:${openSeerrRequest.tmdbId}"
+                    selectedMediaId != null && seerrTab == 0 && seerrSearching -> "search:$seerrSearchSession"
                     selectedMediaId != null && seerrTab == 0 && seerrBrowse != null -> "browse:${seerrBrowse!!.kind}:${seerrBrowse!!.id}:${seerrBrowse!!.page}:${seerrBrowseFilter}:${seerrAppliedFilters.hashCode()}"
                     selectedMediaId != null && seerrTab == 4 -> seerrSettingsSection
                     selectedMediaId == null && tab == 2 -> settingsPage
                     else -> "root"
                 },
                 depth = when {
-                    openSeerrRequest != null -> seerrMediaStack.size + if (seerrBrowse != null) 1 else 0
+                    selectedMediaId != null && seerrTab == 0 && openSeerrRequest != null -> seerrMediaStack.size + (if (seerrBrowse != null) 1 else 0) + (if (seerrSearching) 1 else 0)
+                    selectedMediaId != null && seerrTab == 0 && seerrSearching -> if (seerrBrowse != null) 2 else 1
                     selectedMediaId != null && seerrTab == 0 && seerrBrowse != null -> 1
                     selectedMediaId != null && seerrTab == 4 -> when (seerrSettingsSection) {
                         "root" -> 0
@@ -394,40 +549,175 @@ private fun BastionApp() {
                     else -> 0
                 },
             )
+            // Each retained destination owns its shell and navigation chrome.
             BastionNavigationHost(destination = activeDestination, modifier = Modifier.fillMaxSize()) { destination ->
+                val sheetMedia = destination.page.startsWith("media:")
+                val sheetBrowse = destination.page.startsWith("browse:")
+                val sheetSearch = destination.page.startsWith("search:")
+                val sheetSeerr = destination.serviceId != null &&
+                    savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }
+                val sheetTitle = when {
+                    sheetMedia -> seerrMediaStack.getOrNull(
+                        (destination.page.split(':').getOrNull(1)?.toIntOrNull() ?: 0) - 1
+                    )?.title ?: headerTitle
+                    sheetBrowse -> seerrBrowse?.title ?: headerTitle
+                    sheetSearch -> "Search"
+                    sheetSeerr && destination.tab == 4 && destination.page != "root" -> destination.page
+                    sheetSeerr -> seerrLabels.getOrElse(destination.tab) { headerTitle }
+                    destination.serviceId != null -> headerTitle
+                    destination.tab == 2 && destination.page != "Settings" ->
+                        if (destination.page == "Service detail") selectedIntegration else destination.page
+                    destination.tab == 0 -> "Bastion"
+                    destination.tab == 1 -> "Calendar"
+                    else -> "Settings"
+                }
+                val sheetSubtitle = if (destination.serviceId != null && showInstanceSubtitle)
+                    savedInstances.firstOrNull { it.id == destination.serviceId }?.name else null
+                val sheetBack = sheetMedia || sheetBrowse || sheetSearch ||
+                    (sheetSeerr && destination.tab == 4 && destination.page != "root") ||
+                    (destination.serviceId == null && destination.tab == 2 && destination.page != "Settings")
+                val sheetScrollBehavior = if (hideHeaderOnScroll)
+                    TopAppBarDefaults.enterAlwaysScrollBehavior()
+                else TopAppBarDefaults.pinnedScrollBehavior()
+        BastionAppShell(
+            title = sheetTitle,
+            subtitle = sheetSubtitle,
+            isBack = sheetBack,
+            immersive = sheetMedia,
+            scrollBehavior = sheetScrollBehavior,
+            onNavigationClick = {
+                        when {
+                            sheetMedia -> popSeerrMedia()
+                            sheetSearch -> seerrSearching = false
+                            sheetBrowse -> seerrBrowse = null
+                            nestedSeerrSettings -> seerrSettingsSection = when (seerrSettingsSection) {
+                                "Plex", "Radarr", "Sonarr", "Override Rules" -> "Media Services"
+                                "Logs", "Scheduled Jobs", "Cache Management" -> "Maintenance & Diagnostics"
+                                else -> "root"
+                            }
+                            nestedBastionSettings -> goBackSettings()
+                            else -> scope.launch { drawerState.open() }
+                        }
+            },
+            actions = {
+                        // Keep Search accessible regardless of Discover scroll position.
+                        val showTopSearch = sheetSearch || sheetBrowse || destination.page == "root"
+                        if (sheetSeerr && destination.tab == 0 && !sheetMedia && destination.identity == activeDestination.identity && showTopSearch) {
+                            IconButton(onClick = { changeSeerrSearching(!seerrSearching) }) {
+                                Icon(if (seerrSearching) Icons.Default.Close else Icons.Default.Search,
+                                    contentDescription = if (seerrSearching) "Close search" else "Search movies and TV")
+                            }
+                        }
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+        ) { insets ->
+            Box(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize()) {
                 // AnimatedContent keeps outgoing destinations composed during their exit.
                 // Capture the media for THIS destination so popping the live stack does
                 // not turn the outgoing details screen into Discover mid-transition.
-                val destinationMedia = remember(destination.page) {
-                    if (destination.page.startsWith("media:")) openSeerrRequest else null
+                // Resolve each retained detail from its own stack position rather than
+                // the global top item, which changes when navigating to related media.
+                val destinationMedia = if (destination.page.startsWith("media:")) {
+                    val stackPosition = destination.page.split(':').getOrNull(1)?.toIntOrNull()
+                    stackPosition?.let { seerrMediaStack.getOrNull(it - 1) }
+                } else null
+                // Browse is a single retained destination whose page/filter arguments
+                // can change without creating a new navigation entry.
+                val destinationBrowse = if (destination.page.startsWith("browse:")) {
+                    seerrBrowse
+                } else null
+                // Browse pagination and filter changes update content, not scroll ownership.
+                // Match the navigation host's stable destination identity.
+                val scrollKey = "main-${destination.identity}"
+                val screenScroll = androidx.compose.runtime.saveable.rememberSaveable(scrollKey, saver = androidx.compose.foundation.lazy.LazyListState.Saver) {
+                    seerrScrollStates[scrollKey] ?: androidx.compose.foundation.lazy.LazyListState()
                 }
-                val scrollKey = if (destination.page.startsWith("media:")) destination.page
-                    else "main-${destination.serviceId ?: "bastion"}-${destination.tab}-${destination.page}"
-                val screenScroll = seerrScrollStates.getOrPut(scrollKey) {
-                    androidx.compose.foundation.lazy.LazyListState()
+                SideEffect { seerrScrollStates[scrollKey] = screenScroll }
+                // Retain the last meaningful offset independently of LazyListState.
+                // Async Discover/Details content can briefly collapse during rotation.
+                var checkpointIndex by androidx.compose.runtime.saveable.rememberSaveable(scrollKey) { mutableIntStateOf(0) }
+                var checkpointOffset by androidx.compose.runtime.saveable.rememberSaveable(scrollKey) { mutableIntStateOf(0) }
+                var restorationReady by remember(scrollKey) { mutableStateOf(false) }
+                LaunchedEffect(scrollKey) {
+                    if (!destination.page.startsWith("search:") && (checkpointIndex != 0 || checkpointOffset != 0)) {
+                        // The entire screen is currently a single LazyColumn item.
+                        // Wait until that item's measured height can accommodate the
+                        // previous offset; otherwise restoration is immediately clamped.
+                        kotlinx.coroutines.withTimeoutOrNull(8000L) {
+                            snapshotFlow {
+                                val layout = screenScroll.layoutInfo
+                                val first = layout.visibleItemsInfo.firstOrNull()
+                                first != null && first.size >= checkpointOffset +
+                                    (layout.viewportEndOffset - layout.viewportStartOffset)
+                            }.first { it }
+                        }
+                        screenScroll.scrollToItem(checkpointIndex, checkpointOffset)
+                    }
+                    restorationReady = true
                 }
+                LaunchedEffect(scrollKey, restorationReady) {
+                    if (restorationReady) {
+                        snapshotFlow {
+                            screenScroll.firstVisibleItemIndex to screenScroll.firstVisibleItemScrollOffset
+                        }.collect { (index, offset) ->
+                            checkpointIndex = index
+                            checkpointOffset = offset
+                        }
+                    }
+                }
+                // Search is a separate retained destination above Discover/Browse.
+                // Never swap the underlying LazyColumn's content or scroll state.
+                val contentScroll = screenScroll
+                var browseFilterDialogOpen by androidx.compose.runtime.saveable.rememberSaveable(destination.identity) { mutableStateOf(false) }
+                val browseSupportsFilters = destinationBrowse?.kind in listOf(
+                    "Popular Movies", "Popular TV Shows", "Movie genre", "TV genre", "Studio", "Network")
             val screenContent: @Composable () -> Unit = {
             LazyColumn(
-                state = screenScroll,
+                state = contentScroll,
                 overscrollEffect = rememberOverscrollEffect(),
-                modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).then(
+                modifier = Modifier.fillMaxSize()
+                    .nestedScroll(remember(sheetSearch, destination.identity) {
+                        object : NestedScrollConnection {
+                            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                                if (sheetSearch && source == NestedScrollSource.UserInput && available.y != 0f) {
+                                    seerrKeyboard?.hide()
+                                    seerrFocusManager.clearFocus(force = true)
+                                }
+                                return Offset.Zero
+                            }
+                        }
+                    })
+                    .nestedScroll(navigationScrollConnection).then(
                     if (destination.serviceId != null && destination.tab == 0 && destination.page == "root" &&
                         savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) Modifier else Modifier.padding(insets)
                 ),
-                contentPadding = PaddingValues(start = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp, top = if (openSeerrRequest != null) 0.dp else 16.dp, end = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) 0.dp else 16.dp,
-                    bottom = if (openSeerrRequest != null) 28.dp else if (!hideNavOnScroll || navVisible) 100.dp else 16.dp),
+                contentPadding = PaddingValues(start = if (destination.serviceId != null && savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) 0.dp else 16.dp, top = if (destination.page.startsWith("media:")) 0.dp else 16.dp, end = if (destination.serviceId != null && savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) 0.dp else 16.dp,
+                    bottom = if (destination.page.startsWith("media:")) 28.dp else if (!hideNavOnScroll || navVisible) 100.dp else 16.dp),
                 verticalArrangement = Arrangement.spacedBy(BastionSpacing.large)
             ) {
                 if (destination.serviceId == null && destination.tab == 0) item { DemoNotice() }
                 if (destination.serviceId != null) {
                     val service = savedInstances.firstOrNull { it.id == destination.serviceId }
                     if (service?.type == "Seerr") {
-                        if (destination.page.startsWith("browse:") && seerrBrowse != null) item {
-                            SeerrBrowseScreen(service, seerrBrowse!!, seerrBrowseFilter, seerrAppliedFilters, seerrBrowsePageCache,
+                        if (destination.page.startsWith("browse:") && destinationBrowse != null) item {
+                            seerrPageStateHolder.SaveableStateProvider("seerr-browse-${service.id}-${destinationBrowse.kind}-${destinationBrowse.id}") {
+                                SeerrBrowseScreen(service, destinationBrowse, seerrBrowseFilter, seerrAppliedFilters, seerrBrowsePageCache,
                                 onFiltersApplied = { seerrAppliedFilters = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
-                                onPageChange = { seerrBrowse = seerrBrowse?.copy(page = it) },
+                                onPageChange = { nextPage ->
+                                    if (seerrBrowse?.page != nextPage) {
+                                        seerrBrowse = seerrBrowse?.copy(page = nextPage)
+                                        scope.launch { screenScroll.scrollToItem(0) }
+                                    }
+                                },
                                 onFilterChange = { seerrBrowseFilter = it; seerrBrowse = seerrBrowse?.copy(page = 1) },
-                                onMediaClick = { seerrMediaStack.add(it) })
+                                onMediaClick = openSeerrDetails,
+                                trendingWindow = seerrTrendingPeriod,
+                                onTrendingWindowChange = { seerrTrendingPeriod = it },
+                                scrollState = screenScroll,
+                                filterDialogOpen = browseFilterDialogOpen,
+                                onFilterDialogOpenChange = { browseFilterDialogOpen = it })
+                            }
                         }
                         else if (destination.page.startsWith("media:") && destinationMedia != null) item { SeerrRequestDetails(service, destinationMedia,
                             cache = seerrMediaCache,
@@ -450,13 +740,15 @@ private fun BastionApp() {
                             seerrPageStateHolder.SaveableStateProvider("seerr-${service.id}-${destination.tab}-${destination.page}") {
                                 Box(Modifier.fillMaxWidth().then(if (destination.tab == 0) Modifier else Modifier.padding(horizontal = 16.dp))) {
                                     SeerrManagementScreen(service, destination.tab, seerrDiscoverCache,
+                                        seerrCarouselScrollStates, seerrRequestPageCache, seerrRequestCountCache,
                                         destination.page, { seerrSettingsSection = it },
-                                        seerrSearching, { seerrSearching = it }, seerrDiscoverRefresh,
+                                        sheetSearch, changeSeerrSearching, seerrDiscoverRefresh,
                                         { seerrDiscoverRefreshing = it },
                                         onDiscoverRefreshFeedback = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
-                                        onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all"; seerrAppliedFilters = SeerrDiscoverFilters() }) {
-                                        seerrMediaStack.add(it)
-                                    }
+                                        onBrowse = { seerrBrowse = it; seerrBrowseFilter = "all"; seerrAppliedFilters = SeerrDiscoverFilters() },
+                                        onRequestClick = openSeerrDetails,
+                                        scrollState = contentScroll,
+                                        onSearchBarVisibilityChange = { visible -> discoverSearchBarVisible = visible })
                                 }
                             }
                         }
@@ -940,8 +1232,18 @@ private fun BastionApp() {
                         }) { screenContent() }
                     }
                 } else screenContent()
-            }
-            val activeTabs = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
+                if (sheetBrowse && browseSupportsFilters) {
+                    AnimatedVisibility(
+                        visible = !screenScroll.isScrollInProgress || screenScroll.lastScrolledBackward,
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                            .padding(end = 20.dp, bottom = 100.dp)
+                    ) {
+                        SmallFloatingActionButton(onClick = { browseFilterDialogOpen = true }) {
+                            Icon(Icons.Default.Tune, contentDescription = "Sort and filter")
+                        }
+                    }
+                }
+                val activeTabs = if (destination.serviceId != null && savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) {
                 seerrLabels.mapIndexed { index, label ->
                     BastionNavDestination(
                         label = label,
@@ -952,16 +1254,16 @@ private fun BastionApp() {
                             3 -> Icons.Default.People
                             else -> Icons.Default.Settings
                         },
-                        selected = seerrTab == index,
+                        selected = destination.tab == index,
                         onClick = { seerrTab = index },
                     )
                 }
-            } else if (selectedMediaId == null && (tab != 2 || settingsPage == "Settings")) {
+            } else if (destination.serviceId == null && (destination.tab != 2 || destination.page == "Settings")) {
                 labels.mapIndexed { index, label ->
                     BastionNavDestination(
                         label = label,
                         icon = icons[index],
-                        selected = tab == index,
+                        selected = destination.tab == index,
                         onClick = {
                             tab = index
                             selectedMediaId = null
@@ -973,12 +1275,14 @@ private fun BastionApp() {
                 }
             } else emptyList()
             BastionShellBottomBar(
-                visible = activeTabs.isNotEmpty() && openSeerrRequest == null && (!hideNavOnScroll || navVisible),
+                visible = activeTabs.isNotEmpty() && !destination.page.startsWith("media:") && (!hideNavOnScroll || navVisible),
                 destinations = activeTabs,
                 showAllLabels = showAllNavLabels,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
-        }
+                }
+                }
+            }
         }
     }
     }
@@ -1251,6 +1555,7 @@ private fun SeerrChoicePicker(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SeerrDiscoverFilterDialog(
     instance: ServiceConfig,
@@ -1330,11 +1635,10 @@ private fun SeerrDiscoverFilterDialog(
         certificationCountry.isNotBlank() || certification.isNotBlank() ||
         includedKeywords.isNotEmpty() || excludedKeywords.isNotEmpty() || tvStatus.isNotBlank()
     )
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Sort & filter") },
-        text = {
-            Column(Modifier.fillMaxWidth().heightIn(max = 480.dp)
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text("Sort & filter", Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.headlineSmall)
+            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).heightIn(max = 500.dp)
                 .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Sort by", style = MaterialTheme.typography.titleSmall)
@@ -1427,9 +1731,10 @@ private fun SeerrDiscoverFilterDialog(
                 }
 
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(onClick = { onApply(SeerrDiscoverFilters()) }) { Text("Reset all") }
+            Button(onClick = {
                 fun date(value: String, end: Boolean): String? =
                     value.toIntOrNull()?.takeIf { it in 1900..2100 }
                         ?.let { "%04d-%s".format(it, if (end) "12-31" else "01-01") }
@@ -1451,11 +1756,8 @@ private fun SeerrDiscoverFilterDialog(
                     tvStatus = tvStatus.trim().ifBlank { null }
                 ))
             }, enabled = !languageConflicts) { Text("Apply") }
-        },
-        dismissButton = {
-            TextButton(onClick = { onApply(SeerrDiscoverFilters()) }) { Text("Reset all") }
         }
-    )
+    }
 }
 
 @Composable
@@ -1468,14 +1770,26 @@ private fun SeerrBrowseScreen(
     onPageChange: (Int) -> Unit,
     onFiltersApplied: (SeerrDiscoverFilters) -> Unit,
     onFilterChange: (String) -> Unit,
-    onMediaClick: (SeerrRecentRequest) -> Unit
+    onMediaClick: (SeerrRecentRequest) -> Unit,
+    trendingWindow: String,
+    onTrendingWindowChange: (String) -> Unit,
+    scrollState: androidx.compose.foundation.lazy.LazyListState,
+    filterDialogOpen: Boolean,
+    onFilterDialogOpenChange: (Boolean) -> Unit
 ) {
     // Keep the full list composed when returning from media details. Otherwise the
     // transient empty/loading view shrinks the parent LazyColumn and clamps its scroll
     // position to zero before the network request finishes.
-    var trendingWindow by remember(instance.id, destination.kind) { mutableStateOf("week") }
     val cacheKey = "${instance.id}:${destination.kind}:${destination.id}:${destination.page}:${filter}:${trendingWindow}:${appliedFilters}"
     val result = pageCache[cacheKey]
+    // Rotation recreates the in-memory API cache. Retain enough list height while
+    // results reload so LazyColumn does not clamp the restored pixel offset to zero.
+    var retainedRowCount by androidx.compose.runtime.saveable.rememberSaveable(cacheKey) {
+        mutableIntStateOf(20)
+    }
+    if (result != null && result.error == null) {
+        SideEffect { retainedRowCount = result.items.size }
+    }
     var loading by remember(cacheKey) { mutableStateOf(result == null) }
     var retryCount by remember(cacheKey) { mutableIntStateOf(0) }
     LaunchedEffect(instance, cacheKey, retryCount) {
@@ -1500,48 +1814,50 @@ private fun SeerrBrowseScreen(
     }
     val supportsAdvanced = destination.kind in listOf(
         "Popular Movies", "Popular TV Shows", "Movie genre", "TV genre", "Studio", "Network")
-    var filterDialogOpen by remember { mutableStateOf(false) }
-    val keywordNames = remember(instance.id) { mutableStateMapOf<Int, String>() }
+     val keywordNames = remember(instance.id) { mutableStateMapOf<Int, String>() }
     if (filterDialogOpen && supportsAdvanced) {
         SeerrDiscoverFilterDialog(instance, appliedFilters, mediaType = if (destination.kind in listOf("Popular TV Shows", "TV genre", "Network")) SeerrDiscoverMediaType.TV else SeerrDiscoverMediaType.MOVIE,
             isScopedDestination = destination.kind in listOf("Movie genre", "TV genre", "Studio", "Network"),
             keywordNames = keywordNames,
-            onDismiss = { filterDialogOpen = false },
-            onApply = { onFiltersApplied(it); filterDialogOpen = false })
+            onDismiss = { onFilterDialogOpenChange(false) },
+            onApply = { onFiltersApplied(it); onFilterDialogOpenChange(false) })
     }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (supportsAdvanced) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                FilledTonalButton(onClick = { filterDialogOpen = true }) {
-                    Text(if (appliedFilters.isEmpty()) "Sort & filter" else "Edit filters")
-                }
-                if (!appliedFilters.isEmpty()) TextButton(onClick = {
-                    onFiltersApplied(SeerrDiscoverFilters())
-                }) { Text("Reset") }
-            }
+        if (supportsAdvanced && !appliedFilters.isEmpty()) {
+            TextButton(onClick = { onFiltersApplied(SeerrDiscoverFilters()) }) { Text("Reset filters") }
         }
         if (destination.kind == "Trending") {
-            Text("Media type", style = MaterialTheme.typography.titleSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("all" to "All", "movie" to "Movies", "tv" to "TV Shows").forEach { (value, label) ->
-                    FilterChip(selected = filter == value, onClick = { onFilterChange(value) },
-                        label = { Text(label) })
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    listOf("all" to "All", "movie" to "Movies", "tv" to "TV Shows").forEach { (value, label) ->
+                        FilterChip(selected = filter == value, onClick = { onFilterChange(value) },
+                            label = { Text(label) })
+                    }
                 }
-            }
-            Text("Trending period", style = MaterialTheme.typography.titleSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("day" to "Today", "week" to "This week").forEach { (value, label) ->
-                    FilterChip(selected = trendingWindow == value,
-                        onClick = {
-                            trendingWindow = value
-                            onPageChange(1)
-                        }, label = { Text(label) })
+                Spacer(Modifier.width(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    listOf("day" to "Today", "week" to "This week").forEach { (value, label) ->
+                        FilterChip(selected = trendingWindow == value,
+                            onClick = {
+                                onTrendingWindowChange(value)
+                                onPageChange(1)
+                            }, label = { Text(label) })
+                    }
                 }
             }
         }
-        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (loading) {
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+            // Keep the outgoing results' approximate geometry during activity recreation.
+            if (result == null) Spacer(Modifier.fillMaxWidth().height((retainedRowCount.coerceAtLeast(20) * 104).dp))
+        }
         result?.error?.let { error ->
             BastionErrorState(error)
             TextButton(onClick = { pageCache.remove(cacheKey); retryCount++ }) { Text("Retry") }
@@ -1586,48 +1902,123 @@ private fun SeerrBrowseScreen(
 }
 
 @Composable
+private fun BastionGenreCard(name: String, isTv: Boolean, onClick: () -> Unit) {
+    val colors = if (isTv) listOf(
+        MaterialTheme.colorScheme.tertiaryContainer,
+        MaterialTheme.colorScheme.secondaryContainer,
+        MaterialTheme.colorScheme.primaryContainer
+    ) else listOf(
+        MaterialTheme.colorScheme.primaryContainer,
+        MaterialTheme.colorScheme.secondaryContainer,
+        MaterialTheme.colorScheme.tertiaryContainer
+    )
+    Surface(onClick = onClick, modifier = Modifier.width(156.dp).height(94.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = colors.first()) {
+        Box(Modifier.fillMaxSize().background(Brush.linearGradient(colors))) {
+            Text(name, Modifier.align(Alignment.BottomStart).padding(12.dp),
+                style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
 private fun SeerrDiscoverScreen(instance: ServiceConfig,
     results: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
     searching: Boolean, onSearchingChange: (Boolean) -> Unit,
     refresh: Int, onRefreshingChange: (Boolean) -> Unit,
     onRefreshFeedback: (String) -> Unit,
     onBrowse: (SeerrBrowseDestination) -> Unit,
-    onMediaClick: (SeerrRecentRequest) -> Unit) {
-    val sections = remember { listOf("Trending", "Popular Movies", "Popular TV Shows",
-        "Upcoming Movies", "Upcoming TV Shows") }
-    var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
-    var query by remember(instance.id) { mutableStateOf("") }
-    var searchResult by remember(instance.id) { mutableStateOf<SeerrDiscoverResult?>(null) }
+    onMediaClick: (SeerrRecentRequest) -> Unit,
+    scrollState: androidx.compose.foundation.lazy.LazyListState,
+    genreScrollStates: MutableMap<String, androidx.compose.foundation.ScrollState>,
+    onSearchBarVisibilityChange: (Boolean) -> Unit) {
+    val sections = remember { listOf("Trending", "Popular Movies", "Upcoming Movies",
+        "Popular TV Shows", "Upcoming TV Shows") }
+    val localContext = LocalContext.current
+    val discoverPrefs = remember(localContext) {
+        localContext.getSharedPreferences("bastion_seerr_local", android.content.Context.MODE_PRIVATE)
+    }
+    var showWatchlist by remember(instance.id) {
+        mutableStateOf(discoverPrefs.getBoolean("discover_watchlist_${instance.id}", true))
+    }
+    DisposableEffect(instance.id) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+            if (key == "discover_watchlist_${instance.id}")
+                showWatchlist = prefs.getBoolean(key, true)
+        }
+        discoverPrefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { discoverPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    var category by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("For You") }
+    val movieGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) {
+        genreScrollStates["${instance.id}:movie-genre"] ?: androidx.compose.foundation.ScrollState(0)
+    }
+    val tvGenreScroll = androidx.compose.runtime.saveable.rememberSaveable(instance.id, saver = androidx.compose.foundation.ScrollState.Saver) {
+        genreScrollStates["${instance.id}:tv-genre"] ?: androidx.compose.foundation.ScrollState(0)
+    }
+    SideEffect {
+        genreScrollStates["${instance.id}:movie-genre"] = movieGenreScroll
+        genreScrollStates["${instance.id}:tv-genre"] = tvGenreScroll
+    }
+    var query by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("") }
+    // Search owns an independent LazyListState in the destination host. Clearing
+    // its query on exit does not mutate the underlying Discover scroll position.
+    var previousSearching by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf(false) }
+    LaunchedEffect(searching) {
+        if (!searching && previousSearching) query = ""
+        previousSearching = searching
+    }
+    var searchResult by androidx.compose.runtime.saveable.rememberSaveable(instance.id, query, saver = seerrSearchResultSaver) { mutableStateOf<SeerrDiscoverResult?>(null) }
     var searchLoading by remember(instance.id) { mutableStateOf(false) }
-    var studioQuery by remember(instance.id) { mutableStateOf("") }
+    var studioQuery by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("") }
     var studioOptions by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var movieGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var tvGenres by remember(instance.id) { mutableStateOf<List<SeerrBrowseOption>>(emptyList()) }
     var browseError by remember(instance.id) { mutableStateOf<String?>(null) }
-    LaunchedEffect(instance.id) {
+    var watchlistFeed by remember(instance.id) { mutableStateOf<SeerrBrowsePage?>(null) }
+    LaunchedEffect(instance, showWatchlist, refresh, searching) {
+        if (searching) return@LaunchedEffect
+        watchlistFeed = if (showWatchlist) SeerrBrowseClient.browse(instance,
+            "Plex Watchlist", 1, overridePath = "/discover/watchlist?") else null
+    }
+    LaunchedEffect(instance.id, searching) {
+        if (searching) return@LaunchedEffect
         val movies = SeerrBrowseClient.options(instance, "genres/movie")
         val tv = SeerrBrowseClient.options(instance, "genres/tv")
         movieGenres = movies.getOrDefault(emptyList())
         tvGenres = tv.getOrDefault(emptyList())
         browseError = movies.exceptionOrNull()?.message ?: tv.exceptionOrNull()?.message
     }
-    LaunchedEffect(instance.id, studioQuery) {
+    LaunchedEffect(instance.id, studioQuery, searching) {
+        if (searching) return@LaunchedEffect
         if (studioQuery.trim().length < 2) { studioOptions = emptyList(); return@LaunchedEffect }
         kotlinx.coroutines.delay(350)
         studioOptions = SeerrBrowseClient.searchStudios(instance, studioQuery.trim()).getOrDefault(emptyList())
     }
     LaunchedEffect(instance, searching, query) {
-        if (!searching || query.trim().length < 2) {
+        val searchText = query.trim()
+        if (!searching || searchText.length < 2) {
             searchResult = null
             searchLoading = false
         } else {
-            searchLoading = true
-            kotlinx.coroutines.delay(350)
-            searchResult = SeerrClient.discover(instance, "Search", query)
-            searchLoading = false
+            val cacheKey = "search:${instance.id}:${searchText}"
+            val cached = results[cacheKey] ?: searchResult
+            if (cached != null) {
+                searchResult = cached
+                searchLoading = false
+            } else {
+                searchLoading = true
+                kotlinx.coroutines.delay(350)
+                val response = SeerrClient.discover(instance, "Search", searchText)
+                if (response.error == null) results[cacheKey] = response
+                searchResult = response
+                searchLoading = false
+            }
         }
     }
-    LaunchedEffect(instance, refresh) {
+    LaunchedEffect(instance, refresh, searching) {
+        if (searching) return@LaunchedEffect
         val startedAt = android.os.SystemClock.elapsedRealtime()
         val failures = java.util.Collections.synchronizedList(mutableListOf<String>())
         val requested = sections.filter { refresh > 0 || it !in results }
@@ -1645,8 +2036,10 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     }
                 }
             }
-            if (searching && query.trim().length >= 2) {
-                val response = SeerrClient.discover(instance, "Search", query)
+            if (refresh > 0 && searching && query.trim().length >= 2) {
+                val searchText = query.trim()
+                val response = SeerrClient.discover(instance, "Search", searchText)
+                if (response.error == null) results["search:${instance.id}:${searchText}"] = response
                 searchResult = response
                 if (response.error != null) failures.add("Search: ${response.error}")
             }
@@ -1712,12 +2105,27 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
             }
         }
         if (!searching) {
-        Text("Find something worth watching", modifier = Modifier.padding(horizontal = 16.dp),
+        Text("Find your next favorite", modifier = Modifier.padding(horizontal = 16.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium)
+        Surface(onClick = { onSearchingChange(true) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                .onGloballyPositioned { coordinates ->
+                    onSearchBarVisibilityChange(coordinates.boundsInWindow().bottom > 0f)
+                },
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            Row(Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Search, contentDescription = null)
+                Text("Search movies and TV shows",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(BastionSpacing.small)) {
-            listOf("All", "Movies", "TV Shows").forEach { choice ->
+            listOf("For You", "Movies", "TV Shows", "Genres", "Studios", "Networks").forEach { choice ->
                 FilterChip(selected = category == choice, onClick = { category = choice },
                     label = { Text(choice) },
                     leadingIcon = if (category == choice) {
@@ -1728,26 +2136,33 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Browse by genre", style = MaterialTheme.typography.titleLarge)
-            browseError?.let { Text("Genres: $it", color = MaterialTheme.colorScheme.error) }
+            if (category in listOf("For You", "Movies", "TV Shows", "Genres"))
+                Text("Browse by genre", style = MaterialTheme.typography.titleLarge)
+            if (category in listOf("For You", "Movies", "TV Shows", "Genres"))
+                browseError?.let { Text("Genres: $it", color = MaterialTheme.colorScheme.error) }
+            if (category in listOf("For You", "Movies", "Genres")) {
             Text("Movie genres", style = MaterialTheme.typography.titleSmall)
-            Row(Modifier.horizontalScroll(rememberScrollState()),
+            Row(Modifier.horizontalScroll(movieGenreScroll),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 movieGenres.forEach { option ->
-                    AssistChip(onClick = {
+                    BastionGenreCard(option.name, isTv = false) {
                         onBrowse(SeerrBrowseDestination("Movie genre", "${option.name} Movies", option.id))
-                    }, label = { Text(option.name) })
+                    }
                 }
             }
+            }
+            if (category in listOf("For You", "TV Shows", "Genres")) {
             Text("TV genres", style = MaterialTheme.typography.titleSmall)
-            Row(Modifier.horizontalScroll(rememberScrollState()),
+            Row(Modifier.horizontalScroll(tvGenreScroll),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 tvGenres.forEach { option ->
-                    AssistChip(onClick = {
+                    BastionGenreCard(option.name, isTv = true) {
                         onBrowse(SeerrBrowseDestination("TV genre", "${option.name} TV Shows", option.id))
-                    }, label = { Text(option.name) })
+                    }
                 }
             }
+            }
+            if (category == "Studios") {
             Text("Browse by studio", style = MaterialTheme.typography.titleSmall)
             OutlinedTextField(value = studioQuery, onValueChange = { studioQuery = it },
                 label = { Text("Search movie studios") }, singleLine = true,
@@ -1757,6 +2172,8 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                     onBrowse(SeerrBrowseDestination("Studio", "${option.name} Movies", option.id))
                 }) { Text(option.name) }
             }
+            }
+            if (category == "Networks") {
             Text("Browse TV by network", style = MaterialTheme.typography.titleSmall)
             Row(Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1769,23 +2186,29 @@ private fun SeerrDiscoverScreen(instance: ServiceConfig,
                 }
             }
         }
-        sections.filter { section ->
-            category == "All" || section == "Trending" ||
+        }
+        (sections + listOfNotNull("Plex Watchlist".takeIf { showWatchlist })).filter { section ->
+            category == "For You" || section == "Trending" ||
                 (category == "Movies" && section.contains("Movies")) ||
                 (category == "TV Shows" && section.contains("TV"))
-        }.forEach { section ->
+        }.filter { category !in listOf("Genres", "Studios", "Networks") }
+            .forEach { section ->
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
                     Text(section, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    TextButton(onClick = {
-                        onBrowse(SeerrBrowseDestination(section, section))
-                    }) { Text("View all") }
+                    if (section !in listOf("Plex Watchlist", "Recently Added"))
+                        TextButton(onClick = {
+                            onBrowse(SeerrBrowseDestination(section, section))
+                        }) { Text("View all") }
                 }
-                val result = results[section]
+                val result = when (section) {
+                    "Plex Watchlist" -> watchlistFeed?.let { SeerrDiscoverResult(it.items, it.error) }
+                    else -> results[section]
+                }
                 val visibleItems = result?.items?.filter {
-                    section != "Trending" || category == "All" ||
+                    section != "Trending" || category == "For You" ||
                         (category == "Movies" && !it.isTv) ||
                         (category == "TV Shows" && it.isTv)
                 }.orEmpty()
@@ -1923,19 +2346,31 @@ private fun SeerrIssuesScreen(instance: ServiceConfig) {
 @Composable
 private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
     discoverResults: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrDiscoverResult>,
+    genreScrollStates: MutableMap<String, androidx.compose.foundation.ScrollState>,
+    requestPageCache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrRecentResult>,
+    requestCountCache: androidx.compose.runtime.snapshots.SnapshotStateMap<String, SeerrRequestCounts>,
     settingsSection: String, onSettingsSectionChange: (String) -> Unit,
     searching: Boolean, onSearchingChange: (Boolean) -> Unit,
     discoverRefresh: Int, onDiscoverRefreshingChange: (Boolean) -> Unit,
     onDiscoverRefreshFeedback: (String) -> Unit,
     onBrowse: (SeerrBrowseDestination) -> Unit,
-    onRequestClick: (SeerrRecentRequest) -> Unit) {
+    onRequestClick: (SeerrRecentRequest) -> Unit,
+    scrollState: androidx.compose.foundation.lazy.LazyListState,
+    onSearchBarVisibilityChange: (Boolean) -> Unit) {
     var page by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableIntStateOf(0) }
     var filter by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("All") }
     var mediaType by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("all") }
     var sortOrder by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("added") }
     var sortDirection by androidx.compose.runtime.saveable.rememberSaveable(instance.id) { mutableStateOf("desc") }
-    var result by remember(instance.id) { mutableStateOf<SeerrRecentResult?>(null) }
-    var counts by remember(instance.id) { mutableStateOf<SeerrRequestCounts?>(null) }
+    val requestPrefsContext = LocalContext.current
+    val initialRequestPageSize = remember(instance.id, requestPrefsContext) {
+        requestPrefsContext.getSharedPreferences(
+            "bastion_seerr_local", android.content.Context.MODE_PRIVATE
+        ).getInt("requests_page_size_${instance.id}", 25).takeIf { it in listOf(25, 50, 100) } ?: 25
+    }
+    val initialRequestKey = "${instance.id}:0:${initialRequestPageSize}:All:all:added:desc"
+    var result by remember(instance.id) { mutableStateOf<SeerrRecentResult?>(requestPageCache[initialRequestKey]) }
+    var counts by remember(instance.id) { mutableStateOf<SeerrRequestCounts?>(requestCountCache[instance.id]) }
     var loading by remember(instance.id) { mutableStateOf(false) }
     var refresh by remember(instance.id) { mutableIntStateOf(0) }
     var managingRequest by remember(instance.id) { mutableStateOf<SeerrRecentRequest?>(null) }
@@ -1958,20 +2393,35 @@ private fun SeerrManagementScreen(instance: ServiceConfig, destination: Int,
         pagePreferences.registerOnSharedPreferenceChangeListener(listener)
         onDispose { pagePreferences.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    LaunchedEffect(instance, destination, page, pageSize, filter, mediaType, sortOrder, sortDirection, refresh) {
+    val requestCacheKey = "${instance.id}:${page}:${pageSize}:${filter}:${mediaType}:${sortOrder}:${sortDirection}"
+    LaunchedEffect(instance, destination, requestCacheKey, refresh) {
         if (destination != 1) return@LaunchedEffect
+        val cached = if (refresh == 0) requestPageCache[requestCacheKey] else null
+        if (cached != null) {
+            result = cached
+            loading = false
+            return@LaunchedEffect
+        }
         loading = true
         result = SeerrClient.requestPage(instance, pageSize, page * pageSize, filter,
             mediaType, sortOrder, sortDirection)
+        result?.let { if (it.error == null) requestPageCache[requestCacheKey] = it }
         loading = false
     }
     LaunchedEffect(instance, destination, refresh) {
-        if (destination == 1) counts = SeerrClient.requestCounts(instance).getOrNull()
+        if (destination == 1) {
+            counts = if (refresh == 0) requestCountCache[instance.id] else null
+            if (counts == null) {
+                counts = SeerrClient.requestCounts(instance).getOrNull()
+                counts?.let { requestCountCache[instance.id] = it }
+            }
+        }
     }
     Column(verticalArrangement = Arrangement.spacedBy(BastionSpacing.medium)) {
         if (destination == 0) {
             SeerrDiscoverScreen(instance, discoverResults, searching, onSearchingChange,
-                discoverRefresh, onDiscoverRefreshingChange, onDiscoverRefreshFeedback, onBrowse, onRequestClick)
+                discoverRefresh, onDiscoverRefreshingChange, onDiscoverRefreshFeedback, onBrowse, onRequestClick,
+                scrollState, genreScrollStates, onSearchBarVisibilityChange)
         } else if (destination == 2) {
             SeerrIssuesScreen(instance)
         } else if (destination == 3) {
