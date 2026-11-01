@@ -499,14 +499,14 @@ private fun BastionApp() {
                 serviceId = selectedMediaId,
                 tab = if (selectedMediaId == null) tab else seerrTab,
                 page = when {
-                    openSeerrRequest != null -> "media:${seerrMediaStack.size}:${openSeerrRequest.tmdbId}"
+                    selectedMediaId != null && seerrTab == 0 && openSeerrRequest != null -> "media:${seerrMediaStack.size}:${openSeerrRequest.tmdbId}"
                     selectedMediaId != null && seerrTab == 0 && seerrBrowse != null -> "browse:${seerrBrowse!!.kind}:${seerrBrowse!!.id}:${seerrBrowse!!.page}:${seerrBrowseFilter}:${seerrAppliedFilters.hashCode()}"
                     selectedMediaId != null && seerrTab == 4 -> seerrSettingsSection
                     selectedMediaId == null && tab == 2 -> settingsPage
                     else -> "root"
                 },
                 depth = when {
-                    openSeerrRequest != null -> seerrMediaStack.size + if (seerrBrowse != null) 1 else 0
+                    selectedMediaId != null && seerrTab == 0 && openSeerrRequest != null -> seerrMediaStack.size + if (seerrBrowse != null) 1 else 0
                     selectedMediaId != null && seerrTab == 0 && seerrBrowse != null -> 1
                     selectedMediaId != null && seerrTab == 4 -> when (seerrSettingsSection) {
                         "root" -> 0
