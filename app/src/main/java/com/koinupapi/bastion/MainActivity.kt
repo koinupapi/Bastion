@@ -519,6 +519,7 @@ private fun BastionApp() {
                 },
             )
             BastionNavigationHost(destination = activeDestination, modifier = Modifier.fillMaxSize()) { destination ->
+                Box(Modifier.fillMaxSize()) {
                 // AnimatedContent keeps outgoing destinations composed during their exit.
                 // Capture the media for THIS destination so popping the live stack does
                 // not turn the outgoing details screen into Discover mid-transition.
@@ -1080,8 +1081,7 @@ private fun BastionApp() {
                         }) { screenContent() }
                     }
                 } else screenContent()
-            }
-            val activeTabs = if (selectedMediaId != null && savedInstances.any { it.id == selectedMediaId && it.type == "Seerr" }) {
+                val activeTabs = if (destination.serviceId != null && savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) {
                 seerrLabels.mapIndexed { index, label ->
                     BastionNavDestination(
                         label = label,
@@ -1092,16 +1092,16 @@ private fun BastionApp() {
                             3 -> Icons.Default.People
                             else -> Icons.Default.Settings
                         },
-                        selected = seerrTab == index,
+                        selected = destination.tab == index,
                         onClick = { seerrTab = index },
                     )
                 }
-            } else if (selectedMediaId == null && (tab != 2 || settingsPage == "Settings")) {
+            } else if (destination.serviceId == null && (destination.tab != 2 || destination.page == "Settings")) {
                 labels.mapIndexed { index, label ->
                     BastionNavDestination(
                         label = label,
                         icon = icons[index],
-                        selected = tab == index,
+                        selected = destination.tab == index,
                         onClick = {
                             tab = index
                             selectedMediaId = null
@@ -1113,12 +1113,13 @@ private fun BastionApp() {
                 }
             } else emptyList()
             BastionShellBottomBar(
-                visible = activeTabs.isNotEmpty() && openSeerrRequest == null && (!hideNavOnScroll || navVisible),
+                visible = activeTabs.isNotEmpty() && !destination.page.startsWith("media:") && (!hideNavOnScroll || navVisible),
                 destinations = activeTabs,
                 showAllLabels = showAllNavLabels,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
-        }
+                }
+            }
         }
     }
     }
