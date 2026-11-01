@@ -30,4 +30,33 @@ class BastionScreenDestinationTest {
         assertNotEquals(one.identity, another.identity)
         assertNotEquals(one.identity, otherTab.identity)
     }
+    @Test fun backRevealsOriginalBrowseEntry() {
+        val discover = BastionScreenDestination("seerr", 0, "root", 0)
+        val browse = BastionScreenDestination("seerr", 0, "browse:genre:28:1:all:0", 1)
+        val details = BastionScreenDestination("seerr", 0, "media:1:42", 2)
+        val history = reconcileBastionNavigation(
+            reconcileBastionNavigation(
+                reconcileBastionNavigation(emptyList(), discover), browse
+            ), details
+        )
+        assertEquals(listOf(discover, browse, details), history)
+        assertEquals(listOf(discover, browse), reconcileBastionNavigation(history, browse))
+    }
+
+    @Test fun filterChangeReplacesBrowseArgumentsWithoutPushing() {
+        val discover = BastionScreenDestination("seerr", 0, "root", 0)
+        val browse = BastionScreenDestination("seerr", 0, "browse:genre:28:1:all:0", 1)
+        val filtered = BastionScreenDestination("seerr", 0, "browse:genre:28:3:available:55", 1)
+        assertEquals(listOf(discover, filtered),
+            reconcileBastionNavigation(listOf(discover, browse), filtered))
+    }
+
+    @Test fun siblingNavigationReplacesTopWithoutGrowingStack() {
+        val discover = BastionScreenDestination("seerr", 0, "root", 0)
+        val action = BastionScreenDestination("seerr", 0, "browse:genre:28:1:all:0", 1)
+        val comedy = BastionScreenDestination("seerr", 0, "browse:genre:35:1:all:0", 1)
+        assertEquals(listOf(discover, comedy),
+            reconcileBastionNavigation(listOf(discover, action), comedy))
+    }
+
 }
