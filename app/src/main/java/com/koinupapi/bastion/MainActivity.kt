@@ -677,7 +677,19 @@ private fun BastionApp() {
             LazyColumn(
                 state = contentScroll,
                 overscrollEffect = rememberOverscrollEffect(),
-                modifier = Modifier.fillMaxSize().nestedScroll(navigationScrollConnection).then(
+                modifier = Modifier.fillMaxSize()
+                    .nestedScroll(remember(sheetSearch, destination.identity) {
+                        object : NestedScrollConnection {
+                            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                                if (sheetSearch && source == NestedScrollSource.UserInput && available.y != 0f) {
+                                    seerrKeyboard?.hide()
+                                    seerrFocusManager.clearFocus(force = true)
+                                }
+                                return Offset.Zero
+                            }
+                        }
+                    })
+                    .nestedScroll(navigationScrollConnection).then(
                     if (destination.serviceId != null && destination.tab == 0 && destination.page == "root" &&
                         savedInstances.any { it.id == destination.serviceId && it.type == "Seerr" }) Modifier else Modifier.padding(insets)
                 ),
